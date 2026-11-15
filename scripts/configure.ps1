@@ -53,6 +53,29 @@ function Test-Value($s, [string]$value) {
         'string' {
             if ($value -match '#') { return "can't contain '#'" }
         }
+        'roots' {
+            # name=folder;name=folder, the same rules as app/backend/app/services/roots.py.
+            if ($value -match '[#"]') { return "can't contain '#' or quotes" }
+            $seen = @{}
+            foreach ($entry in ($value -split ';')) {
+                $entry = $entry.Trim()
+                if (-not $entry) { continue }
+                $name, $folder = $entry -split '=', 2
+                $name = "$name".Trim(); $folder = "$folder".Trim()
+                if (-not $folder) { return "entry '$entry' must look like name=folder" }
+                if ($name -cnotmatch '^[a-z0-9][a-z0-9-]{1,31}$') { return "root name '$name' must be 2-32 characters of lowercase letters, digits and -" }
+                if ($name -eq 'workspace') { return "root name 'workspace' is reserved for ARCHEION_WORKSPACE_ROOT" }
+                if ($seen.ContainsKey($name)) { return "root '$name' is listed twice" }
+                $seen[$name] = $true
+                $full = if ([IO.Path]::IsPathRooted($folder)) { $folder } else { Join-Path $RepoRoot $folder }
+                if (-not (Test-Path -LiteralPath $full -PathType Container)) { return "root '$name': $folder isn't an existing folder" }
+                $full = (Resolve-Path -LiteralPath $full).Path.TrimEnd([char]92, [char]47)
+                if ([IO.Path]::GetPathRoot($full).TrimEnd([char]92, [char]47) -eq $full) { return "root '$name' is a whole drive; grant the folder that holds the projects" }
+                if ($full -eq $HOME.TrimEnd([char]92, [char]47)) { return "root '$name' is your whole home folder; grant the folder that holds the projects" }
+                $repo = $RepoRoot.TrimEnd([char]92, [char]47)
+                if ($full -eq $repo -or $full.StartsWith("$repo\", [StringComparison]::OrdinalIgnoreCase)) { return "root '$name' is inside Archeion's own folder" }
+            }
+        }
     }
     return $null
 }
@@ -119,7 +142,8 @@ if (-not $Defaults) {
                 }
                 $answer = "$answer".Trim()
                 if ($answer -eq '') { $answer = $values[$s.name] }
-                $problem = if ($answer -eq '' -and $s.type -eq 'secret') { $null } else { Test-Value $s $answer }
+                elseif ($answer -eq '-' -and $s.type -eq 'roots') { $answer = '' }
+                $problem = if ($answer -eq '' -and $s.type -in @('secret', 'roots')) { $null } else { Test-Value $s $answer }
                 if ($problem) { Write-Host "  $($s.name) $problem. Try again." -ForegroundColor Yellow; continue }
                 if ($s.type -eq 'host' -and $answer -eq '0.0.0.0') {
                     Write-Host '  Note: 0.0.0.0 exposes the backend to your network. Login is still required.' -ForegroundColor Yellow
@@ -136,7 +160,7 @@ $errors = New-Object System.Collections.Generic.List[string]
 foreach ($g in $schema.groups) {
     foreach ($s in $g.settings) {
         $v = $values[$s.name]
-        if ($s.type -eq 'secret' -and $v -eq '') { continue }
+        if ($s.type -in @('secret', 'roots') -and $v -eq '') { continue }
         $problem = Test-Value $s $v
         if ($problem) { $errors.Add("$($s.name) $problem (value: $v)") }
     }

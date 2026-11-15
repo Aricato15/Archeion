@@ -8,6 +8,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .paths import REPO_ROOT
+from .services.roots import Roots, parse_roots
 
 
 class Settings(BaseSettings):
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     # The folder holding all projects (relative to the repo root). Registered project paths
     # must stay inside it (ADR 0006).
     workspace_root: str = ".."
+    # More folders projects may live in, as name=folder;name=folder (ADR 0008). A registry
+    # page picks one with `root: <name>`. Machine-specific, so only ever set in .env.
+    roots: str = ""
     # The private registry folder (gitignored; setup.bat creates it from registry.example/).
     registry_dir: str = "registry"
 
@@ -53,6 +57,10 @@ class Settings(BaseSettings):
     def workspace_dir(self) -> Path:
         p = Path(self.workspace_root)
         return (p if p.is_absolute() else (self.repo_root / p)).resolve()
+
+    @cached_property
+    def project_roots(self) -> Roots:
+        return parse_roots(self.roots, self.repo_root, self.workspace_dir)
 
     @cached_property
     def db_file(self) -> Path:

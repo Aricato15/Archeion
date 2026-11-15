@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ..paths import ALLOWED_EXT, MARKDOWN_EXT, MAX_FILE_BYTES, DocNotFound, DocPathError, validate_rel_path
 from .registry import REGISTRY_ID, SELF_ID, Project, Registry, load_registry, unregistered
+from .roots import Roots
 
 # Sources that are folders of this repo: every allowed file in them is served.
 FULL_KINDS = {SELF_ID, REGISTRY_ID}
@@ -155,11 +156,19 @@ class Source:
 class SourceManager:
     """The registry plus the sources built from it; reloaded when registry pages change."""
 
-    def __init__(self, docs_root: Path, registry_root: Path, repo_root: Path, workspace_root: Path) -> None:
+    def __init__(
+        self,
+        docs_root: Path,
+        registry_root: Path,
+        repo_root: Path,
+        workspace_root: Path,
+        roots: Roots | None = None,
+    ) -> None:
         self.docs_root = docs_root
         self.registry_root = registry_root
         self.repo_root = repo_root
         self.workspace_root = workspace_root
+        self.roots = roots or Roots(workspace=workspace_root.resolve())
         self._lock = threading.Lock()
         self.version = 0
         self.changed = asyncio.Event()
@@ -168,7 +177,7 @@ class SourceManager:
         self.reload()
 
     def reload(self) -> None:
-        reg = load_registry(self.registry_root, self.repo_root, self.workspace_root)
+        reg = load_registry(self.registry_root, self.repo_root, self.roots)
         sources = {
             SELF_ID: Source(SELF_ID, "Archeion", self.docs_root, SELF_ID),
             REGISTRY_ID: Source(REGISTRY_ID, "Registry (private)", self.registry_root, REGISTRY_ID),
@@ -210,8 +219,8 @@ class SourceManager:
                 best = (s, rel)
         return best
 
-    def unregistered(self) -> list[dict]:
-        return unregistered(self.registry, self.repo_root, self.workspace_root)
+    def unregistered(self, only_root: str | None = None) -> list[dict]:
+        return unregistered(self.registry, self.repo_root, self.roots, only_root)
 
     def is_registry_page(self, source_id: str, rel: str) -> bool:
         return (

@@ -9,7 +9,7 @@ from app.paths import REPO_ROOT
 
 SCHEMA = json.loads((REPO_ROOT / "scripts" / "settings.schema.json").read_text(encoding="utf-8"))
 SETTINGS = [s for g in SCHEMA["groups"] for s in g["settings"]]
-TYPES = {"host", "port", "int", "number", "relpath", "string", "secret"}
+TYPES = {"host", "port", "int", "number", "relpath", "string", "roots", "secret"}
 
 
 def test_schema_entries_are_well_formed():

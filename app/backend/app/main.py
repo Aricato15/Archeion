@@ -79,7 +79,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         limiter=LoginLimiter(settings.login_max_failures, settings.login_window_seconds),
         version=version,
         sources=SourceManager(
-            settings.docs_root, settings.registry_root, settings.repo_root, settings.workspace_dir
+            settings.docs_root,
+            settings.registry_root,
+            settings.repo_root,
+            settings.workspace_dir,
+            settings.project_roots,
         ),
     )
 

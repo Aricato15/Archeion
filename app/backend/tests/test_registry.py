@@ -115,7 +115,7 @@ def test_cli_projects(settings, capsys):
     assert main(["projects", "scan", "--write"], settings) == 0
     assert page.exists() and "path: ../gamma" in page.read_text(encoding="utf-8")
     assert main(["projects", "scan"], settings) == 0
-    assert "Every project in the workspace is registered." in capsys.readouterr().out
+    assert "Every project in your roots is registered." in capsys.readouterr().out
 
 
 def test_templates_are_ignored_and_registry_is_a_source(settings, authed):

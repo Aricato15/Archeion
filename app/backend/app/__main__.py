@@ -95,7 +95,11 @@ def _print_json(data: object) -> None:
 
 def _sources(settings: Settings) -> SourceManager:
     return SourceManager(
-        settings.docs_root, settings.registry_root, settings.repo_root, settings.workspace_dir
+        settings.docs_root,
+        settings.registry_root,
+        settings.repo_root,
+        settings.workspace_dir,
+        settings.project_roots,
     )
 
 
@@ -261,7 +265,8 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
 
     def show(pid: str, depth: int) -> None:
         p = reg.projects[pid]
-        flags = [p.status] + ([] if p.available or not p.path else ["path missing"])
+        flags = [p.status] + ([f"root {p.root}"] if p.root else [])
+        flags += [] if p.available or not p.path else ["not available"]
         extra = f" -> {', '.join(p.depends_on)}" if p.depends_on else ""
         print(f"{'  ' * depth}- {p.id} ({', '.join(flags)}){extra}")
         for child in sorted(p.children):
@@ -279,10 +284,11 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
         for p in sorted(loose, key=lambda x: x.id):
             show(p.id, 1)
     for w in reg.warnings:
-        print(f"warning: registry/{w['page']}: {w['message']}", file=sys.stderr)
+        where = f"registry/{w['page']}" if w["page"] else "settings"
+        print(f"warning: {where}: {w['message']}", file=sys.stderr)
     missing = manager.unregistered()
     if missing:
-        print(f"\n{len(missing)} folder(s) in the workspace aren't registered. Run: projects scan")
+        print(f"\n{len(missing)} folder(s) in your roots aren't registered. Run: projects scan")
     return 0
 
 
@@ -290,9 +296,21 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
     """Show (or, with --write, create) stub registry pages for unregistered folders.
     Existing pages are never touched."""
     manager = _sources(settings)
-    missing = manager.unregistered()
+    if args.root and manager.roots.get(args.root) is None:
+        known = ", ".join(name for name, _ in manager.roots.all())
+        raise ValueError(f"no root named '{args.root}' (configured: {known}; see ARCHEION_ROOTS)")
+    missing = manager.unregistered(args.root)
+    if args.only:
+        wanted = {n.lower() for n in args.only}
+        unknown = wanted - {item["name"] for item in missing}
+        if unknown:
+            raise ValueError(
+                f"not an unregistered folder: {', '.join(sorted(unknown))} (projects scan lists them)"
+            )
+        missing = [item for item in missing if item["name"] in wanted]
     if not missing:
-        print("Every project in the workspace is registered.")
+        where = f"the root '{args.root}'" if args.root else "your roots"
+        print(f"Every project in {where} is registered.")
         return 0
     target_dir = settings.registry_root / "projects"
     today = date.today().isoformat()
@@ -300,7 +318,8 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
         page = target_dir / f"{item['name']}.md"
         rel = page.relative_to(settings.repo_root).as_posix()
         parent = f", sub-project of {item['parent']}" if item["parent"] else ""
-        label = f"{item['name']} ({item['path']}{parent})"
+        where = f"{item['root']}:{item['path']}" if item["root"] else item["path"]
+        label = f"{item['name']} ({where}{parent})"
         if page.exists():
             print(f"skip   {label}: {rel} already exists")
             continue
@@ -312,8 +331,8 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
             print(f"would create {label}: {rel}")
     if not args.write:
         print(
-            "\nNothing written. Run again with --write to create these pages,"
-            " then fill in group and depends_on."
+            "\nNothing written. Run again with --write to create these pages (add --only <name>"
+            " to pick some), then fill in group and depends_on."
         )
     return 0
 
@@ -371,8 +390,10 @@ def build_parser() -> argparse.ArgumentParser:
     pl = projects.add_parser("list", help="registered projects, by group, with warnings")
     pl.add_argument("--json", action="store_true")
     pl.set_defaults(func=cmd_projects_list)
-    ps = projects.add_parser("scan", help="find unregistered workspace folders and sub-projects")
+    ps = projects.add_parser("scan", help="find unregistered project folders and sub-projects")
     ps.add_argument("--write", action="store_true", help="create stub pages for them")
+    ps.add_argument("--root", help="only scan this root ('workspace' or a name from ARCHEION_ROOTS)")
+    ps.add_argument("--only", nargs="+", metavar="NAME", help="only these folders (names as scan lists them)")
     ps.set_defaults(func=cmd_projects_scan)
     return parser
 

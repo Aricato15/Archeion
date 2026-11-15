@@ -8,7 +8,8 @@ body holds the cross-project notes (ADR 0006). Files starting with "_" are templ
     ---
     name: example-collector                       # id; defaults to the file name
     title: Example collector                      # optional display name
-    path: ../example-service/collectors/example   # relative to this repo's root
+    path: ../example-service/collectors/example   # relative to this repo's root, or to `root`
+    root: private                                 # optional: a folder granted in ARCHEION_ROOTS
     parent: example-service                       # makes this a sub-project
     group: example-system                         # a groups/<group>.md page
     status: active                                # active | paused | archived | planned
@@ -28,6 +29,8 @@ from datetime import date
 from pathlib import Path
 
 import yaml
+
+from .roots import WORKSPACE, Roots
 
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.S)
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
@@ -95,6 +98,7 @@ class Project:
     title: str
     page: str  # docs-relative path of its registry page
     path: str | None = None
+    root: str | None = None  # a named root (ADR 0008); None: path is relative to this repo
     parent: str | None = None
     group: str | None = None
     status: str = "active"
@@ -104,7 +108,7 @@ class Project:
     docs_dir: str = "docs"
     verified: str | None = None
     summary: str = ""
-    available: bool = False  # path resolves to a folder inside the workspace
+    available: bool = False  # path resolves to a folder inside its root
     children: list[str] = field(default_factory=list)
     used_by: list[str] = field(default_factory=list)
     dir: Path | None = field(default=None, repr=False)
@@ -152,22 +156,41 @@ class Registry:
         return best
 
 
-def _resolve_project_dir(repo_root: Path, workspace_root: Path, raw: str) -> tuple[Path | None, str | None]:
+def _as_roots(roots: Roots | Path) -> Roots:
+    return roots if isinstance(roots, Roots) else Roots(workspace=roots.resolve())
+
+
+def _resolve_project_dir(
+    repo_root: Path, roots: Roots, raw: str, root: str | None = None
+) -> tuple[Path | None, str | None]:
+    """Without `root`, `raw` is relative to this repo and must stay in the workspace (ADR
+    0006). With `root`, it's relative to that granted folder and must stay in it (ADR 0008)."""
     if re.match(r"^[A-Za-z]:", raw) or raw.startswith(("/", "\\")):
+        if root:
+            return None, f"path must be relative to the root '{root}' (e.g. my-service)"
         return None, "path must be relative to this repo's root (e.g. ../my-service)"
-    target = (repo_root / raw).resolve()
-    if not target.is_relative_to(workspace_root):
-        return None, "path points outside the workspace"
-    if target == repo_root.resolve():
+    if root:
+        bound = roots.get(root)
+        if bound is None:
+            return None, f"root '{root}' isn't configured on this machine (ARCHEION_ROOTS in .env)"
+        target, outside = (bound / raw).resolve(), f"path points outside the root '{root}'"
+    else:
+        bound = roots.workspace
+        target, outside = (repo_root / raw).resolve(), "path points outside the workspace"
+    if not target.is_relative_to(bound):
+        return None, outside
+    if target.is_relative_to(repo_root.resolve()):
         return None, "path points at this repo itself"
     if not target.is_dir():
         return None, "path doesn't exist on this machine"
     return target, None
 
 
-def load_registry(registry_root: Path, repo_root: Path, workspace_root: Path) -> Registry:
+def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> Registry:
     reg = Registry()
-    workspace_root = workspace_root.resolve()
+    roots = _as_roots(roots)
+    for err in roots.errors:
+        reg.warn("", f".env: {err}")
 
     groups_dir = registry_root / GROUPS_DIR
     if groups_dir.is_dir():
@@ -220,6 +243,7 @@ def load_registry(registry_root: Path, repo_root: Path, workspace_root: Path) ->
             title=str(meta.get("title") or _title_of(body, pid)),
             page=rel,
             path=str(meta["path"]).replace("\\", "/").rstrip("/") if meta.get("path") else None,
+            root=str(meta["root"]) if meta.get("root") else None,
             parent=str(meta["parent"]) if meta.get("parent") else None,
             group=str(meta["group"]) if meta.get("group") else None,
             status=status,
@@ -231,7 +255,7 @@ def load_registry(registry_root: Path, repo_root: Path, workspace_root: Path) ->
             summary=_summary_of(body),
         )
         if project.path:
-            project.dir, problem = _resolve_project_dir(repo_root, workspace_root, project.path)
+            project.dir, problem = _resolve_project_dir(repo_root, roots, project.path, project.root)
             if problem:
                 reg.warn(rel, f"path '{project.path}': {problem}")
             project.available = project.dir is not None
@@ -310,20 +334,40 @@ def _rel_from(repo_root: Path, target: Path) -> str:
     return Path(os.path.relpath(target, repo_root)).as_posix()
 
 
-def discover(repo_root: Path, workspace_root: Path) -> list[dict]:
-    """Projects in the workspace (folders with a CLAUDE.md) and their sub-projects
-    (a manifest two levels down, like collectors/<name>/pyproject.toml)."""
+def discover(repo_root: Path, roots: Roots | Path, only_root: str | None = None) -> list[dict]:
+    """Projects in each root (folders with a CLAUDE.md) and their sub-projects (a manifest
+    two levels down, like collectors/<name>/pyproject.toml). Items found in the workspace
+    have a path relative to this repo and no root; items in a named root have a path
+    relative to that root. A folder in two roots is reported once, for the first root."""
+    roots = _as_roots(roots)
     found: list[dict] = []
-    workspace_root = workspace_root.resolve()
-    repo_root = repo_root.resolve()
-    if not workspace_root.is_dir():
+    seen: set[Path] = set()
+    for name, folder in roots.all():
+        if only_root and name != only_root:
+            continue
+        for item in _discover_in(repo_root.resolve(), folder, None if name == WORKSPACE else name):
+            target = item.pop("dir")
+            if target not in seen:
+                seen.add(target)
+                found.append(item)
+    return found
+
+
+def _discover_in(repo_root: Path, base: Path, root: str | None) -> list[dict]:
+    found: list[dict] = []
+    if not base.is_dir():
         return found
-    for d in sorted(workspace_root.iterdir()):
-        if not d.is_dir() or d.name.startswith((".", "_")) or d.resolve() == repo_root:
+
+    def entry(d: Path, parent: str | None) -> dict:
+        path = _rel_from(base, d) if root else _rel_from(repo_root, d)
+        return {"name": d.name.lower(), "path": path, "root": root, "parent": parent, "dir": d.resolve()}
+
+    for d in sorted(base.iterdir()):
+        if not d.is_dir() or d.name.startswith((".", "_")) or d.resolve().is_relative_to(repo_root):
             continue
         if not (d / "CLAUDE.md").is_file():
             continue
-        found.append({"name": d.name.lower(), "path": _rel_from(repo_root, d), "parent": None})
+        found.append(entry(d, None))
         for container in sorted(d.iterdir()):
             if not container.is_dir() or container.name.startswith((".", "_")) or container.name in SKIP_DIRS:
                 continue
@@ -331,22 +375,20 @@ def discover(repo_root: Path, workspace_root: Path) -> list[dict]:
                 if not sub.is_dir() or sub.name.startswith((".", "_")):
                     continue
                 if any((sub / m).is_file() for m in MANIFESTS):
-                    found.append(
-                        {
-                            "name": sub.name.lower(),
-                            "path": _rel_from(repo_root, sub),
-                            "parent": d.name.lower(),
-                        }
-                    )
+                    found.append(entry(sub, d.name.lower()))
     return found
 
 
-def unregistered(reg: Registry, repo_root: Path, workspace_root: Path) -> list[dict]:
+def unregistered(
+    reg: Registry, repo_root: Path, roots: Roots | Path, only_root: str | None = None
+) -> list[dict]:
     """Discovered folders that no registry page points at."""
+    roots = _as_roots(roots)
     known_dirs = {p.dir for p in reg.projects.values() if p.dir is not None}
     out = []
-    for item in discover(repo_root, workspace_root):
-        target = (repo_root / item["path"]).resolve()
+    for item in discover(repo_root, roots, only_root):
+        base = roots.get(item["root"]) if item["root"] else repo_root
+        target = (base / item["path"]).resolve()  # type: ignore[operator]
         if target in known_dirs:
             continue
         name = item["name"]
@@ -357,7 +399,10 @@ def unregistered(reg: Registry, repo_root: Path, workspace_root: Path) -> list[d
 
 
 def stub_page(item: dict, today: str) -> str:
-    lines = ["---", f"name: {item['name']}", f"path: {item['path']}"]
+    lines = ["---", f"name: {item['name']}"]
+    if item.get("root"):
+        lines.append(f"root: {item['root']}")
+    lines.append(f"path: {item['path']}")
     if item.get("parent"):
         lines.append(f"parent: {item['parent']}")
     lines += ["status: active", f"verified: {today}", "---", "", f"# {item['name']}", ""]

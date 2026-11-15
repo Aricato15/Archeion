@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of the .env settings. configure.bat prompts for these and writes .env; it also regenerates .env.example from them. To add a setting: add an entry here (and to app/backend/app/config.py if the backend reads it). tests/test_settings_schema.py keeps the two in sync. Types: host, port, int, number, relpath, string, secret (prompted hidden, never written to .env.example).",
+  "$comment": "Single source of the .env settings. configure.bat prompts for these and writes .env; it also regenerates .env.example from them. To add a setting: add an entry here (and to app/backend/app/config.py if the backend reads it). tests/test_settings_schema.py keeps the two in sync. Types: host, port, int, number, relpath, string, roots (name=folder;name=folder, '-' clears it), secret (prompted hidden, never written to .env.example).",
   "groups": [
     {
       "title": "Backend",
@@ -34,6 +34,12 @@
           "allow_parent": true,
           "default": "..",
           "description": "The folder holding all your projects, relative to the repo root. Registered project paths must stay inside it, and projects scan looks for new ones there."
+        },
+        {
+          "name": "ARCHEION_ROOTS",
+          "type": "roots",
+          "default": "",
+          "description": "More folders projects may live in, as name=folder;name=folder (ADR 0008). A registry page picks one with root: <name>. Granting a folder lets Archeion read projects in it; leave it empty for none. Type - to clear it."
         },
         {
           "name": "ARCHEION_REGISTRY_DIR",
