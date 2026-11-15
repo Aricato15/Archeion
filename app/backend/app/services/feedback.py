@@ -64,6 +64,7 @@ def create(
     anchor: dict | None = None,
     parent_id: int | None = None,
     doc_rev: str | None = None,
+    source: str = "archeion",
 ) -> dict:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
@@ -72,9 +73,20 @@ def create(
         if parent_id is not None:
             _status_of(conn, parent_id)
         cur = conn.execute(
-            "INSERT INTO feedback (kind, doc_path, anchor, body, parent_id, doc_rev, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (kind, doc_path, json.dumps(anchor) if anchor else None, body, parent_id, doc_rev, now, now),
+            "INSERT INTO feedback"
+            " (kind, source, doc_path, anchor, body, parent_id, doc_rev, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                kind,
+                source,
+                doc_path,
+                json.dumps(anchor) if anchor else None,
+                body,
+                parent_id,
+                doc_rev,
+                now,
+                now,
+            ),
         )
         item_id = cur.lastrowid
     assert item_id is not None
@@ -87,6 +99,7 @@ def list_items(
     status: str | None = None,
     doc_path: str | None = None,
     kind: str | None = None,
+    source: str | None = None,
     limit: int = 500,
 ) -> list[dict]:
     sql = "SELECT * FROM feedback WHERE 1=1"
@@ -97,6 +110,9 @@ def list_items(
     if doc_path:
         sql += " AND doc_path = ?"
         args.append(doc_path)
+    if source:
+        sql += " AND source = ?"
+        args.append(source)
     if kind:
         sql += " AND kind = ?"
         args.append(kind)
@@ -105,11 +121,24 @@ def list_items(
     return [_row(r) for r in conn.execute(sql, args).fetchall()]
 
 
-def summary(conn: sqlite3.Connection) -> dict[str, int]:
+def summary(conn: sqlite3.Connection, source: str | None = None) -> dict[str, int]:
     counts = dict.fromkeys(STATUSES, 0)
-    for r in conn.execute("SELECT status, count(*) AS n FROM feedback GROUP BY status"):
+    sql = "SELECT status, count(*) AS n FROM feedback"
+    args: list[Any] = []
+    if source:
+        sql += " WHERE source = ?"
+        args.append(source)
+    for r in conn.execute(sql + " GROUP BY status", args):
         counts[r["status"]] = r["n"]
     return counts
+
+
+def open_by_source(conn: sqlite3.Connection) -> dict[str, int]:
+    """Items waiting for Claude (open or in progress), per source."""
+    rows = conn.execute(
+        "SELECT source, count(*) AS n FROM feedback WHERE status IN ('open','in_progress') GROUP BY source"
+    )
+    return {r["source"]: r["n"] for r in rows}
 
 
 def thread(conn: sqlite3.Connection, item_id: int) -> list[dict]:

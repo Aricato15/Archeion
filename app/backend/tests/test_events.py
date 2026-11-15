@@ -5,7 +5,8 @@ import asyncio
 from watchfiles import Change
 
 from app.services import feedback as fb
-from app.services.events import Event, EventBus, doc_change_events, poll_feedback, watch_docs
+from app.services.events import Event, EventBus, doc_change_events, poll_feedback, watch_sources
+from app.services.sources import SourceManager
 
 
 def test_event_format():
@@ -15,16 +16,32 @@ def test_event_format():
     )
 
 
-def test_doc_change_grouping(repo):
+def _manager(settings):
+    return SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir)
+
+
+def test_doc_change_grouping(repo, settings):
     docs = repo / "docs"
+    ws = repo.parent
     changes = {
         (Change.modified, str(docs / "README.md")),
         (Change.added, str(docs / "system" / "new.md")),
         (Change.modified, str(docs / ".hidden.md")),
         (Change.modified, str(repo / "outside.md")),
+        (Change.modified, str(ws / "alpha" / "docs" / "api.md")),
+        (Change.modified, str(ws / "alpha" / "src" / "code.md")),  # not served: dropped
+        (Change.modified, str(ws / "beta" / "collectors" / "sub1" / "README.md")),
     }
-    events = {e.data["kind"]: e.data["paths"] for e in doc_change_events(docs, changes)}
-    assert events == {"modified": ["README.md"], "added": ["system/new.md"]}
+    events = {
+        (e.data["source"], e.data["kind"]): e.data["paths"]
+        for e in doc_change_events(_manager(settings), changes)
+    }
+    assert events == {
+        ("archeion", "modified"): ["README.md"],
+        ("archeion", "added"): ["system/new.md"],
+        ("alpha", "modified"): ["docs/api.md"],
+        ("sub1", "modified"): ["README.md"],  # the deepest source wins, not beta
+    }
 
 
 def test_bus_drops_oldest_when_full():
@@ -67,27 +84,46 @@ def _create(db):
         fb.create(conn, kind="prompt", body="from the CLI")
 
 
-def test_watcher_sees_doc_edits(repo):
+def test_watcher_sees_edits_and_registry_changes(repo, settings):
     docs = repo / "docs"
+    alpha = repo.parent / "alpha"
+    sources = _manager(settings)
 
     async def run():
         bus = EventBus()
         q = bus.subscribe()
         stop = asyncio.Event()
-        task = asyncio.create_task(watch_docs(docs, bus, stop))
-        await asyncio.sleep(0.5)
-        (docs / "README.md").write_text("# Changed\n", encoding="utf-8")
-        try:
+        task = asyncio.create_task(watch_sources(sources, bus, stop))
+        await asyncio.sleep(0.6)
+        seen = []
+
+        async def wait_for(pred):
             while True:
-                event = await asyncio.wait_for(q.get(), timeout=5)
-                if "README.md" in event.data["paths"]:
+                event = await asyncio.wait_for(q.get(), timeout=6)
+                seen.append(event)
+                if pred(event):
                     return event
+
+        try:
+            (docs / "README.md").write_text("# Changed\n", encoding="utf-8")
+            await wait_for(lambda e: e.data.get("source") == "archeion" and "README.md" in e.data["paths"])
+            (alpha / "docs" / "api.md").write_text("# Alpha API v2\n", encoding="utf-8")
+            await wait_for(lambda e: e.data.get("source") == "alpha")
+            # Registering gamma reloads the registry and starts watching it.
+            (docs / "system" / "projects" / "gamma.md").write_text(
+                "---\npath: ../gamma\n---\n# Gamma\n", encoding="utf-8"
+            )
+            await wait_for(lambda e: e.type == "registry.changed")
+            assert "gamma" in sources.sources
+            await asyncio.sleep(0.6)
+            (repo.parent / "gamma" / "README.md").write_text("# Gamma readme\n", encoding="utf-8")
+            return await wait_for(lambda e: e.data.get("source") == "gamma")
         finally:
             stop.set()
             await asyncio.wait_for(task, timeout=5)
 
     event = asyncio.run(run())
-    assert event.type == "docs.changed"
+    assert event.data["paths"] == ["README.md"]
 
 
 def test_sse_stream(app, authed):

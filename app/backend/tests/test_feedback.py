@@ -165,3 +165,89 @@ def test_excerpt():
     assert docs_fs.excerpt(content, heading="B") == "3 | ## B\n4 | two\n5 | three"
     assert docs_fs.excerpt(content, lines=(4, 4), context=1) == "3 | ## B\n4 | two\n5 | three"
     assert docs_fs.excerpt(content, heading="Missing") == ""
+
+
+# --- per-project feedback (ADR 0006) ------------------------------------------------------
+
+
+def test_feedback_for_a_project(authed):
+    r = authed.post(
+        "/api/feedback",
+        json={
+            "kind": "comment",
+            "body": "Document the auth flow.",
+            "source": "alpha",
+            "doc_path": "docs/api.md",
+            "anchor": {"lines": [1, 1]},
+        },
+    )
+    assert r.status_code == 201, r.text
+    item = r.json()
+    assert item["source"] == "alpha" and len(item["doc_rev"]) == 40  # alpha's own HEAD
+    child = authed.post(
+        "/api/feedback", json={"kind": "prompt", "body": "And the errors.", "parent_id": item["id"]}
+    )
+    assert child.json()["source"] == "alpha"  # follow-ups stay with their project
+    assert [i["id"] for i in authed.get("/api/feedback", params={"source": "alpha"}).json()] == [
+        child.json()["id"],
+        item["id"],
+    ]
+    assert authed.get("/api/feedback", params={"source": "archeion"}).json() == []
+    summary = authed.get("/api/feedback/summary").json()
+    assert summary["open"] == 2 and summary["waiting_by_source"] == {"alpha": 2}
+    assert authed.get("/api/feedback/summary", params={"source": "archeion"}).json()["open"] == 0
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"kind": "prompt", "body": "x", "source": "nope"},
+        {"kind": "comment", "body": "x", "source": "alpha", "doc_path": "src/code.md"},
+        {"kind": "comment", "body": "x", "source": "alpha", "doc_path": "docs/../src/code.md"},
+    ],
+)
+def test_project_feedback_validation(authed, payload):
+    assert authed.post("/api/feedback", json=payload).status_code in (400, 404)
+
+
+def test_cli_targets_projects(settings, authed, capsys, monkeypatch):
+    authed.post("/api/feedback", json={"kind": "prompt", "body": "Archeion task."})
+    authed.post("/api/feedback", json={"kind": "prompt", "body": "Alpha task.", "source": "alpha"})
+    authed.post("/api/feedback", json={"kind": "prompt", "body": "Sub task.", "source": "sub1"})
+
+    assert main(["inbox", "list", "--json", "--project", "alpha"], settings) == 0
+    assert [i["body"] for i in json.loads(capsys.readouterr().out)] == ["Alpha task."]
+    assert main(["inbox", "count", "--project", "archeion"], settings) == 0
+    assert capsys.readouterr().out.strip() == "1"
+
+    ws = settings.repo_root.parent
+    monkeypatch.setenv("ARCHEION_CALLER_DIR", str(ws / "beta" / "collectors" / "sub1"))
+    assert main(["inbox", "list", "--json", "--here"], settings) == 0
+    assert [i["body"] for i in json.loads(capsys.readouterr().out)] == ["Sub task."]
+    monkeypatch.setenv("ARCHEION_CALLER_DIR", str(settings.repo_root / "docs"))
+    assert main(["inbox", "list", "--json", "--here"], settings) == 0
+    assert [i["body"] for i in json.loads(capsys.readouterr().out)] == ["Archeion task."]
+    monkeypatch.setenv("ARCHEION_CALLER_DIR", str(ws / "beta"))
+    assert main(["inbox", "list", "--here"], settings) == 0
+    out = capsys.readouterr().out
+    assert "No open feedback items for beta." in out and "alpha (1)" in out and "sub1 (1)" in out
+    monkeypatch.setenv("ARCHEION_CALLER_DIR", str(ws / "gamma"))
+    assert main(["inbox", "list", "--here"], settings) == 1
+    assert "isn't inside a registered project" in capsys.readouterr().err
+    assert main(["inbox", "list", "--project", "ghost"], settings) == 1
+
+
+def test_cli_show_project_excerpt(settings, authed, capsys):
+    item = authed.post(
+        "/api/feedback",
+        json={
+            "kind": "comment",
+            "body": "Check this.",
+            "source": "alpha",
+            "doc_path": "docs/api.md",
+            "anchor": {"lines": [7, 7]},
+        },
+    ).json()
+    assert main(["inbox", "show", str(item["id"])], settings) == 0
+    out = capsys.readouterr().out
+    assert "[alpha] docs/api.md" in out and "docs/api.md in alpha" in out and "Alpha haystack." in out

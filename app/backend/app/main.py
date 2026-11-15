@@ -19,8 +19,9 @@ from .paths import DocNotFound, DocPathError
 from .routers import auth, docs, events, feedback
 from .security import LoginLimiter
 from .services import git
-from .services.events import EventBus, poll_feedback, watch_docs
+from .services.events import EventBus, poll_feedback, watch_sources
 from .services.feedback import FeedbackConflict, FeedbackNotFound
+from .services.sources import SourceManager, SourceNotFound
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 SECURITY_HEADERS = [
@@ -77,13 +78,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         bus=EventBus(),
         limiter=LoginLimiter(settings.login_max_failures, settings.login_window_seconds),
         version=version,
+        sources=SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir),
     )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state.stop = asyncio.Event()
         if settings.watch_docs:
-            state.tasks.append(asyncio.create_task(watch_docs(settings.docs_root, state.bus, state.stop)))
+            state.tasks.append(asyncio.create_task(watch_sources(state.sources, state.bus, state.stop)))
         state.tasks.append(
             asyncio.create_task(poll_feedback(db, state.bus, state.stop, settings.feedback_poll_seconds))
         )
@@ -112,6 +114,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(DocNotFound)
     async def _no_doc(_: Request, exc: DocNotFound) -> JSONResponse:
         return _error(404, "doc not found")
+
+    @app.exception_handler(SourceNotFound)
+    async def _no_source(_: Request, exc: SourceNotFound) -> JSONResponse:
+        return _error(404, f"no project or source named '{exc.args[0]}'")
 
     @app.exception_handler(FeedbackNotFound)
     async def _no_item(_: Request, exc: FeedbackNotFound) -> JSONResponse:

@@ -1,4 +1,10 @@
-"""Read-only git access for doc history. Argument lists only, never a shell."""
+"""Read-only git access for doc history. Argument lists only, never a shell.
+
+Every call takes `cwd` (the folder a source's paths are relative to, e.g. docs/ or a
+project's root) and `rel` (a path relative to it). git is run with -C cwd, and
+revision paths use the `rev:./rel` form, so the same code works for this repo's docs
+and for any registered project's own repo.
+"""
 
 from __future__ import annotations
 
@@ -20,10 +26,10 @@ class GitError(RuntimeError):
     pass
 
 
-def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo), "-c", "core.quotepath=off", *args],
+            ["git", "-C", str(cwd), "-c", "core.quotepath=off", *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -43,8 +49,8 @@ def valid_rev(rev: str) -> bool:
     return bool(REV_RE.match(rev))
 
 
-def head(repo: Path) -> str | None:
-    proc = _git(repo, "rev-parse", "--verify", "-q", "HEAD", check=False)
+def head(cwd: Path) -> str | None:
+    proc = _git(cwd, "rev-parse", "--verify", "-q", "HEAD", check=False)
     if proc.returncode != 0:
         return None
     return proc.stdout.strip() or None
@@ -59,10 +65,10 @@ class Commit:
     subject: str
 
 
-def history(repo: Path, repo_rel: str, limit: int = 50) -> list[Commit]:
+def history(cwd: Path, rel: str, limit: int = 50) -> list[Commit]:
     """Commits that touched a file, newest first. Author emails are never read."""
     fmt = "%H%x1f%h%x1f%an%x1f%aI%x1f%s%x1e"
-    proc = _git(repo, "log", "--follow", f"-n{limit}", f"--format={fmt}", "--", repo_rel, check=False)
+    proc = _git(cwd, "log", "--follow", f"-n{limit}", f"--format={fmt}", "--", rel, check=False)
     if proc.returncode != 0:
         return []
     commits = []
@@ -75,15 +81,15 @@ def history(repo: Path, repo_rel: str, limit: int = 50) -> list[Commit]:
     return commits
 
 
-def show_file(repo: Path, rev: str, repo_rel: str) -> str | None:
+def show_file(cwd: Path, rev: str, rel: str) -> str | None:
     """Content of a file at a revision, or None when it doesn't exist there."""
-    proc = _git(repo, "show", f"{rev}:{repo_rel}", check=False)
+    proc = _git(cwd, "show", f"{rev}:./{rel}", check=False)
     return proc.stdout if proc.returncode == 0 else None
 
 
-def commit_diff(repo: Path, rev: str, repo_rel: str) -> str:
-    """Unified diff of what one commit changed in one file (follows renames)."""
-    proc = _git(repo, "show", "--no-color", "--format=", "--patch", "-M", rev, "--", repo_rel, check=False)
+def commit_diff(cwd: Path, rev: str, rel: str) -> str:
+    """Unified diff of what one commit changed in one file."""
+    proc = _git(cwd, "show", "--no-color", "--format=", "--patch", "-M", rev, "--", rel, check=False)
     if proc.returncode != 0:
         raise GitError(proc.stderr.strip() or "unknown revision")
     return proc.stdout
@@ -93,26 +99,29 @@ def _norm(text: str) -> str:
     return text.replace("\r\n", "\n")
 
 
-def worktree_diff(repo: Path, repo_rel: str, current: str) -> str:
+def worktree_diff(cwd: Path, rel: str, current: str) -> str:
     """Unified diff of the working-tree file against HEAD (covers untracked files too)."""
-    old = show_file(repo, "HEAD", repo_rel) if head(repo) else None
+    old = show_file(cwd, "HEAD", rel) if head(cwd) else None
     old_lines = _norm(old or "").splitlines(keepends=True)
     new_lines = _norm(current).splitlines(keepends=True)
     diff = difflib.unified_diff(
         old_lines,
         new_lines,
-        fromfile="/dev/null" if old is None else f"a/{repo_rel}",
-        tofile=f"b/{repo_rel}",
+        fromfile="/dev/null" if old is None else f"a/{rel}",
+        tofile=f"b/{rel}",
     )
     body = "".join(line if line.endswith("\n") else line + "\n" for line in diff)
     if not body:
         return ""
-    return f"diff --git a/{repo_rel} b/{repo_rel}\n{body}"
+    return f"diff --git a/{rel} b/{rel}\n{body}"
 
 
-def is_dirty(repo: Path, repo_rel: str, current: str) -> bool:
-    """True when the working-tree content differs from HEAD (line endings ignored)."""
-    if head(repo) is None:
-        return True
-    old = show_file(repo, "HEAD", repo_rel)
+def is_dirty(cwd: Path, rel: str, current: str) -> bool:
+    """True when the working-tree content differs from HEAD (line endings ignored).
+
+    A folder that isn't in a git repo at all is never reported as dirty.
+    """
+    if head(cwd) is None:
+        return _git(cwd, "rev-parse", "--git-dir", check=False).returncode == 0
+    old = show_file(cwd, "HEAD", rel)
     return old is None or _norm(old) != _norm(current)

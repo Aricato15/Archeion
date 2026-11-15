@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     db_path: str = "app/backend/data/archeion.db"
     session_idle_hours: float = 12
     session_max_days: float = 7
+    # The folder holding all projects (relative to the repo root). Registered project paths
+    # must stay inside it (ADR 0006).
+    workspace_root: str = ".."
 
     # Not meant for .env: tests point these at a temporary repo.
     repo_root: Path = REPO_ROOT
@@ -38,6 +41,11 @@ class Settings(BaseSettings):
     @cached_property
     def docs_root(self) -> Path:
         return (self.repo_root / "docs").resolve()
+
+    @cached_property
+    def workspace_dir(self) -> Path:
+        p = Path(self.workspace_root)
+        return (p if p.is_absolute() else (self.repo_root / p)).resolve()
 
     @cached_property
     def db_file(self) -> Path:

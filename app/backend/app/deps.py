@@ -13,6 +13,7 @@ from .config import Settings
 from .db import Database
 from .security import COOKIE_NAME, LoginLimiter, Session, check_session
 from .services.events import EventBus
+from .services.sources import SourceManager
 
 
 @dataclass
@@ -21,6 +22,7 @@ class AppState:
     db: Database
     bus: EventBus
     limiter: LoginLimiter
+    sources: SourceManager
     version: str
     stop: asyncio.Event = field(default_factory=asyncio.Event)
     tasks: list[asyncio.Task] = field(default_factory=list)

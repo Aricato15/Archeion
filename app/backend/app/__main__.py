@@ -9,15 +9,19 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import os
 import sys
+from datetime import date
 from pathlib import Path
 
 from .config import Settings
 from .db import Database
-from .paths import DocNotFound, DocPathError, resolve_doc_path
+from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import docs_fs
 from .services import feedback as fb
+from .services.registry import stub_page
+from .services.sources import SourceManager, SourceNotFound
 
 EXIT_NO_PASSWORD = 3
 
@@ -89,8 +93,35 @@ def _print_json(data: object) -> None:
     print(json.dumps(data, ensure_ascii=False, indent=2))
 
 
+def _sources(settings: Settings) -> SourceManager:
+    return SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir)
+
+
+def _target(settings: Settings, args: argparse.Namespace) -> str | None:
+    """The source to filter on: --project X, --here (the caller's folder), or None for all."""
+    if getattr(args, "project", None):
+        project = args.project
+        if project != "archeion" and project not in _sources(settings).registry.projects:
+            raise ValueError(f"'{project}' isn't a registered project (see: projects list)")
+        return project
+    if getattr(args, "here", False):
+        # The wrapper scripts cd into app/backend; they pass the caller's folder along.
+        here = Path(os.environ.get("ARCHEION_CALLER_DIR") or os.getcwd()).resolve()
+        if here.is_relative_to(settings.repo_root.resolve()):
+            return "archeion"
+        project = _sources(settings).registry.project_for_dir(here)
+        if project is None:
+            raise ValueError(
+                f"{here.name} isn't inside a registered project; register it first (projects scan)"
+            )
+        return project.id
+    return None
+
+
 def _summary_line(item: dict) -> str:
     where = item["doc_path"] or "(general)"
+    if item.get("source", "archeion") != "archeion":
+        where = f"[{item['source']}] {where}"
     anchor = item["anchor"] or {}
     if anchor.get("heading"):
         where += f" > {anchor['heading']}"
@@ -105,22 +136,28 @@ def _summary_line(item: dict) -> str:
 
 def cmd_inbox_list(settings: Settings, args: argparse.Namespace) -> int:
     status = None if args.status == "all" else args.status
+    source = _target(settings, args)
     with _db(settings).conn() as conn:
-        items = fb.list_items(conn, status=status)
+        items = fb.list_items(conn, status=status, source=source)
+        elsewhere = fb.open_by_source(conn)
     items.reverse()  # oldest first: the order to work in
     if args.json:
         _print_json(items)
     elif not items:
-        print(f"No {args.status} feedback items.")
+        print(f"No {args.status} feedback items" + (f" for {source}." if source else "."))
+        if source:
+            others = {k: v for k, v in elsewhere.items() if k != source}
+            if others:
+                print("Waiting elsewhere: " + ", ".join(f"{k} ({v})" for k, v in sorted(others.items())))
     else:
         for item in items:
             print(_summary_line(item))
     return 0
 
 
-def cmd_inbox_count(settings: Settings, _: argparse.Namespace) -> int:
+def cmd_inbox_count(settings: Settings, args: argparse.Namespace) -> int:
     with _db(settings).conn() as conn:
-        print(fb.summary(conn)["open"])
+        print(fb.summary(conn, _target(settings, args))["open"])
     return 0
 
 
@@ -128,7 +165,10 @@ def _doc_excerpt(settings: Settings, item: dict) -> str:
     if not item["doc_path"]:
         return ""
     try:
-        target = resolve_doc_path(settings.docs_root, item["doc_path"], allowed={".md"})
+        source = _sources(settings).get(item.get("source") or "archeion")
+        target = source.resolve(item["doc_path"], allowed={".md"})
+    except SourceNotFound:
+        return f"(the project '{item.get('source')}' is no longer registered)"
     except (DocPathError, DocNotFound):
         return "(the doc no longer exists)"
     anchor = item["anchor"] or {}
@@ -159,7 +199,11 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
         for line in anchor["quote"].splitlines():
             print(f"  > {line}")
     if excerpt:
-        print(f"\nDoc excerpt (docs/{item['doc_path']}):")
+        if item.get("source", "archeion") == "archeion":
+            where = f"docs/{item['doc_path']}"
+        else:
+            where = f"{item['doc_path']} in {item['source']}"
+        print(f"\nDoc excerpt ({where}):")
         print(excerpt)
     print("\nRequest:")
     print(item["body"])
@@ -194,6 +238,77 @@ def cmd_inbox_reply(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# --- projects ---------------------------------------------------------------------------
+
+
+def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    reg = manager.registry
+    if args.json:
+        _print_json({**reg.public(), "unregistered": manager.unregistered()})
+        return 0
+    if not reg.projects:
+        print("No projects registered yet. Run: projects scan")
+
+    def show(pid: str, depth: int) -> None:
+        p = reg.projects[pid]
+        flags = [p.status] + ([] if p.available or not p.path else ["path missing"])
+        extra = f" -> {', '.join(p.depends_on)}" if p.depends_on else ""
+        print(f"{'  ' * depth}- {p.id} ({', '.join(flags)}){extra}")
+        for child in sorted(p.children):
+            show(child, depth + 1)
+
+    roots = [p for p in reg.projects.values() if not p.parent]
+    for gid, group in sorted(reg.groups.items()):
+        print(f"{group.title} [{gid}]")
+        for p in sorted(roots, key=lambda x: x.id):
+            if p.group == gid:
+                show(p.id, 1)
+    loose = [p for p in roots if not p.group]
+    if loose:
+        print("Standalone")
+        for p in sorted(loose, key=lambda x: x.id):
+            show(p.id, 1)
+    for w in reg.warnings:
+        print(f"warning: docs/{w['page']}: {w['message']}", file=sys.stderr)
+    missing = manager.unregistered()
+    if missing:
+        print(f"\n{len(missing)} folder(s) in the workspace aren't registered. Run: projects scan")
+    return 0
+
+
+def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
+    """Show (or, with --write, create) stub registry pages for unregistered folders.
+    Existing pages are never touched."""
+    manager = _sources(settings)
+    missing = manager.unregistered()
+    if not missing:
+        print("Every project in the workspace is registered.")
+        return 0
+    target_dir = settings.docs_root / "system" / "projects"
+    today = date.today().isoformat()
+    for item in missing:
+        page = target_dir / f"{item['name']}.md"
+        rel = page.relative_to(settings.repo_root).as_posix()
+        parent = f", sub-project of {item['parent']}" if item["parent"] else ""
+        label = f"{item['name']} ({item['path']}{parent})"
+        if page.exists():
+            print(f"skip   {label}: {rel} already exists")
+            continue
+        if args.write:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            page.write_text(stub_page(item, today), encoding="utf-8")
+            print(f"create {label}: {rel}")
+        else:
+            print(f"would create {label}: {rel}")
+    if not args.write:
+        print(
+            "\nNothing written. Run again with --write to create these pages,"
+            " then fill in group and depends_on."
+        )
+    return 0
+
+
 # --- parser -----------------------------------------------------------------------------
 
 
@@ -220,8 +335,11 @@ def build_parser() -> argparse.ArgumentParser:
     ls = inbox.add_parser("list", help="list items, oldest first")
     ls.add_argument("--status", default="open", choices=[*fb.STATUSES, "all"])
     ls.add_argument("--json", action="store_true")
+    _target_args(ls)
     ls.set_defaults(func=cmd_inbox_list)
-    inbox.add_parser("count", help="number of open items").set_defaults(func=cmd_inbox_count)
+    count = inbox.add_parser("count", help="number of open items")
+    _target_args(count)
+    count.set_defaults(func=cmd_inbox_count)
     show = inbox.add_parser("show", help="an item with its thread and doc excerpt")
     show.add_argument("id", type=int)
     show.add_argument("--json", action="store_true")
@@ -237,7 +355,23 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("id", type=int)
     rep.add_argument("--file", required=True, help="UTF-8 file with the reply (Markdown), or - for stdin")
     rep.set_defaults(func=cmd_inbox_reply)
+
+    projects = sub.add_parser("projects", help="the project registry").add_subparsers(
+        dest="action", required=True
+    )
+    pl = projects.add_parser("list", help="registered projects, by group, with warnings")
+    pl.add_argument("--json", action="store_true")
+    pl.set_defaults(func=cmd_projects_list)
+    ps = projects.add_parser("scan", help="find unregistered workspace folders and sub-projects")
+    ps.add_argument("--write", action="store_true", help="create stub pages for them")
+    ps.set_defaults(func=cmd_projects_scan)
     return parser
+
+
+def _target_args(p: argparse.ArgumentParser) -> None:
+    g = p.add_mutually_exclusive_group()
+    g.add_argument("--project", help="only items for this project (or 'archeion')")
+    g.add_argument("--here", action="store_true", help="only items for the project the command runs in")
 
 
 def main(argv: list[str] | None = None, settings: Settings | None = None) -> int:
@@ -247,6 +381,9 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
     args = build_parser().parse_args(argv)
     try:
         return args.func(settings or Settings(), args)
+    except SourceNotFound as exc:
+        print(f"No project named '{exc.args[0]}'.", file=sys.stderr)
+        return 1
     except fb.FeedbackNotFound as exc:
         print(f"No feedback item #{exc.args[0]}.", file=sys.stderr)
         return 1

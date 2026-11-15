@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..deps import AppState, get_conn, get_state
-from ..paths import MARKDOWN_EXT, resolve_doc_path, validate_rel_path
+from ..paths import MARKDOWN_EXT, validate_rel_path
 from ..services import feedback as fb
 from ..services import git
 
@@ -38,6 +38,8 @@ class FeedbackIn(BaseModel):
     doc_path: str | None = Field(None, max_length=512)
     anchor: Anchor | None = None
     parent_id: int | None = None
+    # archeion or a registered project; a follow-up defaults to its parent's source.
+    source: str | None = Field(None, max_length=64)
 
     @model_validator(mode="after")
     def _anchor_needs_doc(self) -> FeedbackIn:
@@ -59,12 +61,16 @@ class PatchIn(BaseModel):
 def create(
     item: FeedbackIn, state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)
 ) -> dict:
+    source_id = item.source
+    if source_id is None and item.parent_id is not None:
+        source_id = fb.get(conn, item.parent_id)["source"]
+    src = state.sources.get(source_id or "archeion")
     doc_path = None
     if item.doc_path is not None:
-        resolve_doc_path(state.settings.docs_root, item.doc_path, allowed={MARKDOWN_EXT})
+        src.resolve(item.doc_path, allowed={MARKDOWN_EXT})
         doc_path = validate_rel_path(item.doc_path)
     try:
-        rev = git.head(state.settings.repo_root)
+        rev = git.head(src.root)
     except git.GitError:
         rev = None
     anchor = item.anchor.model_dump(exclude_none=True) if item.anchor else None
@@ -76,6 +82,7 @@ def create(
         anchor=anchor or None,
         parent_id=item.parent_id,
         doc_rev=rev,
+        source=src.id,
     )
 
 
@@ -84,14 +91,18 @@ def list_items(
     status_: Status | None = Query(None, alias="status"),
     doc_path: str | None = None,
     kind: Kind | None = None,
+    source: str | None = Query(None, max_length=64),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> list[dict]:
-    return fb.list_items(conn, status=status_, doc_path=doc_path, kind=kind)
+    return fb.list_items(conn, status=status_, doc_path=doc_path, kind=kind, source=source)
 
 
 @router.get("/summary")
-def summary(conn: sqlite3.Connection = Depends(get_conn)) -> dict:
-    return fb.summary(conn)
+def summary(
+    source: str | None = Query(None, max_length=64), conn: sqlite3.Connection = Depends(get_conn)
+) -> dict:
+    """Counts per status (optionally for one source), plus waiting items per source."""
+    return {**fb.summary(conn, source), "waiting_by_source": fb.open_by_source(conn)}
 
 
 @router.get("/{item_id}")

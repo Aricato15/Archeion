@@ -97,7 +97,19 @@ def _m2_feedback(conn: sqlite3.Connection) -> None:
 
 
 # Append only. The index + 1 is the schema version stored in PRAGMA user_version.
-MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [_m1_auth, _m2_feedback]
+def _m3_feedback_source(conn: sqlite3.Connection) -> None:
+    # Which doc source (archeion or a registered project) an item targets (ADR 0006).
+    # Stored as a plain id: projects aren't rows in this database.
+    _exec_all(
+        conn,
+        """
+        ALTER TABLE feedback ADD COLUMN source TEXT NOT NULL DEFAULT 'archeion';
+        CREATE INDEX feedback_source ON feedback(source, status)
+        """,
+    )
+
+
+MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [_m1_auth, _m2_feedback, _m3_feedback_source]
 
 
 def migrate(conn: sqlite3.Connection) -> int:

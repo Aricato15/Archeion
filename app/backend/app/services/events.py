@@ -1,5 +1,5 @@
 """In-process event bus feeding the SSE stream, plus the two producers:
-a watcher on docs/ and a poller that notices feedback changes made by the CLI."""
+a watcher on every doc source and a poller that notices feedback changes made by the CLI."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from pathlib import Path
 from watchfiles import Change, awatch
 
 from ..db import Database
+from .sources import SourceManager
 
 log = logging.getLogger("archeion.events")
 
@@ -58,35 +59,95 @@ class EventBus:
 _KIND = {Change.added: "added", Change.modified: "modified", Change.deleted: "deleted"}
 
 
-def doc_change_events(docs_root: Path, changes: set[tuple[Change, str]]) -> list[Event]:
-    """Group raw watcher changes into one docs.changed event per kind."""
-    root = docs_root.resolve()
-    by_kind: dict[str, set[str]] = {}
+def doc_change_events(sources: SourceManager, changes: set[tuple[Change, str]]) -> list[Event]:
+    """Group raw watcher changes into one docs.changed event per (source, kind).
+
+    Files a source doesn't serve (e.g. a project's src/ under a watched top-level file's
+    folder) are dropped, so the browser only hears about docs it can show.
+    """
+    grouped: dict[tuple[str, str], set[str]] = {}
     for change, raw in changes:
-        p = Path(raw).absolute()
-        try:
-            rel = p.relative_to(root).as_posix()
-        except ValueError:
-            try:
-                rel = p.resolve().relative_to(root).as_posix()
-            except ValueError:
-                continue
-        if any(part.startswith(".") for part in rel.split("/")):
+        found = sources.locate(Path(raw))
+        if found is None:
             continue
-        by_kind.setdefault(_KIND.get(change, "modified"), set()).add(rel)
-    return [Event("docs.changed", {"kind": kind, "paths": sorted(paths)}) for kind, paths in by_kind.items()]
+        source, rel = found
+        if any(part.startswith(".") for part in rel.split("/")) or not source.allows(rel):
+            continue
+        grouped.setdefault((source.id, _KIND.get(change, "modified")), set()).add(rel)
+    return [
+        Event("docs.changed", {"source": sid, "kind": kind, "paths": sorted(paths)})
+        for (sid, kind), paths in sorted(grouped.items())
+    ]
 
 
-async def watch_docs(docs_root: Path, bus: EventBus, stop: asyncio.Event) -> None:
-    if not docs_root.is_dir():
-        log.warning("docs/ not found at %s, not watching", docs_root)
-        return
-    try:
-        async for changes in awatch(docs_root, debounce=200, stop_event=stop, recursive=True):
-            for event in doc_change_events(docs_root, changes):
+async def watch_sources(sources: SourceManager, bus: EventBus, stop: asyncio.Event) -> None:
+    """Watch every source's docs; restart when the registry (and so the source list) changes.
+
+    Two watchers run per cycle: one without recursion on project roots (their top-level
+    files) and one with recursion on docs folders. Edits to registry pages reload the
+    registry, publish registry.changed and restart both with the new sources' paths. A
+    project's docs folder appearing for the first time also triggers a restart.
+    """
+    while not stop.is_set():
+        sources.changed.clear()
+        flat: set[Path] = set()
+        deep: set[Path] = set()
+        for s in sources.all():
+            f, d = s.watch_paths()
+            flat.update(f)
+            deep.update(d)
+        restart = asyncio.Event()
+
+        async def relay(restart: asyncio.Event = restart) -> None:
+            _, pending = await asyncio.wait(
+                [asyncio.create_task(stop.wait()), asyncio.create_task(sources.changed.wait())],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for t in pending:
+                t.cancel()
+            restart.set()
+
+        async def handle(changes: set[tuple[Change, str]]) -> None:
+            events = doc_change_events(sources, changes)
+            registry_touched = any(
+                e.data["source"] == "archeion" and any(sources.is_registry_page(p) for p in e.data["paths"])
+                for e in events
+            )
+            for event in events:
                 bus.publish(event)
-    except Exception:  # pragma: no cover - keep the server up if the watcher dies
-        log.exception("docs watcher stopped")
+            if registry_touched:
+                await asyncio.to_thread(sources.reload)
+                bus.publish(Event("registry.changed", {"version": sources.version}))
+                sources.changed.set()  # new sources: restart the watch with their paths
+            elif any(_is_new_docs_dir(sources, change, raw) for change, raw in changes):
+                sources.changed.set()
+
+        async def run(paths: set[Path], recursive: bool, restart: asyncio.Event = restart) -> None:
+            if not paths:
+                await restart.wait()
+                return
+            ordered = sorted(paths, key=str)
+            async for changes in awatch(*ordered, debounce=200, stop_event=restart, recursive=recursive):
+                await handle(changes)
+
+        relay_task = asyncio.create_task(relay())
+        try:
+            await asyncio.gather(run(flat, False), run(deep, True))
+        except Exception:  # pragma: no cover - keep the server up if the watcher dies
+            log.exception("docs watcher stopped; retrying in 5 s")
+            await asyncio.sleep(5)
+        finally:
+            relay_task.cancel()
+
+
+def _is_new_docs_dir(sources: SourceManager, change: Change, raw: str) -> bool:
+    if change != Change.added:
+        return False
+    p = Path(raw)
+    return p.is_dir() and any(
+        s.kind == "project" and s.docs_dir and p.resolve() == (s.root / s.docs_dir).resolve()
+        for s in sources.all()
+    )
 
 
 def feedback_signature(db: Database) -> tuple:

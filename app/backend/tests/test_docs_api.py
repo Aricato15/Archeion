@@ -127,7 +127,11 @@ def test_unknown_rev(authed):
 
 
 def test_roadmap(authed):
-    rm = authed.get("/api/roadmap").json()
+    data = authed.get("/api/roadmap").json()
+    rm = data["cross"]
+    by_project = {p["project"]: p["roadmap"] for p in data["projects"]}
+    assert by_project["alpha"]["now"][0]["text"] == "Ship alpha"
+    assert by_project["beta"] is None
     assert rm["updated"] == "2026-11-15"
     assert rm["now"][0]["links"] == [{"label": "plan", "path": "roadmap/2026-11-15-plan.md"}]
     assert rm["next"][0]["text"] == "Use it"
@@ -137,18 +141,27 @@ def test_roadmap(authed):
 
 def test_diagrams(authed):
     d = authed.get("/api/diagrams").json()
+    assert {(x["source"], x["path"]) for x in d} == {
+        ("archeion", "system/overview.md"),
+        ("alpha", "docs/api.md"),
+    }
+    d = authed.get("/api/diagrams", params={"source": "archeion"}).json()
     assert d == [
         {
+            "source": "archeion",
             "path": "system/overview.md",
             "heading": "Shape",
             "index": 0,
             "line": 7,
-            "source": "flowchart LR\n  A --> B",
+            "code": "flowchart LR\n  A --> B",
         }
     ]
 
 
 def test_search(authed):
     hits = authed.get("/api/search", params={"q": "needle"}).json()
-    assert hits == [{"path": "system/overview.md", "line": 14, "snippet": "Needle in here."}]
+    assert hits == [
+        {"source": "archeion", "path": "system/overview.md", "line": 14, "snippet": "Needle in here."}
+    ]
+    assert authed.get("/api/search", params={"q": "haystack"}).json()[0]["source"] == "alpha"
     assert authed.get("/api/search", params={"q": "x"}).status_code == 422
