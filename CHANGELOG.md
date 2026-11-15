@@ -7,6 +7,9 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **A Use cases page** in the sidebar: everyday jobs, step by step, across the viewer, Archeion's session and a project's session. These are registering a project and keeping its docs current, reviewing changes that affect other projects, and starting a new project from a clean slate. It's the doc `docs/guides/use-cases.md`.
+
 ## [0.5.0] - 2026-11-15
 
 ### Added

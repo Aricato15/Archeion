@@ -263,6 +263,7 @@ describe('app', () => {
     // once the registry is in, a link from archeion into a project's docs opens it in the viewer
     expect((await screen.findByText('gateway', { selector: 'a' })).getAttribute('href')).toBe('/p/gateway/docs/api.md')
     expect(screen.getByText('Shop')).toBeTruthy() // group in the sidebar
+    expect(screen.getByRole('link', { name: 'Use cases' }).getAttribute('href')).toBe('/docs/guides/use-cases.md')
   })
 
   it('renders a project doc read-only, with links resolved inside the project', async () => {

@@ -1,6 +1,6 @@
 # Working with Claude from the command line
 
-The terminal is where you work with Claude. The viewer is for reading the docs, the registry and the maps, and for leaving feedback that Claude picks up. This page is also the viewer's **Claude CLI** panel.
+The terminal is where you work with Claude. The viewer is for reading the docs, the registry and the maps, and for leaving feedback that Claude picks up. This page is also the viewer's **Claude CLI** panel. For whole jobs from start to finish, see the [use cases](use-cases.md).
 
 ## The loop
 1. **Read** in the viewer. Comment on a passage (select text or use the margin button), or write a prompt or review on a doc or project page.
