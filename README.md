@@ -70,9 +70,73 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 1. `setup.bat` installs everything inside the project (`app/backend/venv`, `app/frontend/node_modules`) and creates your private `registry/` from `registry.example/`.
 2. Optional: `configure.bat` changes ports and other settings. It writes `.env`.
 3. `set_admin_password.bat` sets the admin password. Only a salted scrypt hash is stored.
-4. Register your projects: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages.
+4. Register your projects: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages. See [Registering a project](#registering-a-project).
 5. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/` and log in.
 6. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
+
+## Registering a project
+Projects don't go inside Archeion. They sit **next to it**, in the workspace root: the folder that contains `archeion/`. That's the default `ARCHEION_WORKSPACE_ROOT` (`..`). If your projects live somewhere else, set it with `configure.bat` to a folder that holds both Archeion and the projects. Anything outside the workspace root can't be registered yet. [ADR 0008](docs/decisions/0008-named-project-roots.md) (proposed) would let you grant Archeion extra folders, so a project can stay where it is.
+
+```mermaid
+flowchart TB
+  subgraph ws["workspace root (ARCHEION_WORKSPACE_ROOT, default ..)"]
+    direction LR
+    A["archeion/<br/>(skipped: it's Archeion itself)"]
+    P1["example-app/<br/>CLAUDE.md ✔"]
+    P2["example-api/<br/>CLAUDE.md ✔"]
+    S["example-api/collectors/example-collector/<br/>pyproject.toml ✔"]
+    N1["example-notes/<br/>no CLAUDE.md ✘"]
+    N2["_tools/ · .cache/<br/>starts with _ or . ✘"]
+    P2 --- S
+  end
+  P1 -- project --> F["found by projects scan"]
+  P2 -- project --> F
+  S -- "sub-project (parent: example-api)" --> F
+  N1 -. "not found: write its page by hand" .-> X["ignored by the scan"]
+  N2 -.-> X
+```
+
+Being in the right folder doesn't register a project by itself. A project is registered once it has a page in `registry/projects/`, and that page is what the viewer reads:
+
+```mermaid
+flowchart LR
+  A["Put the project next to archeion/<br/>with a CLAUDE.md"] --> B["projects scan<br/>(dry run: lists candidates)"]
+  B --> C["projects scan --write<br/>(creates stub pages, never overwrites)"]
+  C --> D["Fill in the page's frontmatter:<br/>group, depends_on, ports, status, verified"]
+  D --> E["projects list<br/>(tree and problems)"]
+  E --> F["Viewer: the project's docs,<br/>maps and inbox"]
+```
+
+- **What the scan finds:** each direct child folder of the workspace root that has a `CLAUDE.md` and doesn't start with `_` or `.`, plus its sub-projects: a folder two levels down with a manifest (like `collectors/<name>/pyproject.toml`).
+- **Anything else:** copy `registry/projects/_template.md` to `<name>.md` and write the page by hand. Its `path` must be relative and stay inside the workspace root.
+- **Feedback for the project:** items written for it in the viewer wait until a Claude session in that project picks them up with the portable inbox skill in [`integrations/`](integrations/workspace-core/skills/project-inbox/SKILL.md). The Archeion plugin below will replace it.
+
+## Archeion plugin for your projects (planned)
+> [!NOTE]
+> Proposed in [ADR 0009](docs/decisions/0009-archeion-plugin-for-project-sessions.md). It doesn't exist yet.
+
+Archeion will ship a Claude Code plugin from this repo, so a Claude session in any registered project can use Archeion. You install it into your **user-level** Claude Code setup, not into each project: you add the repo as a marketplace once, at user scope, and the plugin's skills are then available in every project on the machine. Nothing is copied into your projects.
+
+```
+/plugin marketplace add <path to Archeion>
+/plugin install archeion@archeion
+```
+
+| Skill or hook | What it does in a project session |
+|---|---|
+| `/archeion:inbox` | Picks up the feedback written for this project in the viewer, does the work and replies |
+| `/archeion:context` | Shows this project's group, what it depends on, what depends on it, and its ports |
+| `/archeion:ports` | Lists the ports already in use before you pick a new one |
+| `/archeion:report` | Sends a change, like a new port or dependency, to Archeion's inbox. Project sessions never edit the registry themselves. |
+| SessionStart hook | Announces waiting feedback when a session starts |
+
+**The plugin has its own version**, in `plugins/archeion/.claude-plugin/plugin.json`, with its own `plugins/archeion/CHANGELOG.md`. It's separate from Archeion's `VERSION` and changes only when the plugin changes, so a new plugin version means it's time to update:
+
+```
+/plugin marketplace update archeion
+```
+
+Bump it with `scripts/bump-version.ps1 -Target plugin -Part major|minor|patch`. The commit hook refuses plugin changes without a version bump, so the version can't go stale.
 
 On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
 
