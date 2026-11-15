@@ -74,3 +74,55 @@ def parse_roots(raw: str, repo_root: Path, workspace: Path) -> Roots:
             continue
         roots.named[name] = resolved
     return roots
+
+
+# --- editing from the viewer (ADR 0010) -------------------------------------------------
+
+ENV_KEY = "ARCHEION_ROOTS"
+_ENV_LINE = re.compile(rf"^\s*(?:export\s+)?{ENV_KEY}\s*=")
+
+
+def format_roots(entries: list[tuple[str, str]]) -> tuple[str, list[str]]:
+    """The ARCHEION_ROOTS value for (name, folder) pairs, and the problems that stop it
+    being written. Folders are written with forward slashes, which Windows accepts and
+    which .env quoting can't turn into escape sequences."""
+    problems: list[str] = []
+    parts: list[str] = []
+    for name, folder in entries:
+        name, folder = name.strip(), folder.strip()
+        if not folder:
+            problems.append(f"root '{name}' needs a folder")
+            continue
+        if any(c in folder for c in ';#"\r\n'):
+            problems.append(f"root '{name}': the folder can't contain ; # or quotes")
+            continue
+        parts.append(f"{name}={folder.replace(chr(92), '/')}")
+    return ";".join(parts), problems
+
+
+def env_value(value: str) -> str:
+    return f'"{value}"' if re.search(r"[\s#']", value) else value
+
+
+def write_env_roots(env_path: Path, value: str) -> None:
+    """Set ARCHEION_ROOTS in .env, leaving every other line as it was. The previous file
+    is kept as .env.bak, as configure.bat does."""
+    old = env_path.read_text(encoding="utf-8-sig") if env_path.is_file() else ""
+    line = f"{ENV_KEY}={env_value(value)}"
+    lines, done = [], False
+    for raw in old.splitlines():
+        if _ENV_LINE.match(raw):
+            if not done:
+                lines.append(line)
+                done = True
+            continue
+        lines.append(raw)
+    if not done:
+        if not old:
+            lines.append("# Machine-specific and gitignored: never commit this file. configure.bat edits it.")
+        lines.append(line)
+    if env_path.is_file():
+        env_path.with_name(env_path.name + ".bak").write_bytes(env_path.read_bytes())
+    tmp = env_path.with_name(env_path.name + ".tmp")
+    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    tmp.replace(env_path)

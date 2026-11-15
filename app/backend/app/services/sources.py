@@ -192,6 +192,11 @@ class SourceManager:
         # Not set here: reload() may run in a worker thread, and asyncio.Event isn't
         # thread-safe. The watcher sets `changed` on the event loop after reloading.
 
+    def set_roots(self, roots: Roots) -> None:
+        """Use new roots (saved from the viewer, ADR 0010) and reload the registry with them."""
+        self.roots = roots
+        self.reload()
+
     def get(self, source_id: str) -> Source:
         source = self.sources.get(source_id)
         if source is None:

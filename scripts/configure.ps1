@@ -81,7 +81,8 @@ function Test-Value($s, [string]$value) {
 }
 
 function Format-EnvValue($s, [string]$value) {
-    if ($s.type -eq 'relpath') { $value = $value -replace '\\', '/' }
+    # Forward slashes: Windows accepts them, and .env quoting can't turn them into escapes.
+    if ($s.type -in @('relpath', 'roots')) { $value = $value -replace '\\', '/' }
     if ($value -match '[\s#"]') { return '"' + ($value -replace '"', '\"') + '"' }
     return $value
 }

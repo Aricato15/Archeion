@@ -11,7 +11,6 @@ import getpass
 import json
 import os
 import sys
-from datetime import date
 from pathlib import Path
 
 from .config import Settings, read_version
@@ -380,7 +379,6 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
         print(f"Every project in {where} is registered.")
         return 0
     target_dir = settings.registry_root / "projects"
-    today = date.today().isoformat()
     for item in missing:
         page = target_dir / f"{item['name']}.md"
         rel = page.relative_to(settings.repo_root).as_posix()
@@ -392,7 +390,7 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
             continue
         if args.write:
             target_dir.mkdir(parents=True, exist_ok=True)
-            page.write_text(stub_page(item, today), encoding="utf-8")
+            page.write_text(stub_page(item), encoding="utf-8")
             print(f"create {label}: {rel}")
         else:
             print(f"would create {label}: {rel}")

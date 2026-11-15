@@ -151,7 +151,7 @@ def test_overlapping_roots_report_a_folder_once(settings):
 
 
 def test_stub_page_with_root_round_trips():
-    page = stub_page({"name": "omega", "path": "omega", "root": "private", "parent": None}, "2026-11-15")
+    page = stub_page({"name": "omega", "path": "omega", "root": "private", "parent": None})
     meta, _, err = split_frontmatter(page)
     assert err is None and meta["root"] == "private" and meta["path"] == "omega"
 

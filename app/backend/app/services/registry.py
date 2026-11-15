@@ -342,16 +342,22 @@ def discover(repo_root: Path, roots: Roots | Path, only_root: str | None = None)
     two levels down, like collectors/<name>/pyproject.toml). Items found in the workspace
     have a path relative to this repo and no root; items in a named root have a path
     relative to that root. A folder in two roots is reported once, for the first root."""
-    roots = _as_roots(roots)
+    found = _discover_all(repo_root, _as_roots(roots), only_root)
+    for item in found:
+        item.pop("dir")
+    return found
+
+
+def _discover_all(repo_root: Path, roots: Roots, only_root: str | None = None) -> list[dict]:
+    """discover(), with each item's resolved folder kept in `dir`."""
     found: list[dict] = []
     seen: set[Path] = set()
     for name, folder in roots.all():
         if only_root and name != only_root:
             continue
         for item in _discover_in(repo_root.resolve(), folder, None if name == WORKSPACE else name):
-            target = item.pop("dir")
-            if target not in seen:
-                seen.add(target)
+            if item["dir"] not in seen:
+                seen.add(item["dir"])
                 found.append(item)
     return found
 
@@ -401,15 +407,22 @@ def unregistered(
     return out
 
 
-def stub_page(item: dict, today: str) -> str:
+def stub_page(item: dict) -> str:
+    """A new page for a discovered folder. `verified` is left out: nobody has checked the
+    page against the project yet (ADR 0010)."""
     lines = ["---", f"name: {item['name']}"]
     if item.get("root"):
         lines.append(f"root: {item['root']}")
     lines.append(f"path: {item['path']}")
     if item.get("parent"):
         lines.append(f"parent: {item['parent']}")
-    lines += ["status: active", f"verified: {today}", "---", "", f"# {item['name']}", ""]
     lines += [
+        "status: active",
+        "# verified: YYYY-MM-DD   (add it once this page is checked against the project)",
+        "---",
+        "",
+        f"# {item['name']}",
+        "",
         "_Cross-project notes: what this project owns, exposes and depends on, seen from the whole "
         "system. Its own README, CLAUDE.md and docs are shown live in the viewer, so don't copy "
         "them here._",
@@ -425,3 +438,121 @@ def stub_page(item: dict, today: str) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+# --- managing from the viewer (ADR 0010) ------------------------------------------------
+
+
+class RegisterError(ValueError):
+    """A registration the viewer asked for that can't be done; the message says why."""
+
+
+def _shown(base: Path, target: Path) -> str:
+    try:
+        return target.relative_to(base).as_posix()
+    except ValueError:
+        return target.as_posix()
+
+
+def _entry(p: Project, root: str | None, folder: str) -> dict:
+    return {
+        "name": p.id,
+        "path": p.path,
+        "root": root,
+        "folder": folder,
+        "parent_folder": None,
+        "parent": p.parent,
+        "registered": p.id,
+    }
+
+
+def survey(reg: Registry, repo_root: Path, roots: Roots | Path) -> list[dict]:
+    """For each root, the projects in it: every folder discovery finds, and every registered
+    project that lives there, with the project it's registered as (or None). Roots that
+    registry pages name but this machine doesn't grant come last, with `granted` False."""
+    roots = _as_roots(roots)
+    by_dir = {p.dir: p for p in reg.projects.values() if p.dir is not None}
+    found = _discover_all(repo_root, roots)
+    out: list[dict] = []
+    for name, folder in roots.all():
+        key = None if name == WORKSPACE else name
+        items: list[dict] = []
+        listed: set[Path] = set()
+        for item in found:
+            if item["root"] != key:
+                continue
+            target = item["dir"]
+            listed.add(target)
+            project = by_dir.get(target)
+            if project is not None:
+                items.append(_entry(project, key, _shown(folder, target)))
+                continue
+            parent = reg.project_for_dir(target.parent) if item["parent"] else None
+            suggested = item["name"]
+            if suggested in reg.projects and item["parent"]:
+                suggested = f"{item['parent']}-{suggested}"
+            items.append(
+                {
+                    "name": suggested,
+                    "path": item["path"],
+                    "root": key,
+                    "folder": _shown(folder, target),
+                    "parent_folder": item["parent"],
+                    "parent": parent.id if parent else None,
+                    "registered": None,
+                }
+            )
+        # Registered projects that discovery doesn't find (no CLAUDE.md, or nested deeper).
+        for p in reg.projects.values():
+            if p.dir is None or p.dir in listed or (p.root or WORKSPACE) != name:
+                continue
+            items.append(_entry(p, key, _shown(folder, p.dir)))
+        items.sort(key=lambda i: i["folder"])
+        out.append({"name": name, "folder": str(folder), "granted": True, "items": items})
+    missing = sorted({p.root for p in reg.projects.values() if p.root and roots.get(p.root) is None})
+    for name in missing:
+        items = [_entry(p, name, p.path or "") for p in reg.projects.values() if p.root == name]
+        out.append({"name": name, "folder": None, "granted": False, "items": items})
+    return out
+
+
+def register(
+    registry_root: Path,
+    reg: Registry,
+    repo_root: Path,
+    roots: Roots | Path,
+    *,
+    root: str | None,
+    path: str,
+    name: str,
+) -> str:
+    """Create the registry page for a folder that discovery found and nothing registers yet.
+    Only such folders can be registered, so a page can't point anywhere else. Never
+    overwrites a page. Returns the page's path inside the registry."""
+    roots = _as_roots(roots)
+    key = None if root in (None, "", WORKSPACE) else root
+    if key is not None and roots.get(key) is None:
+        raise RegisterError(f"no root named '{key}' is configured")
+    if not ID_RE.match(name):
+        raise RegisterError(f"'{name}' isn't a valid project name (lowercase letters, digits, . _ -)")
+    if name in RESERVED_IDS:
+        raise RegisterError(f"'{name}' is reserved for Archeion's own sources")
+    if name in reg.projects:
+        raise RegisterError(f"a project named '{name}' is already registered")
+    candidates = _discover_all(repo_root, roots, key or WORKSPACE)
+    item = next((i for i in candidates if i["root"] == key and i["path"] == path), None)
+    if item is None:
+        raise RegisterError("that folder isn't a project Archeion found in its roots")
+    known = {p.dir: p.id for p in reg.projects.values() if p.dir is not None}
+    if item["dir"] in known:
+        raise RegisterError(f"that folder is already registered as '{known[item['dir']]}'")
+    parent = reg.project_for_dir(item["dir"].parent) if item["parent"] else None
+    page = registry_root / PROJECTS_DIR / f"{name}.md"
+    page.parent.mkdir(parents=True, exist_ok=True)
+    text = stub_page({"name": name, "root": key, "path": path, "parent": parent.id if parent else None})
+    try:
+        with page.open("x", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    except FileExistsError:
+        raise RegisterError(f"{PROJECTS_DIR}/{name}.md already exists in the registry") from None
+    return page.relative_to(registry_root).as_posix()

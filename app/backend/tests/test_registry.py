@@ -105,9 +105,10 @@ def test_discover_and_unregistered(settings):
 
 
 def test_stub_page_round_trips():
-    page = stub_page({"name": "coll", "path": "../svc/collectors/coll", "parent": "svc"}, "2026-11-15")
+    page = stub_page({"name": "coll", "path": "../svc/collectors/coll", "parent": "svc"})
     meta, body, err = split_frontmatter(page)
     assert err is None and meta["parent"] == "svc" and meta["path"] == "../svc/collectors/coll"
+    assert "verified" not in meta  # nobody has checked a new page yet (ADR 0010)
     assert body.startswith("\n# coll")
 
 
