@@ -31,6 +31,9 @@ Thumbs.db
 # Only the empty template in registry.example/ is committed.
 /registry/
 
+# Local backups of the registry and the database (they hold project details).
+/backups/
+
 # viewer app environments and data
 app/backend/venv/
 app/backend/data/

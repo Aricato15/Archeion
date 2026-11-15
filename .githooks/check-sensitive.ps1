@@ -24,7 +24,8 @@ $patterns = @(
 $emailOk = '@(example\.(com|org|net)|users\.noreply\.github\.com|anthropic\.com)$'
 # Files that must never be committed, whatever they contain. registry/ is the private
 # project registry (ADR 0007); only the template in registry.example/ is committed.
-$blockedFile = '^registry/|(^|/)\.env$|(^|/)\.env\.(?!example$)[^/]+$|\.(db|sqlite3?)$|\.db-(wal|shm)$|\.(pem|key|pfx)$|(^|/)settings\.local\.json$|(^|/)CLAUDE\.local\.md$'
+# backups/ holds local copies of the registry and the database.
+$blockedFile = '^registry/|^backups/|(^|/)\.env$|(^|/)\.env\.(?!example$)[^/]+$|\.(db|sqlite3?)$|\.db-(wal|shm)$|\.(pem|key|pfx)$|(^|/)settings\.local\.json$|(^|/)CLAUDE\.local\.md$'
 
 # Project names must not leak into committed text (ADR 0007). The list is built here, at
 # commit time, from the private registry and the workspace's project folders, so the
