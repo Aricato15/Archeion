@@ -1,7 +1,8 @@
 # Archeion
 
-- Status: Proposed (waiting for confirmation before building)
+- Status: Accepted (2026-11-15). Option A is built first. Option B is still proposed and needs its own go-ahead.
 - Date: 2026-11-15
+- Implementation plan: [2026-11-15-viewer-app-plan](../roadmap/2026-11-15-viewer-app-plan.md)
 
 ## Context
 I want to read my docs, plans and diagrams in a browser, and iterate with Claude from there: send prompts, review what Claude wrote, leave comments on a doc, and watch the docs change.
