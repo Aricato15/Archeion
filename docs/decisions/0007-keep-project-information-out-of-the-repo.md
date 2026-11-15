@@ -37,7 +37,7 @@ The steps:
 5. **Verify.** Grep `git log --all -p` for every name, and check that no tree in history contains the removed paths. Then run `check-sensitive.ps1 -All`.
 6. **Push only after that.** The first push then carries clean history.
 
-All six steps were carried out before any push. No commit, message or object in the rewritten history matches a project name, the removed paths are gone from every commit, and the branch tip came out byte-identical.
+Steps 2 to 5 were carried out on 2026-11-15, before any push. No commit, message or object in the rewritten history matches a project name, the removed paths are gone from every commit, and the branch tip came out byte-identical. The step 1 backup still holds the old history and is deleted once you've signed off. Step 6 applies to the first push.
 
 If something had already been pushed, this wouldn't be enough. You'd need to force-push the rewritten history, ask GitHub Support to purge cached views and pull-request refs, and assume that clones and forks keep the old data. Any secret would have to be rotated, not just removed.
 
