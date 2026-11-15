@@ -33,16 +33,19 @@ class Anchor(BaseModel):
 
 
 class FeedbackIn(BaseModel):
-    kind: Kind
+    # A follow-up (parent_id) takes its thread's kind, project and doc when they're left out.
+    kind: Kind | None = None
     body: str = Field(min_length=1, max_length=20_000)
     doc_path: str | None = Field(None, max_length=512)
     anchor: Anchor | None = None
     parent_id: int | None = None
-    # archeion or a registered project; a follow-up defaults to its parent's source.
+    # archeion or a registered project. A follow-up always stays with its thread's project.
     source: str | None = Field(None, max_length=64)
 
     @model_validator(mode="after")
-    def _anchor_needs_doc(self) -> FeedbackIn:
+    def _check(self) -> FeedbackIn:
+        if self.parent_id is None and self.kind is None:
+            raise ValueError("a new thread needs a kind")
         if self.anchor is not None and self.doc_path is None:
             raise ValueError("an anchor needs a doc_path")
         return self
@@ -61,11 +64,16 @@ class PatchIn(BaseModel):
 def create(
     item: FeedbackIn, state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)
 ) -> dict:
-    source_id = item.source
-    if source_id is None and item.parent_id is not None:
-        source_id = fb.get(conn, item.parent_id)["source"]
+    kind, source_id, doc_path = item.kind, item.source, None
+    if item.parent_id is not None:
+        # A thread is about one thing (ADR 0018): a follow-up keeps the root's project, and
+        # its kind and doc unless it names its own.
+        root = fb.root(conn, item.parent_id)
+        kind = kind or root["kind"]
+        source_id = root["source"]
+        if item.doc_path is None:
+            doc_path = root["doc_path"]
     src = state.sources.get(source_id or "archeion")
-    doc_path = None
     if item.doc_path is not None:
         src.resolve(item.doc_path, allowed={MARKDOWN_EXT})
         doc_path = validate_rel_path(item.doc_path)
@@ -74,9 +82,10 @@ def create(
     except git.GitError:
         rev = None
     anchor = item.anchor.model_dump(exclude_none=True) if item.anchor else None
+    assert kind is not None
     return fb.create(
         conn,
-        kind=item.kind,
+        kind=kind,
         body=item.body,
         doc_path=doc_path,
         anchor=anchor or None,
@@ -94,14 +103,15 @@ def list_items(
     source: str | None = Query(None, max_length=64),
     conn: sqlite3.Connection = Depends(get_conn),
 ) -> list[dict]:
-    return fb.list_items(conn, status=status_, doc_path=doc_path, kind=kind, source=source)
+    """One row per thread (ADR 0018), filtered by the thread's status and its root's fields."""
+    return fb.list_threads(conn, status=status_, doc_path=doc_path, kind=kind, source=source)
 
 
 @router.get("/summary")
 def summary(
     source: str | None = Query(None, max_length=64), conn: sqlite3.Connection = Depends(get_conn)
 ) -> dict:
-    """Counts per status (optionally for one source), plus waiting items per source."""
+    """Threads per status (optionally for one source), plus waiting threads per source."""
     return {**fb.summary(conn, source), "waiting_by_source": fb.open_by_source(conn)}
 
 
@@ -120,12 +130,32 @@ def reply(item_id: int, body: ReplyIn, conn: sqlite3.Connection = Depends(get_co
     return fb.reply(conn, item_id, body.reply)
 
 
+class ReopenIn(BaseModel):
+    body: str | None = Field(None, max_length=20_000)
+
+
+@router.post("/{item_id}/reopen", status_code=status.HTTP_201_CREATED)
+def reopen(
+    item_id: int,
+    body: ReopenIn | None = None,
+    state: AppState = Depends(get_state),
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> dict:
+    """Send the thread back to Claude as a new message (ADR 0018); 409 while one waits."""
+    try:
+        rev = git.head(state.sources.get(fb.root(conn, item_id)["source"]).root)
+    except (LookupError, git.GitError):
+        rev = None
+    return fb.reopen(conn, item_id, body.body if body else None, doc_rev=rev)
+
+
 @router.patch("/{item_id}")
 def patch(item_id: int, body: PatchIn, conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     item = fb.get(conn, item_id)
     if body.body is not None:
         item = fb.edit_body(conn, item_id, body.body)
-    if body.status is not None and body.status != item["status"]:
+    # "resolved" is for the whole thread, so it applies even when this item already is.
+    if body.status is not None and (body.status == "resolved" or body.status != item["status"]):
         item = fb.set_status(conn, item_id, body.status)
     return item
 

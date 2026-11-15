@@ -1,7 +1,7 @@
 import { Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core'
-import { IconCornerDownRight } from '@tabler/icons-react'
+import { IconMessages } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { REGISTRY, SELF, type FeedbackItem } from '../api/types'
+import { REGISTRY, SELF, type FeedbackItem, type FeedbackThread } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
 import { projectUrl } from '../docs/links'
 import { timeAgo } from '../lib/format'
@@ -40,7 +40,8 @@ export function OriginBadge({ id }: { id: string }) {
   )
 }
 
-export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; showDoc?: boolean }) {
+/** A thread in a list: its first request, its status and its latest reply (ADR 0018). */
+export function FeedbackCard({ item, showDoc = true }: { item: FeedbackThread; showDoc?: boolean }) {
   const first = item.body.trim().split('\n')[0] ?? ''
   const link = docLink(item)
   return (
@@ -57,11 +58,11 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; sho
             <StatusBadge item={item} />
             {item.source !== SELF && <ProjectBadge id={item.source} />}
             {item.origin && <OriginBadge id={item.origin} />}
-            {item.parent_id && (
+            {item.messages > 1 && (
               <Group gap={2}>
-                <IconCornerDownRight size={14} />
+                <IconMessages size={14} />
                 <Text size="xs" c="dimmed">
-                  follow-up of #{item.parent_id}
+                  {item.messages} messages
                 </Text>
               </Group>
             )}
@@ -88,7 +89,7 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; sho
         )}
         {item.reply && (
           <Text size="xs" c="green" lineClamp={1}>
-            Claude: {item.reply}
+            Claude{item.messages > 1 ? ' (latest)' : ''}: {item.reply}
           </Text>
         )}
       </Stack>

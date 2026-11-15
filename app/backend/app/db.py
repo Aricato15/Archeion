@@ -132,12 +132,58 @@ def _m5_runner(conn: sqlite3.Connection) -> None:
     )
 
 
+def _m6_feedback_threads(conn: sqlite3.Connection) -> None:
+    # Feedback is a thread (ADR 0018): every message records its thread's root id, so a
+    # thread is one indexed lookup. A plain id like parent_id's target, not a foreign key:
+    # the root is never deleted while it has replies (only open items can be deleted, and an
+    # open thread takes no replies). Backfilled in id order, since a parent is always older.
+    _exec_all(conn, "ALTER TABLE feedback ADD COLUMN thread_id INTEGER")
+    roots: dict[int, int] = {}
+    for r in conn.execute("SELECT id, parent_id FROM feedback ORDER BY id").fetchall():
+        thread = roots.get(r["parent_id"], r["id"]) if r["parent_id"] is not None else r["id"]
+        roots[r["id"]] = thread
+        conn.execute("UPDATE feedback SET thread_id = ? WHERE id = ?", (thread, r["id"]))
+    _exec_all(conn, "CREATE INDEX feedback_thread ON feedback(thread_id, id)")
+
+
+def _m7_reopen_as_message(conn: sqlite3.Connection) -> None:
+    # Reopening used to send an answered item back to open with its reply still on it, so the
+    # next answer overwrote the last one. Now reopening adds a message (ADR 0018). Turn each item
+    # reopened the old way into that shape: the item is answered again, and a "Reopened" message
+    # after it waits for Claude. Fixed text on purpose: a migration doesn't follow later code.
+    rows = conn.execute(
+        "SELECT f.* FROM feedback f WHERE f.status = 'open' AND f.reply IS NOT NULL"
+        " AND f.id = (SELECT max(id) FROM feedback x WHERE x.thread_id = f.thread_id)"
+    ).fetchall()
+    for r in rows:
+        conn.execute("UPDATE feedback SET status = 'answered' WHERE id = ?", (r["id"],))
+        conn.execute(
+            "INSERT INTO feedback (kind, source, doc_path, body, parent_id, thread_id, doc_rev,"
+            " created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                r["kind"],
+                r["source"],
+                r["doc_path"],
+                "Reopened: please take another look at your last answer.",
+                r["id"],
+                r["thread_id"],
+                r["doc_rev"],
+                r["updated_at"],
+                r["updated_at"],
+            ),
+        )
+    # An earlier message reopened the old way, with a later one after it: just answered again.
+    conn.execute("UPDATE feedback SET status = 'answered' WHERE status = 'open' AND reply IS NOT NULL")
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
     _m3_feedback_source,
     _m4_feedback_origin,
     _m5_runner,
+    _m6_feedback_threads,
+    _m7_reopen_as_message,
 ]
 
 

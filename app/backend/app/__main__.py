@@ -198,7 +198,8 @@ def _summary_line(item: dict) -> str:
     first = item["body"].strip().splitlines()[0] if item["body"].strip() else ""
     if len(first) > 80:
         first = first[:77] + "..."
-    parent = f" follow-up of #{item['parent_id']}" if item["parent_id"] else ""
+    thread = item.get("thread_id")
+    parent = f" follow-up in thread #{thread}" if thread and thread != item["id"] else ""
     if item.get("origin"):
         parent += f" from {item['origin']}"
     return f"#{item['id']:<4} {item['status']:<11} {item['kind']:<7} {where}{parent}\n       {first}"
@@ -279,41 +280,58 @@ def _target_line(target: dict) -> str:
 
 
 def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
+    """An item with everything needed to answer it. For a follow-up that's the whole thread
+    (ADR 0018), in full: the backend builds the conversation, so a reply in the viewer reaches
+    Claude with its context. The doc and anchor are the thread's root's."""
     with _db(settings).conn() as conn:
         item = fb.get(conn, args.id)
         thread = fb.thread(conn, args.id)
-    excerpt = _doc_excerpt(settings, item)
+    root = thread[0] if thread else item
+    about = item if item["doc_path"] and item["anchor"] else root
+    excerpt = _doc_excerpt(settings, about)
     target = _item_target(settings, item)
+    conversation = fb.conversation(thread, item["id"]) if len(thread) > 1 else ""
     if args.json:
-        _print_json({"item": item, "thread": thread, "excerpt": excerpt, "target": target})
+        _print_json(
+            {
+                "item": item,
+                "thread": thread,
+                "conversation": conversation,
+                "excerpt": excerpt,
+                "target": target,
+            }
+        )
         return 0
     print(_summary_line(item))
     print(f"       created {item['created_at']}, doc at commit {(item['doc_rev'] or '-')[:10]}")
     if target:
         print(_target_line(target))
-    if len(thread) > 1:
-        print("\nThread:")
-        for t in thread:
-            mark = "->" if t["id"] == item["id"] else "  "
-            print(f" {mark} #{t['id']} [{t['status']}] {t['body'].strip()[:200]}")
-            if t["reply"]:
-                print(f"      reply: {t['reply'].strip()[:200]}")
-    anchor = item["anchor"] or {}
-    if anchor.get("quote"):
-        print("\nQuoted text:")
+    anchor = about["anchor"] or {}
+    if anchor.get("quote") and not conversation:
+        print()
+        print("Quoted text:")
         for line in anchor["quote"].splitlines():
             print(f"  > {line}")
     if excerpt:
-        if item.get("source", "archeion") == "archeion":
-            where = f"docs/{item['doc_path']}"
+        if about.get("source", "archeion") == "archeion":
+            where = f"docs/{about['doc_path']}"
         else:
-            where = f"{item['doc_path']} in {item['source']}"
-        print(f"\nDoc excerpt ({where}):")
+            where = f"{about['doc_path']} in {about['source']}"
+        print()
+        print(f"Doc excerpt ({where}):")
         print(excerpt)
-    print("\nRequest:")
+    if conversation:
+        print()
+        print(f"Conversation so far ({len(thread)} messages; answer the one marked 'Your request now'):")
+        print()
+        print(conversation)
+        return 0
+    print()
+    print("Request:")
     print(item["body"])
     if item["reply"]:
-        print("\nCurrent reply:")
+        print()
+        print("Current reply:")
         print(item["reply"])
     return 0
 
@@ -627,7 +645,7 @@ def build_parser() -> argparse.ArgumentParser:
     count = inbox.add_parser("count", help="number of open items")
     _target_args(count)
     count.set_defaults(func=cmd_inbox_count)
-    show = inbox.add_parser("show", help="an item with its thread and doc excerpt")
+    show = inbox.add_parser("show", help="an item with its whole conversation and doc excerpt")
     show.add_argument("id", type=int)
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_inbox_show)

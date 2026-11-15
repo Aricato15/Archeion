@@ -13,7 +13,6 @@ export type FeedbackDraft = {
   source?: SourceId | null
   docPath?: string | null
   anchor?: Anchor | null
-  parentId?: number | null
   /** Let the user pick the project and doc (for a new prompt from a list page). */
   pickDoc?: boolean
 }
@@ -30,7 +29,7 @@ export function FeedbackForm({ draft, onClose, onCreated }: Props) {
       opened={draft !== null}
       onClose={onClose}
       size="lg"
-      title={draft?.parentId ? `Follow up on #${draft.parentId}` : 'New feedback for Claude'}
+      title="New feedback for Claude"
     >
       {/* Mounted per draft, so every opening starts from a clean form. */}
       {draft && <FormBody draft={draft} onClose={onClose} onCreated={onCreated} />}
@@ -60,7 +59,7 @@ function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft 
   const submit = () => {
     if (!body.trim()) return
     create.mutate(
-      { kind, body: body.trim(), source, doc_path: docPath, anchor, parent_id: draft.parentId ?? null },
+      { kind, body: body.trim(), source, doc_path: docPath, anchor },
       {
         onSuccess: (item) => {
           const where = item.source === SELF ? 'Archeion' : item.source

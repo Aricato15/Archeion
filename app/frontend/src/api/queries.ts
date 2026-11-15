@@ -10,6 +10,7 @@ import type {
   FeedbackKind,
   FeedbackStatus,
   FeedbackSummary,
+  FeedbackThread,
   NewFeedback,
   Project,
   ProjectType,
@@ -223,7 +224,7 @@ export type FeedbackFilters = {
 export const useFeedbackList = (filters: FeedbackFilters, enabled = true) =>
   useQuery({
     queryKey: ['feedback', 'list', filters],
-    queryFn: () => api<FeedbackItem[]>(`/feedback${qs(filters)}`),
+    queryFn: () => api<FeedbackThread[]>(`/feedback${qs(filters)}`),
     enabled,
   })
 
@@ -250,6 +251,10 @@ export const usePatchFeedback = () =>
   useFeedbackMutation(({ id, ...patch }: { id: number; status?: FeedbackStatus; body?: string }) =>
     api<FeedbackItem>(`/feedback/${id}`, { method: 'PATCH', json: patch }),
   )
+
+/** Send a thread back to Claude: adds a "Reopened" message after its latest one (ADR 0018). */
+export const useReopenFeedback = () =>
+  useFeedbackMutation((id: number) => api<FeedbackItem>(`/feedback/${id}/reopen`, { method: 'POST', json: {} }))
 
 export const useDeleteFeedback = () =>
   useFeedbackMutation((id: number) => api<void>(`/feedback/${id}`, { method: 'DELETE' }))

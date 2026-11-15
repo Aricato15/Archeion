@@ -37,14 +37,17 @@ const item = {
   status: 'answered',
   reply: 'Done: tightened it.',
   parent_id: null,
+  thread_id: 7,
+  messages: 1,
+  latest_id: 7,
   doc_rev: 'a'.repeat(40),
   created_at: '2026-11-15T03:00:00+00:00',
   updated_at: '2026-11-15T03:05:00+00:00',
   claimed_at: '2026-11-15T03:01:00+00:00',
   answered_at: '2026-11-15T03:05:00+00:00',
 }
-const projectItem = { ...item, id: 8, source: 'gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
-const reportItem = { ...item, id: 9, origin: 'gateway', doc_path: null, anchor: null, status: 'open', body: 'Gateway moved to port 20061.' }
+const projectItem = { ...item, id: 8, thread_id: 8, latest_id: 8, source: 'gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
+const reportItem = { ...item, id: 9, thread_id: 9, latest_id: 9, origin: 'gateway', doc_path: null, anchor: null, status: 'open', body: 'Gateway moved to port 20061.' }
 
 const project = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -400,7 +403,28 @@ describe('app', () => {
     mockApi(true)
     renderAt('/feedback/7')
     expect(await screen.findByText('Done: tightened it.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Resolve' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Resolve thread' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen thread' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      expect(calls.some(([url, init]) => url === '/api/feedback/7/reopen' && init?.method === 'POST')).toBe(true)
+    })
+  })
+
+  it('replies in the thread and resolves the whole thread', async () => {
+    mockApi(true)
+    renderAt('/feedback/7')
+    const box = await screen.findByRole('textbox', { name: /Reply/ })
+    fireEvent.change(box, { target: { value: 'Shorter, please.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send reply' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resolve thread' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      const post = calls.find(([url, init]) => url === '/api/feedback' && init?.method === 'POST')
+      expect(JSON.parse(String(post?.[1]?.body))).toEqual({ body: 'Shorter, please.', parent_id: 7 })
+      const resolve = calls.find(([url, init]) => url === '/api/feedback/7' && init?.method === 'PATCH')
+      expect(JSON.parse(String(resolve?.[1]?.body))).toEqual({ status: 'resolved' })
+    })
   })
 
   it('opens and closes the Claude CLI guide panel', async () => {

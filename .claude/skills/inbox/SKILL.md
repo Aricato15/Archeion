@@ -17,7 +17,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox <
 | Command | What it does |
 |---|---|
 | `list` (`--project <name>`, `--status all\|open\|in_progress\|answered\|resolved`, `--json`) | items, oldest first (default: open, every project). `--project archeion` narrows to this repo. |
-| `show <id>` (`--json`) | the request, its thread, the quoted text, the doc excerpt it points at and, for a project's item, its **target**: the project, its folder and whether inbox edits are allowed |
+| `show <id>` (`--json`) | the request, the quoted text, the doc excerpt it points at and, for a project's item, its **target**: the project, its folder and whether inbox edits are allowed. For a reply in a thread, the whole **conversation so far** in full (`conversation` in `--json`) |
 | `claim <id>` | open → in_progress. Do this before working, so the browser shows it's being handled. |
 | `reply <id> --file <path>` | in_progress → answered. The file is UTF-8 Markdown and is shown in the browser. |
 | `release <id>` | in_progress → open, when you can't or shouldn't finish it |
@@ -30,8 +30,9 @@ If the command says the backend environment is missing, tell the user to run `se
 1. Run `inbox list`. If nothing is open, say so and stop.
 2. Go through the items **oldest first**, one at a time:
    1. `inbox claim <id>`. If it fails because the item is no longer open, skip it.
-   2. `inbox show <id>`. Read the request, the thread (earlier replies give context for a follow-up) and the
-      excerpt. Then read the doc itself, because the excerpt is only the anchored part, and the doc may
+   2. `inbox show <id>`. Read the request and the excerpt. When the item is a reply in a thread (ADR 0018),
+      `show` prints the conversation so far: read all of it, then answer the message marked **Your request
+      now**, building on your earlier replies instead of repeating them. Then read the doc itself, because the excerpt is only the anchored part, and the doc may
       have changed since the item was written (`doc_rev`): `docs/<doc_path>` for Archeion's items, the
       file in the target's folder for a project's item.
    3. Do the work, by where the item points:
@@ -52,7 +53,7 @@ If the command says the backend environment is missing, tell the user to run `se
       - **review:** feedback on the doc as a whole.
       - **prompt:** a task. It may touch several docs, or none.
       If the request is ambiguous, risky, or reaches outside the target project, don't guess. Reply with
-      your question or concern instead. The user answers with a follow-up.
+      your question or concern instead. The user answers in the same thread.
    4. Write the reply to a temporary file in your scratchpad directory and send it with
       `inbox reply <id> --file <that file>`. Keep it short Markdown: what you did, which files changed
       (relative to the repo they're in, and say which project that is), the tests you ran, and anything the

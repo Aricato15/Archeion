@@ -40,9 +40,10 @@ export function FeedbackPage() {
         </Button>
       </Group>
       <Text c="dimmed" size="sm">
-        Everything here waits in Claude's inbox. Each item targets a project: run <b>/inbox</b> in a Claude Code
-        session in that project (or in Archeion, for Archeion's own and cross-project items). Claude claims each
-        open item, does the work and replies here.
+        Each thread is a conversation with Claude about one project: run <b>/inbox</b> in a Claude Code session in
+        that project (or in Archeion, for every project). Claude claims each waiting message, does the work and
+        replies here. Reply in the thread to go on, with the conversation so far handed to Claude, and resolve the
+        thread when it's done.
       </Text>
       <Group>
         <SegmentedControl

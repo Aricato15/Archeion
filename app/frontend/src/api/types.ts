@@ -166,7 +166,10 @@ export type FeedbackItem = {
   body: string
   status: FeedbackStatus
   reply: string | null
+  /** The message this one follows up on. */
   parent_id: number | null
+  /** The thread's first item (ADR 0018); equal to id for the first one. */
+  thread_id: number
   doc_rev: string | null
   created_at: string
   updated_at: string
@@ -174,10 +177,21 @@ export type FeedbackItem = {
   answered_at: string | null
 }
 
+/**
+ * One thread in a list (ADR 0018): its first item's request, doc and anchor, with the
+ * thread's status (its latest item's), latest reply and last change in their place.
+ */
+export type FeedbackThread = FeedbackItem & {
+  messages: number
+  latest_id: number
+}
+
+/** Threads per status. */
 export type FeedbackSummary = Record<FeedbackStatus, number> & { waiting_by_source: Record<SourceId, number> }
 
 export type NewFeedback = {
-  kind: FeedbackKind
+  /** Required for a new thread; a follow-up takes its thread's. */
+  kind?: FeedbackKind
   body: string
   source?: SourceId | null
   doc_path?: string | null
