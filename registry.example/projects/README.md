@@ -7,6 +7,7 @@ One page per project or sub-project. The YAML frontmatter holds the structural f
 name: example-collector                       # id; defaults to the file name
 title: Example collector                      # display name (else the first heading)
 path: ../example-service/collectors/example   # relative to the repo root, inside the workspace
+# root: private                               # or: a folder granted in ARCHEION_ROOTS, and path relative to it
 parent: example-service                       # makes it a sub-project
 group: example-system                         # a page in ../groups/; sub-projects inherit their parent's
 status: active                                # active | planned | paused | archived
@@ -18,6 +19,7 @@ verified: 2026-11-15                          # when the frontmatter was last ch
 ---
 ```
 
-- **New projects:** `scripts/archeion.ps1 projects scan` lists the workspace folders that have no page yet, and `--write` creates stub pages here (it never overwrites one). `projects list` shows the tree and any problems, which the viewer's Projects page also shows.
+- **New projects:** `scripts/archeion.ps1 projects scan` lists the folders in your roots that have no page yet, and `--write` creates stub pages here (it never overwrites one). `--only <name>` picks some, `--root <name>` scans one root.
+- **Projects outside the workspace:** grant their folder in `ARCHEION_ROOTS` (`configure.bat`) and set `root:` on the page. `path` is then relative to that folder ([ADR 0008](../../docs/decisions/0008-named-project-roots.md)). `projects list` shows the tree and any problems, which the viewer's Projects page also shows.
 - **Keep facts in their home:** a project's own facts (endpoints, commands, internal design) stay in its own repo. The viewer shows its README, CLAUDE.md and docs folder live, read-only.
 - **Starting point:** copy `_template.md` to `<name>.md` for a page written by hand.

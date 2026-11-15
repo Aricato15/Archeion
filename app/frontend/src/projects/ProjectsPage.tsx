@@ -3,7 +3,7 @@ import { IconAlertTriangle, IconFolderPlus } from '@tabler/icons-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useRegistry } from '../api/queries'
-import { REGISTRY, type Project, type Registry } from '../api/types'
+import { REGISTRY, locationOf, type Project, type Registry } from '../api/types'
 import { docUrl } from '../docs/links'
 import { ProjectCard } from './ProjectCard'
 import { RegistryMap } from './RegistryMap'
@@ -17,9 +17,15 @@ export function RegistryWarnings({ registry }: { registry: Registry }) {
       <List size="sm">
         {registry.warnings.map((w, i) => (
           <List.Item key={i}>
-            <Anchor component={Link} to={docUrl(REGISTRY, w.page)} size="sm">
-              registry/{w.page}
-            </Anchor>
+            {w.page ? (
+              <Anchor component={Link} to={docUrl(REGISTRY, w.page)} size="sm">
+                registry/{w.page}
+              </Anchor>
+            ) : (
+              <Text span size="sm" fw={500}>
+                Settings
+              </Text>
+            )}
             : {w.message}
           </List.Item>
         ))}
@@ -33,11 +39,12 @@ export function Unregistered({ registry }: { registry: Registry }) {
   return (
     <Alert color="blue" icon={<IconFolderPlus size={18} />} title={`${registry.unregistered.length} unregistered folder(s)`}>
       <Text size="sm">
-        These workspace folders look like projects or sub-projects but have no registry page yet:{' '}
-        {registry.unregistered.map((u) => u.path).join(', ')}.
+        These folders in your roots look like projects or sub-projects but have no registry page yet:{' '}
+        {registry.unregistered.map((u) => locationOf(u)).join(', ')}.
       </Text>
       <Text size="sm" mt="xs">
-        Create stub pages from the repo root (it never overwrites a page), then fill in <Code>group</Code> and{' '}
+        Create stub pages from the repo root (it never overwrites a page; add <Code>--only &lt;name&gt;</Code> to pick
+        some, or <Code>--root &lt;name&gt;</Code> for one root), then fill in <Code>group</Code> and{' '}
         <Code>depends_on</Code>:
       </Text>
       <Code block mt={4}>

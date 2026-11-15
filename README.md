@@ -75,7 +75,7 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 6. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
 
 ## Registering a project
-Projects don't go inside Archeion. They sit **next to it**, in the workspace root: the folder that contains `archeion/`. That's the default `ARCHEION_WORKSPACE_ROOT` (`..`). If your projects live somewhere else, set it with `configure.bat` to a folder that holds both Archeion and the projects. Anything outside the workspace root can't be registered yet. [ADR 0008](docs/decisions/0008-named-project-roots.md) (proposed) would let you grant Archeion extra folders, so a project can stay where it is.
+Projects don't go inside Archeion. They sit **next to it**, in the workspace root: the folder that contains `archeion/`. That's the default `ARCHEION_WORKSPACE_ROOT` (`..`). If your projects live somewhere else, set it with `configure.bat` to a folder that holds both Archeion and the projects. A project somewhere else can stay where it is: grant Archeion its folder as a named root (see [Projects in other folders](#projects-in-other-folders)).
 
 ```mermaid
 flowchart TB
@@ -107,9 +107,38 @@ flowchart LR
   E --> F["Viewer: the project's docs,<br/>maps and inbox"]
 ```
 
-- **What the scan finds:** each direct child folder of the workspace root that has a `CLAUDE.md` and doesn't start with `_` or `.`, plus its sub-projects: a folder two levels down with a manifest (like `collectors/<name>/pyproject.toml`).
-- **Anything else:** copy `registry/projects/_template.md` to `<name>.md` and write the page by hand. Its `path` must be relative and stay inside the workspace root.
+- **What the scan finds:** each direct child folder of a root that has a `CLAUDE.md` and doesn't start with `_` or `.`, plus its sub-projects: a folder two levels down with a manifest (like `collectors/<name>/pyproject.toml`).
+- **Only some of them:** `projects scan --write --only <name> [<name> ...]` registers just the folders you name. `--root <name>` scans one root.
+- **Anything else:** copy `registry/projects/_template.md` to `<name>.md` and write the page by hand. Its `path` must be relative and stay inside its root.
 - **Feedback for the project:** items written for it in the viewer wait until a Claude session in that project picks them up with the portable inbox skill in [`integrations/`](integrations/workspace-core/skills/project-inbox/SKILL.md). The Archeion plugin below will replace it.
+
+### Projects in other folders
+A project doesn't have to move next to Archeion. Grant Archeion the folder it's in as a **named root**, in `.env` through `configure.bat` ([ADR 0008](docs/decisions/0008-named-project-roots.md)):
+
+```
+ARCHEION_ROOTS=private=<the folder that holds the project>;lab=<another folder>
+```
+
+```mermaid
+flowchart LR
+  subgraph env[".env (machine-specific, gitignored)"]
+    R["ARCHEION_ROOTS=private=…"]
+  end
+  subgraph priv["granted folder: private"]
+    P["example-private/<br/>CLAUDE.md ✔"]
+  end
+  subgraph reg["registry/projects/example-private.md"]
+    F["root: private<br/>path: example-private"]
+  end
+  R -- "grants read access" --> priv
+  F -- "resolves inside the root" --> P
+  P -- "read-only: README, CLAUDE.md, docs" --> V["Viewer"]
+```
+
+- **Granting is the permission.** Archeion reads only inside the workspace root and the granted roots. Take a root out of `.env` and its projects show a "root isn't configured" warning, and their docs are gone until you grant it again.
+- **The registry stays portable.** A page says `root: private` and a `path` relative to that root, never a drive path. On another machine, map `private` to wherever that folder lives there.
+- **Register:** `projects scan --root private`, then `--write` (with `--only <name>` to pick some).
+- **Rules for a root:** a name of 2 to 32 characters (lowercase letters, digits, `-`; `workspace` is reserved), and an existing folder that isn't a whole drive, your whole home folder or inside Archeion. `configure.bat` checks these, and the viewer lists anything wrong as a "Settings" problem.
 
 ## Archeion plugin for your projects (planned)
 > [!NOTE]

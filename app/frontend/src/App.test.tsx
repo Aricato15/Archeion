@@ -42,6 +42,7 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   title: id,
   page: `projects/${id}.md`,
   path: `../${id}`,
+  root: null,
   parent: null,
   group: null,
   status: 'active',
@@ -62,10 +63,17 @@ const registry = {
     project('gateway', { group: 'shop', ports: [20060], depends_on: ['datasvc'], kind: 'service' }),
     project('datasvc', { children: ['collector-a'], used_by: ['gateway'] }),
     project('collector-a', { parent: 'datasvc', path: '../datasvc/collectors/collector-a' }),
+    project('vault', { root: 'lab', path: 'vault', available: false }),
   ],
   groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: 'The shop apps.', projects: ['gateway'] }],
-  warnings: [{ page: 'projects/collector-a.md', message: "depends_on 'ghost' isn't a registered project" }],
-  unregistered: [{ name: 'newproj', path: '../newproj', parent: null }],
+  warnings: [
+    { page: 'projects/collector-a.md', message: "depends_on 'ghost' isn't a registered project" },
+    { page: '', message: ".env: root name 'Bad' must be 2-32 characters" },
+  ],
+  unregistered: [
+    { name: 'newproj', path: '../newproj', root: null, parent: null },
+    { name: 'other', path: 'other', root: 'lab', parent: null },
+  ],
 }
 
 const files: Record<string, unknown> = {
@@ -217,7 +225,9 @@ describe('app', () => {
     mockApi(true)
     renderAt('/projects')
     expect(await screen.findByText('Registry problems')).toBeTruthy()
-    expect(screen.getByText('1 unregistered folder(s)')).toBeTruthy()
+    expect(screen.getByText('2 unregistered folder(s)')).toBeTruthy()
+    expect(screen.getByText(/\.\.\/newproj, lab:other/)).toBeTruthy()
+    expect(screen.getByText('Settings')).toBeTruthy()
     expect(screen.getByText('Standalone')).toBeTruthy()
     expect(screen.getAllByText('About gateway.').length).toBeGreaterThan(0)
   })
@@ -228,6 +238,15 @@ describe('app', () => {
     expect(await screen.findByText('Sub-projects')).toBeTruthy()
     expect(screen.getByText('Used by')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Prompt for datasvc' })).toBeTruthy()
+  })
+
+  it('shows the root of a project in a granted folder, and why it is unavailable', async () => {
+    mockApi(true)
+    renderAt('/projects/vault')
+    expect(await screen.findByText('Root')).toBeTruthy()
+    expect(screen.getByText('lab:vault')).toBeTruthy()
+    expect(screen.getByText(/the root 'lab' may not be granted on this machine/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Prompt for vault' })).toBeNull()
   })
 
   it('renders a group page', async () => {

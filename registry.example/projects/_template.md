@@ -1,6 +1,7 @@
 ---
 name: example-service
 path: ../example-service
+# root: private   # only for a project in a folder granted in ARCHEION_ROOTS; path is then relative to it
 group: example-system
 status: active
 kind: service

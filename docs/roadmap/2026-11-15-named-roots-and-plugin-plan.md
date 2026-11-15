@@ -42,7 +42,7 @@ Goal: use and test Archeion as a new user would, starting from an empty registry
    - The project page shows the root.
    - The Projects page shows root problems as warnings, and groups unregistered folders by root.
    - `map.ts` is unchanged.
-6. **Commit hook.** `check-sensitive.ps1` reads `ARCHEION_ROOTS` from `.env` and adds the names of the project folders under each root to the blocked names.
+6. **Commit hook.** No change: it already blocks the names and folder names of registered projects, whatever their root. Reading `.env` from the hook was dropped (see ADR 0008, point 5).
 7. **Docs.**
    - `registry.example/projects/README.md` and `_template.md`: the `root` field.
    - README "Registering a project": a third diagram for a project in a granted folder.

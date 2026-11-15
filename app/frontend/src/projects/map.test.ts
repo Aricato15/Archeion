@@ -8,6 +8,7 @@ function project(id: string, extra: Partial<Project> = {}): Project {
     title: id,
     page: `projects/${id}.md`,
     path: `../${id}`,
+    root: null,
     parent: null,
     group: null,
     status: 'active',

@@ -20,7 +20,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
 import { useDoc, useFeedbackList, useRegistry, useTree } from '../api/queries'
-import { REGISTRY, type Project, type SourceId } from '../api/types'
+import { REGISTRY, locationOf, type Project, type SourceId } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { FeedbackCard } from '../feedback/FeedbackCard'
@@ -57,6 +57,7 @@ function Facts({ project, projects }: { project: Project; projects: Map<string, 
     ['Status', <StatusPill key="s" status={project.status} />],
     ['Path', project.path ? <Code key="p">{project.path}</Code> : <Text key="p" c="dimmed" size="sm">none (not on this machine)</Text>],
   ]
+  if (project.root) rows.push(['Root', <Code key="r">{project.root}</Code>])
   if (project.kind) rows.push(['Kind', project.kind])
   if (project.group) {
     rows.push([
@@ -169,8 +170,11 @@ export function ProjectPage() {
 
       {project.path && !available && (
         <Alert color="orange">
-          <Code>{project.path}</Code> isn't on this machine (or is outside the workspace), so its own docs and
-          feedback aren't available. The registry page still works.
+          <Code>{locationOf(project)}</Code>{' '}
+          {project.root
+            ? `isn't available: the root '${project.root}' may not be granted on this machine (ARCHEION_ROOTS), or the folder is missing.`
+            : "isn't on this machine (or is outside the workspace)."}{' '}
+          Its own docs and feedback aren't available until then. The registry page still works.
         </Alert>
       )}
 

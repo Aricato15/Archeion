@@ -69,6 +69,8 @@ export type Project = {
   title: string
   page: string
   path: string | null
+  /** A named root from ARCHEION_ROOTS (ADR 0008); null: `path` is relative to Archeion. */
+  root: string | null
   parent: string | null
   group: string | null
   status: ProjectStatus | string
@@ -88,8 +90,15 @@ export type Group = { id: string; title: string; page: string; summary: string; 
 export type Registry = {
   projects: Project[]
   groups: Group[]
+  /** `page` is empty for problems in the settings (.env) rather than in a registry page. */
   warnings: { page: string; message: string }[]
-  unregistered: { name: string; path: string; parent: string | null }[]
+  unregistered: { name: string; path: string; root: string | null; parent: string | null }[]
+}
+
+/** Where a project's folder is, as the registry says it: `root:path`, or just `path`. */
+export function locationOf(item: { path: string | null; root: string | null }): string | null {
+  if (!item.path) return null
+  return item.root ? `${item.root}:${item.path}` : item.path
 }
 
 export type FeedbackKind = 'prompt' | 'review' | 'comment'

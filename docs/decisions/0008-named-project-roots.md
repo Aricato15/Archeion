@@ -1,6 +1,6 @@
 # 0008: Named project roots outside the workspace
 
-- Status: Proposed
+- Status: Accepted (2026-11-15)
 - Date: 2026-11-15
 - Amends: [ADR 0006](0006-multi-project-registry.md) (one workspace root, paths relative to this repo)
 
@@ -33,7 +33,7 @@ Three constraints stay in place:
    - The registry still holds no drive paths. On another machine you map `private` to wherever that folder lives there.
 3. **Discovery.** `projects scan --root <name>` scans a granted root by the same rules as the workspace (folders with a `CLAUDE.md`, plus sub-projects two levels down), and `--write` creates pages with `root` set.
 4. **Everything else follows the resolved folder.** Once a page resolves to a folder, the doc sources, the allowlist of files, the read-only rule, git history, the watcher and `inbox --here` work as they do for workspace projects, because they already work from the resolved folder.
-5. **The commit hook covers the new roots.** `check-sensitive.ps1` reads the root folders from `.env` and blocks the names of the project folders in them, as it already does for the workspace's folders.
+5. **The commit hook covers projects in the new roots through the registry.** `check-sensitive.ps1` already blocks every registered project's `name`, `title` and folder name (the last part of `path`), whatever its root. It doesn't read `.env`, so the hook never touches machine settings. The one gap is a folder inside a granted root that has no registry page yet. Its name isn't blocked until it's registered, which is the same as for a folder anywhere else on the machine.
 6. **Claude Code access is a separate grant, made in each session.**
    - The project's session needs to run Archeion's CLI. That's covered by the project plugin ([ADR 0009](0009-archeion-plugin-for-project-sessions.md)).
    - Archeion's own session may read a project's docs only if you add the folder to `additionalDirectories` in `.claude/settings.local.json`, which is gitignored. The viewer doesn't need this, because the backend reads the files itself.
