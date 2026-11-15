@@ -28,7 +28,7 @@ If the command says the backend environment is missing, tell the user to run `se
 ## Steps
 
 1. Run `inbox list --project archeion`. If nothing is open, say so and stop. Items for other projects belong to
-   their own sessions (each project's `/inbox`, see `integrations/workspace-core/`): mention how many are waiting,
+   their own sessions (each project's `/archeion:inbox`, from the plugin in `plugins/archeion/`): mention how many are waiting,
    but don't work on them from here, since this repo never edits sibling projects.
 2. Go through the items **oldest first**, one at a time:
    1. `inbox claim <id>`. If it fails because the item is no longer open, skip it.

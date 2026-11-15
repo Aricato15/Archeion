@@ -39,6 +39,7 @@
     }
   },
   "enabledPlugins": {
-    "workspace-core@claude-projects": true
+    "workspace-core@claude-projects": true,
+    "archeion@archeion": false
   }
 }

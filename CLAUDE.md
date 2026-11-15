@@ -41,7 +41,8 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - Install: `setup.bat`. Change settings: `configure.bat`. Set the password: `set_admin_password.bat`. Run: `start.bat`, then open the frontend at port 20301. Stop: `stop.bat`.
 - Backend (from `app/backend/`, with `UV_PROJECT_ENVIRONMENT=venv` set): `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
 - Frontend (from `app/frontend/`): `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`.
-- Backend CLI (from the root): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <serve|password ...|inbox ...>`.
+- Backend CLI (from the root): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <serve|password ...|inbox ...|projects ...|version>`.
+- Versions: the app with `scripts/bump-version.ps1 -Part major|minor|patch`, the plugin with `-Target plugin -Part ...`. They're independent (ADR 0005, ADR 0009).
 - Feedback: `/inbox` (project skill in `.claude/skills/inbox/`) works through what was written in the viewer.
 - Docs: before finishing, check that relative links between docs resolve.
 
@@ -56,8 +57,8 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - `app/backend/app/services/registry.py` (registry pages, checks, discovery), `roots.py` (the named roots from `ARCHEION_ROOTS`, ADR 0008) and `sources.py` (doc sources: `archeion` plus one read-only source per registered project, with its file allowlist). Every docs route takes `source` (default `archeion`).
 - `app/frontend/src/projects/`: projects overview, group and project pages, and `map.ts`, which generates the Mermaid maps from the registry. `docs/links.ts` resolves links across sources.
 - Live updates: watchfiles (project roots without recursion, docs folders with recursion, restarted when the registry changes) and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
-- `integrations/workspace-core/skills/project-inbox/`: the portable `/inbox` for other projects, kept here for review. It gets installed into `_shared/` separately.
-- `.githooks/pre-commit` + `check-sensitive.ps1`: blocks commits with secrets, absolute paths or personal info. Activated with `git config core.hooksPath .githooks`. Scan everything by hand with `powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All`.
+- `.claude-plugin/marketplace.json` + `plugins/archeion/` (ADR 0009): the plugin for sessions in registered projects (`/archeion:inbox`, `context`, `ports`, `report`, a SessionStart hook), installed by the user at user scope. `plugins/archeion/scripts/archeion.ps1` finds Archeion and checks its minimum version (`$MinArcheion`). It has its own SemVer and changelog. Never copy its skills into projects.
+- `.githooks/pre-commit` runs `check-sensitive.ps1` (blocks commits with secrets, absolute paths or personal info) and `check-plugin-version.ps1` (blocks plugin changes without a plugin version change). Activated with `git config core.hooksPath .githooks`. Scan everything by hand with `powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All`.
 - `setup.bat`, `configure.bat`, `start.bat`, `stop.bat`, `set_admin_password.bat` (root) and `scripts/` (`common.ps1`, `setup.ps1`, `configure.ps1`, `settings.schema.json`, `start.ps1`, `stop.ps1`, `send-ctrl-c.ps1`, `archeion.ps1`, `inbox-count.ps1`, `bump-version.ps1`).
 - `.claude/settings.json` runs `scripts/inbox-count.ps1` as a SessionStart hook, which announces open feedback.
 
@@ -78,4 +79,5 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - Project sources are read at runtime from `ARCHEION_WORKSPACE_ROOT` (default `..`) and the named roots in `ARCHEION_ROOTS` (ADR 0008). Registry `path`s must be relative and stay inside their root: relative to this repo without `root:`, relative to the root with it. The commit hook doesn't read `.env`; it blocks registered projects' names whatever their root. Nothing from a project is ever copied into this repo, which is what keeps publishing Archeion from publishing the projects.
 - `inbox --here` needs the caller's folder. `scripts/archeion.ps1` passes it as `ARCHEION_CALLER_DIR`, because the CLI itself runs from `app/backend/`.
 - The SessionStart hook uses a relative path (`scripts/inbox-count.ps1`), so it only fires when Claude Code starts at the repo root.
+- Claude Code runs the Archeion plugin from a cached copy per version, so an edit under `plugins/archeion/` reaches project sessions only after a plugin version bump, `/plugin marketplace update archeion` and a plugin update. The plugin is turned off in this repo, so test it from a registered project's session.
 - uv only reads `UV_PROJECT_ENVIRONMENT` from the environment. Set it to `venv` before any `uv` command in `app/backend/`, or uv creates a second `.venv/`.

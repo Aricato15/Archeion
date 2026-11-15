@@ -68,7 +68,7 @@ Tests to add: an unknown root, a path that escapes its root (`../`), a drive roo
    - `plugins/archeion/.claude-plugin/plugin.json`, at version `0.1.0`.
    - `plugins/archeion/README.md` (install, update, minimum Archeion version) and `plugins/archeion/CHANGELOG.md`.
 4. **Skills and hook.**
-   - `skills/inbox`, ported from `integrations/.../project-inbox`.
+   - `skills/inbox`, ported from the portable `project-inbox` skill.
    - `skills/context`, `skills/ports` and `skills/report`.
    - `hooks/hooks.json`: SessionStart runs `inbox count --here`.
 

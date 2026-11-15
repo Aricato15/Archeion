@@ -1,0 +1,17 @@
+{
+  "name": "archeion",
+  "owner": {
+    "name": "Archeion"
+  },
+  "metadata": {
+    "description": "Archeion's plugin for Claude Code sessions in your registered projects (ADR 0009). Add this repo as a marketplace at user scope."
+  },
+  "plugins": [
+    {
+      "name": "archeion",
+      "source": "./plugins/archeion",
+      "description": "Archeion in every project session: the project's feedback inbox, its place in the system, the ports in use, and a way to report changes back.",
+      "version": "0.1.0"
+    }
+  ]
+}

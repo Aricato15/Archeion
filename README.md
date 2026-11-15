@@ -44,7 +44,7 @@ flowchart LR
 4. **Feedback to Claude.** You can comment on a block or a selection in any doc, review a whole doc, or write a prompt for a project. Each item records which project it's for.
    - In a Claude Code session, `/inbox` lists the open items through a local command-line interface (there's no unauthenticated API), claims one, does the work and replies.
    - The reply shows up in the browser within seconds.
-   - Archeion's own session handles Archeion and registry items. A portable skill in `integrations/` gives every other project the same loop.
+   - Archeion's own session handles Archeion and registry items. The [Archeion plugin](#archeion-plugin-for-your-projects) gives every other project's session the same loop, plus its place in the system.
 5. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
 
 ## What stays private
@@ -73,6 +73,8 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 4. Register your projects: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages. See [Registering a project](#registering-a-project).
 5. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/` and log in.
 6. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
+
+On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
 
 ## Registering a project
 Projects don't go inside Archeion. They sit **next to it**, in the workspace root: the folder that contains `archeion/`. That's the default `ARCHEION_WORKSPACE_ROOT` (`..`). If your projects live somewhere else, set it with `configure.bat` to a folder that holds both Archeion and the projects. A project somewhere else can stay where it is: grant Archeion its folder as a named root (see [Projects in other folders](#projects-in-other-folders)).
@@ -110,7 +112,7 @@ flowchart LR
 - **What the scan finds:** each direct child folder of a root that has a `CLAUDE.md` and doesn't start with `_` or `.`, plus its sub-projects: a folder two levels down with a manifest (like `collectors/<name>/pyproject.toml`).
 - **Only some of them:** `projects scan --write --only <name> [<name> ...]` registers just the folders you name. `--root <name>` scans one root.
 - **Anything else:** copy `registry/projects/_template.md` to `<name>.md` and write the page by hand. Its `path` must be relative and stay inside its root.
-- **Feedback for the project:** items written for it in the viewer wait until a Claude session in that project picks them up with the portable inbox skill in [`integrations/`](integrations/workspace-core/skills/project-inbox/SKILL.md). The Archeion plugin below will replace it.
+- **Feedback for the project:** items written for it in the viewer wait until a Claude session in that project picks them up with `/archeion:inbox`, from the [Archeion plugin](#archeion-plugin-for-your-projects).
 
 ### Projects in other folders
 A project doesn't have to move next to Archeion. Grant Archeion the folder it's in as a **named root**, in `.env` through `configure.bat` ([ADR 0008](docs/decisions/0008-named-project-roots.md)):
@@ -140,16 +142,15 @@ flowchart LR
 - **Register:** `projects scan --root private`, then `--write` (with `--only <name>` to pick some).
 - **Rules for a root:** a name of 2 to 32 characters (lowercase letters, digits, `-`; `workspace` is reserved), and an existing folder that isn't a whole drive, your whole home folder or inside Archeion. `configure.bat` checks these, and the viewer lists anything wrong as a "Settings" problem.
 
-## Archeion plugin for your projects (planned)
-> [!NOTE]
-> Proposed in [ADR 0009](docs/decisions/0009-archeion-plugin-for-project-sessions.md). It doesn't exist yet.
-
-Archeion will ship a Claude Code plugin from this repo, so a Claude session in any registered project can use Archeion. You install it into your **user-level** Claude Code setup, not into each project: you add the repo as a marketplace once, at user scope, and the plugin's skills are then available in every project on the machine. Nothing is copied into your projects.
+## Archeion plugin for your projects
+Archeion ships a Claude Code plugin from this repo ([`plugins/archeion/`](plugins/archeion/README.md), [ADR 0009](docs/decisions/0009-archeion-plugin-for-project-sessions.md)), so a Claude session in any registered project can use Archeion. You install it into your **user-level** Claude Code setup, not into each project: this repo is a plugin marketplace, which you add once at user scope, and the plugin's skills are then available in every project on the machine. Nothing is copied into your projects.
 
 ```
 /plugin marketplace add <path to Archeion>
 /plugin install archeion@archeion
 ```
+
+From a terminal, the same is `claude plugin marketplace add <path to Archeion>` and `claude plugin install archeion@archeion --scope user`. Claude Code runs plugins from a cached copy, so the plugin finds Archeion by itself: through `ARCHEION_HOME` if you set it (in the `env` of your user-level Claude Code settings), else through the folder the marketplace was added from, else at `../archeion`.
 
 | Skill or hook | What it does in a project session |
 |---|---|
@@ -157,17 +158,19 @@ Archeion will ship a Claude Code plugin from this repo, so a Claude session in a
 | `/archeion:context` | Shows this project's group, what it depends on, what depends on it, and its ports |
 | `/archeion:ports` | Lists the ports already in use before you pick a new one |
 | `/archeion:report` | Sends a change, like a new port or dependency, to Archeion's inbox. Project sessions never edit the registry themselves. |
-| SessionStart hook | Announces waiting feedback when a session starts |
+| SessionStart hook | Announces waiting feedback when a session starts in a registered project |
 
-**The plugin has its own version**, in `plugins/archeion/.claude-plugin/plugin.json`, with its own `plugins/archeion/CHANGELOG.md`. It's separate from Archeion's `VERSION` and changes only when the plugin changes, so a new plugin version means it's time to update:
+Archeion's own `.claude/settings.json` turns the plugin off here, because Archeion's session has its own `/inbox`.
+
+**The plugin has its own version**, in `plugins/archeion/.claude-plugin/plugin.json` and the marketplace entry, with its own [changelog](plugins/archeion/CHANGELOG.md). It's separate from Archeion's `VERSION` and changes only when the plugin changes. Claude Code only refreshes its cached copy when that version changes, so a new plugin version is your cue to update:
 
 ```
 /plugin marketplace update archeion
 ```
 
-Bump it with `scripts/bump-version.ps1 -Target plugin -Part major|minor|patch`. The commit hook refuses plugin changes without a version bump, so the version can't go stale.
+Then update the plugin (`/plugin`, or `claude plugin update archeion@archeion`) and start a new session. The plugin states the oldest Archeion it works with, and stops with a clear message if yours is older.
 
-On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
+Bump it with `scripts/bump-version.ps1 -Target plugin -Part major|minor|patch`. The commit hook refuses plugin changes without a version change, and a test checks that `plugin.json`, the marketplace entry and the plugin's changelog agree.
 
 ## Repository layout
 - `app/backend/`: the FastAPI service and its CLI (`python -m app serve | password | inbox | projects`).
@@ -175,6 +178,6 @@ On a new computer, a fresh clone starts with an empty registry. Your registry an
 - `registry.example/`: the empty template for your private `registry/`.
 - `docs/`: Archeion's own roadmap, decisions (ADRs) and session notes.
 - `scripts/`: PowerShell helpers behind the `.bat` files.
-- `integrations/`: the portable `/inbox` skill for other projects.
+- `.claude-plugin/marketplace.json` and `plugins/archeion/`: the Archeion plugin for project sessions, with its own version.
 
 [`CHANGELOG.md`](CHANGELOG.md) records the versions (Semantic Versioning), and [`docs/decisions/`](docs/decisions/) records the reasons behind the design.

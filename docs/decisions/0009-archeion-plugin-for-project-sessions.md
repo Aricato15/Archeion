@@ -1,6 +1,6 @@
 # 0009: Archeion plugin for project sessions, with its own version
 
-- Status: Proposed
+- Status: Accepted (2026-11-15)
 - Date: 2026-11-15
 - Amends: [ADR 0006](0006-multi-project-registry.md) (the portable inbox skill in `integrations/`)
 
@@ -33,18 +33,23 @@ Copying skills into each project isn't an option:
    | `skills/report` (`/archeion:report`) | Sends a change, like a new port or a new dependency, to Archeion's own inbox |
    | `hooks/hooks.json` | At SessionStart, runs `inbox count --here` and announces waiting feedback |
 
-   The CLI gains what these need: `projects show --here [--json]`, `projects ports [--json]`, `inbox create --project archeion --file <path>` (the item records which project sent it) and `version`.
+   The CLI gains what these need: `projects show --here [--json]`, `projects ports [--json]`, `inbox create [--to <project>] --file <path>` (default `--to archeion`; migration 4 adds an `origin` column, so the item records which project sent it) and `version`.
 3. **Project sessions read, and request changes through the inbox.**
    - A project session never edits `registry/`. To change a fact, it sends a request to Archeion's inbox, and Archeion's session makes the edit. The registry keeps a single owner.
    - The skills' `allowed-tools` pre-approve only `archeion.ps1 inbox ...` and `archeion.ps1 projects show|ports ...`, and nothing else in Archeion.
-4. **Finding Archeion.** The skills locate `scripts/archeion.ps1` through `ARCHEION_HOME`, set once in the user-level Claude Code settings (`env`), with `../archeion` as the fallback. If Claude Code runs a directory marketplace from its source folder, the plugin's own location (`CLAUDE_PLUGIN_ROOT`) can replace the setting. That's checked during implementation.
+4. **Finding Archeion.** Checked before building: Claude Code copies an installed plugin, from a directory marketplace too, into a cache per version (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`), so `CLAUDE_PLUGIN_ROOT` points at that copy and not at this repo. The copy isn't refreshed until the version changes. So the plugin ships a launcher, `scripts/archeion.ps1`, which the skills call through `${CLAUDE_PLUGIN_ROOT}`. It finds Archeion, in this order:
+   - `ARCHEION_HOME`, set once in the `env` of the user-level Claude Code settings;
+   - the folder the `archeion` directory marketplace was added from, read from Claude Code's list of known marketplaces;
+   - `../archeion`.
+
+   It then runs Archeion's own `scripts/archeion.ps1` in the caller's folder, so `--here` works. `--where` prints what it found.
 5. **The plugin has its own version, separate from the app's.**
    - It follows Semantic Versioning in `plugins/archeion/.claude-plugin/plugin.json`, mirrored in the marketplace entry, with its own `plugins/archeion/CHANGELOG.md`. The app's `VERSION` ([ADR 0005](0005-semantic-versioning.md)) doesn't move it.
    - The plugin's version changes only when the plugin changes. So when you see a new plugin version, you know to update: `/plugin marketplace update archeion`, then update the plugin. Claude Code uses this version to spot updates.
    - MAJOR: a skill is removed or renamed, or the plugin needs a newer Archeion CLI than it did. MINOR: a new skill or hook. PATCH: fixes and wording.
-   - The CLI it needs is stated as a minimum app version in the plugin's README. The skills check it with `archeion.ps1 version` and stop with a clear message if Archeion is too old.
+   - The oldest Archeion it works with is `$MinArcheion` in the launcher, and the plugin's README states the same. The launcher reads Archeion's `VERSION` and stops with a clear message if Archeion is older. A test checks that the minimum is one this repo has reached and that the README matches.
    - `scripts/bump-version.ps1 -Target plugin -Part major|minor|patch` updates `plugin.json`, the marketplace entry and the plugin's changelog together. `-Target app`, the default, keeps today's behaviour.
-   - **Enforced:** the pre-commit hook refuses a commit that changes files under `plugins/archeion/` without changing the plugin's version, and a test fails if `plugin.json`, the marketplace entry and the plugin's changelog disagree.
+   - **Enforced:** the pre-commit hook (`.githooks/check-plugin-version.ps1`) refuses a commit that changes files under `plugins/archeion/` without changing the plugin's version, and a test fails if `plugin.json`, the marketplace entry and the plugin's changelog disagree.
 6. **Replaces `integrations/`.** Once the plugin ships, `integrations/workspace-core/skills/project-inbox/` is removed. The plan to install it into a shared workspace plugin is dropped.
 
 ## Consequences

@@ -7,7 +7,17 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **The Archeion plugin** ([ADR 0009](docs/decisions/0009-archeion-plugin-for-project-sessions.md)), version 0.1.0, in `plugins/archeion/`. This repo is now also a plugin marketplace (`.claude-plugin/marketplace.json`) that you add at user scope. It gives every registered project's session `/archeion:inbox`, `/archeion:context`, `/archeion:ports` and `/archeion:report`, plus a SessionStart hook that announces waiting feedback. A launcher finds Archeion (`ARCHEION_HOME`, the marketplace's folder, or `../archeion`) and checks its version. The plugin is turned off in this repo.
+- CLI commands for the plugin: `projects show --here|--project <name> [--json]`, `projects ports [--json]`, `inbox create [--to <project>] [--kind ...] --file <path>` and `version`.
+- Migration 4: feedback items record the project whose session sent them (`origin`). The CLI and the viewer show it as "from <project>".
+- The plugin has its own version: `scripts/bump-version.ps1 -Target plugin -Part ...` bumps `plugin.json`, the marketplace entry and the plugin's changelog together. The pre-commit hook refuses plugin changes without a version change (`.githooks/check-plugin-version.ps1`), and a test checks that the three agree.
+
+### Removed
+- `integrations/workspace-core/skills/project-inbox/`: replaced by the plugin's `/archeion:inbox`.
+
 ## [0.3.0] - 2026-11-15
+
 ### Added
 - **Named roots** ([ADR 0008](docs/decisions/0008-named-project-roots.md)): `ARCHEION_ROOTS` (`name=folder;...`, edited and checked by `configure.bat`) grants Archeion more folders to read projects from, so a project can stay outside the workspace. A registry page picks one with `root: <name>`, and its `path` is then relative to that root. Bad entries and roots that aren't configured show as registry problems instead of failing. The viewer shows a project's root and why it's unavailable.
 - `projects scan --root <name>` scans one root, and `--only <name> ...` registers just the named folders instead of every candidate.
