@@ -1,6 +1,6 @@
 # 0006: Multi-project registry, read-only project sources and per-project feedback
 
-- Status: Proposed (on branch `multi-regis-test`, for review)
+- Status: Accepted (2026-11-15)
 - Date: 2026-11-15
 - Amends: hard rules 4 and 5 in `CLAUDE.md`, and [ADR 0002](0002-viewer-app-and-claude-feedback-loop.md)
 

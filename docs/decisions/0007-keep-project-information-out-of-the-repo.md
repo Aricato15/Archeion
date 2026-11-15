@@ -1,6 +1,6 @@
 # 0007: Keep project information out of the repo
 
-- Status: Proposed (on branch `multi-regis-test`, for review)
+- Status: Accepted (2026-11-15)
 - Date: 2026-11-15
 - Amends: [ADR 0006](0006-multi-project-registry.md) (where the registry lives), hard rule 1 in `CLAUDE.md`
 
@@ -20,10 +20,10 @@ The repo will be published on GitHub ([ADR 0003](0003-track-on-github-keep-confi
    - It blocks the names of registered projects and workspace project folders in added lines. It builds that list at commit time from `registry/` and the workspace, so the names are never written into the repo.
 4. **History is cleaned before the first push.** See Remediation.
 
-## Remediation (proposed, needs approval)
+## Remediation (done on 2026-11-15)
 The repo has never had a remote, so nothing has left this machine. The leaked text is only in local commits:
 - one line added on `main` (an example path in `CLAUDE.md`, from the commit that set up the sensitive-content check),
-- five commits on `multi-regis-test`,
+- five commits on the feature branch,
 - the 0.2.0 registry files under `docs/system/` and `docs/interactions/map.md`.
 
 The steps:
@@ -36,6 +36,8 @@ The steps:
 4. **Purge the old objects locally**, so they can't be recovered from the reflog: `git reflog expire --expire=now --all` and `git gc --prune=now --aggressive`.
 5. **Verify.** Grep `git log --all -p` for every name, and check that no tree in history contains the removed paths. Then run `check-sensitive.ps1 -All`.
 6. **Push only after that.** The first push then carries clean history.
+
+All six steps were carried out before any push. No commit, message or object in the rewritten history matches a project name, the removed paths are gone from every commit, and the branch tip came out byte-identical.
 
 If something had already been pushed, this wouldn't be enough. You'd need to force-push the rewritten history, ask GitHub Support to purge cached views and pull-request refs, and assume that clones and forks keep the old data. Any secret would have to be rotated, not just removed.
 
