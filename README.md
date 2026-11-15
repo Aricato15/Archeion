@@ -72,7 +72,7 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 3. `set_admin_password.bat` sets the admin password. Only a salted scrypt hash is stored.
 4. Register your projects: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages.
 5. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/` and log in.
-6. `stop.bat` stops both.
+6. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
 
 On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
 

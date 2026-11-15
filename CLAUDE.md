@@ -58,7 +58,7 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - Live updates: watchfiles (project roots without recursion, docs folders with recursion, restarted when the registry changes) and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
 - `integrations/workspace-core/skills/project-inbox/`: the portable `/inbox` for other projects, kept here for review. It gets installed into `_shared/` separately.
 - `.githooks/pre-commit` + `check-sensitive.ps1`: blocks commits with secrets, absolute paths or personal info. Activated with `git config core.hooksPath .githooks`. Scan everything by hand with `powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All`.
-- `setup.bat`, `configure.bat`, `start.bat`, `stop.bat`, `set_admin_password.bat` (root) and `scripts/` (`common.ps1`, `setup.ps1`, `configure.ps1`, `settings.schema.json`, `start.ps1`, `stop.ps1`, `archeion.ps1`, `inbox-count.ps1`, `bump-version.ps1`).
+- `setup.bat`, `configure.bat`, `start.bat`, `stop.bat`, `set_admin_password.bat` (root) and `scripts/` (`common.ps1`, `setup.ps1`, `configure.ps1`, `settings.schema.json`, `start.ps1`, `stop.ps1`, `send-ctrl-c.ps1`, `archeion.ps1`, `inbox-count.ps1`, `bump-version.ps1`).
 - `.claude/settings.json` runs `scripts/inbox-count.ps1` as a SessionStart hook, which announces open feedback.
 
 ## Conventions

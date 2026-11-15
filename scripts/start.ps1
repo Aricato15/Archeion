@@ -40,9 +40,9 @@ if ($problems.Count -gt 0) {
 }
 
 Start-Process -FilePath 'cmd.exe' -WorkingDirectory $BackendDir `
-    -ArgumentList '/k', 'title Archeion backend && venv\Scripts\python.exe -m app serve'
+    -ArgumentList '/k', "title Archeion backend [port $backendPort] && venv\Scripts\python.exe -m app serve"
 Start-Process -FilePath 'cmd.exe' -WorkingDirectory $FrontendDir `
-    -ArgumentList '/k', 'title Archeion frontend && npm run dev'
+    -ArgumentList '/k', "title Archeion frontend [port $frontendPort] && npm run dev"
 
 $version = (Get-Content -LiteralPath (Join-Path $RepoRoot 'VERSION') -Raw).Trim()
 Write-Host "Archeion $version is starting in two windows."

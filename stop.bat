@@ -1,6 +1,9 @@
 @echo off
-rem Stops the Archeion backend and frontend by port (from .env, or 20300/20301).
+rem Stops Archeion: asks the backend and frontend to shut down cleanly (Ctrl+C), kills them
+rem only if they don't, closes the windows start.bat opened, and checks both ports are free.
 setlocal
 cd /d "%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\stop.ps1"
-endlocal
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" pause
+endlocal & exit /b %RC%

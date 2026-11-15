@@ -30,7 +30,7 @@ flowchart LR
 
 ### Root helper scripts
 - `start.bat`: checks for `app/backend/venv`, `app/frontend/node_modules` and a set password, then starts the backend and frontend dev server in separate windows.
-- `stop.bat`: stops both by port (from `.env` or the defaults 20300/20301) using `scripts/stop.ps1`.
+- `stop.bat`: stops both by port (from `.env` or the defaults 20300/20301) using `scripts/stop.ps1`. It sends each server Ctrl+C, then Ctrl+Break (`scripts/send-ctrl-c.ps1`), kills it only if it hasn't exited after 10 seconds, closes the console windows `start.bat` opened, and exits non-zero if a port is still in use.
 - `set_admin_password.bat`: sets or changes the admin password.
 
 ### Backend serves the viewer
