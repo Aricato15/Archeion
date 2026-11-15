@@ -26,3 +26,9 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+
+# viewer app environments and data
+app/backend/venv/
+app/backend/data/
+app/frontend/node_modules/
+app/frontend/dist/
