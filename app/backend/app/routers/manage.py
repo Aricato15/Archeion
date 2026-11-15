@@ -1,19 +1,21 @@
 """Managing roots and registering projects from the viewer (ADR 0010).
 
-The only files the backend writes: the ARCHEION_ROOTS line of .env, and new pages in
-registry/projects/. Never a project's files, never an existing registry page.
+The only files the backend writes: the ARCHEION_ROOTS line of .env, new pages in
+registry/projects/, and the `type:` (ADR 0016) and `inbox_edits:` (ADR 0017) lines of an
+existing page there. Never a project's files, never anything else in an existing registry page.
 """
 
 from __future__ import annotations
 
 import os
+from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_state
 from ..services.events import Event
-from ..services.registry import register, survey
+from ..services.registry import register, set_inbox_edits, set_type, survey
 from ..services.roots import (
     ENV_KEY,
     NAME_RE,
@@ -43,6 +45,15 @@ class RegisterIn(BaseModel):
     root: str | None = Field(None, max_length=64)
     path: str = Field(max_length=1024)
     name: str = Field(max_length=64)
+    type: Literal["project", "module"] | None = None  # None: detected (ADR 0016)
+
+
+class TypeIn(BaseModel):
+    type: Literal["project", "module"] | None  # None: back to detection
+
+
+class InboxEditsIn(BaseModel):
+    inbox_edits: bool | None  # None: the default (a module follows its project)
 
 
 def _locked() -> str | None:
@@ -138,8 +149,34 @@ async def post_project(body: RegisterIn, state: AppState = Depends(get_state)) -
         root=body.root,
         path=body.path,
         name=body.name.strip(),
+        type=body.type,
     )
     m.reload()
     _changed(state)
     project = m.registry.projects.get(body.name.strip())
     return {"page": page, "project": project.public() if project else None}
+
+
+@router.put("/registry/projects/{project_id}/type")
+async def put_project_type(project_id: str, body: TypeIn, state: AppState = Depends(get_state)) -> dict:
+    m = state.sources
+    try:
+        set_type(m.registry_root, m.registry, project_id, body.type)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    m.reload()
+    _changed(state)
+    return m.registry.projects[project_id].public()
+
+
+@router.put("/registry/projects/{project_id}/inbox-edits")
+async def put_inbox_edits(project_id: str, body: InboxEditsIn, state: AppState = Depends(get_state)) -> dict:
+    """Whether Archeion's /inbox may edit the project's files for its inbox items (ADR 0017)."""
+    m = state.sources
+    try:
+        set_inbox_edits(m.registry_root, m.registry, project_id, body.inbox_edits)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    m.reload()
+    _changed(state)
+    return m.registry.projects[project_id].public()

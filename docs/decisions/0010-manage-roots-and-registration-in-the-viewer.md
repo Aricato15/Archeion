@@ -1,6 +1,6 @@
 # 0010: Manage roots and register projects from the viewer
 
-- Status: Accepted (2026-11-15)
+- Status: Accepted (2026-11-15). Amended by [ADR 0016](0016-projects-and-modules.md): the backend may also set the `type:` line of an existing registry page.
 - Date: 2026-11-15
 - Amends: [ADR 0008](0008-named-project-roots.md) (roots edited only with `configure.bat`), [ADR 0006](0006-multi-project-registry.md) (registry pages written only by hand or by `projects scan --write`)
 

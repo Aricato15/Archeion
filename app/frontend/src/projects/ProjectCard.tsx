@@ -27,7 +27,18 @@ export function ProjectLink({ id, projects }: { id: string; projects: Map<string
   )
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/** "3 modules · 1 sub-project": a project's children by type (ADR 0016). */
+function childrenSummary(project: Project, projects: Map<string, Project>): string | null {
+  const modules = project.children.filter((c) => projects.get(c)?.type === 'module').length
+  const nested = project.children.length - modules
+  const parts = [modules ? plural(modules, 'module') : null, nested ? plural(nested, 'sub-project') : null]
+  return parts.filter(Boolean).join(' · ') || null
+}
+
 export function ProjectCard({ project, projects }: { project: Project; projects: Map<string, Project> }) {
+  const kids = childrenSummary(project, projects)
   return (
     <Card withBorder radius="md" padding="sm" component={Link} to={projectUrl(project.id)}>
       <Stack gap={4}>
@@ -45,7 +56,7 @@ export function ProjectCard({ project, projects }: { project: Project; projects:
           </Group>
         </Group>
         <Text size="xs" c="dimmed">
-          {[project.kind, project.ports.length ? `:${project.ports.join(', :')}` : null].filter(Boolean).join(' · ') ||
+          {[project.type === 'module' ? 'module' : null, project.kind, project.ports.length ? `:${project.ports.join(', :')}` : null].filter(Boolean).join(' · ') ||
             project.id}
         </Text>
         {project.summary && (
@@ -53,10 +64,10 @@ export function ProjectCard({ project, projects }: { project: Project; projects:
             {project.summary}
           </Text>
         )}
-        {(project.children.length > 0 || project.depends_on.length > 0) && (
+        {(kids || project.depends_on.length > 0) && (
           <Text size="xs" c="dimmed">
-            {project.children.length > 0 && `${project.children.length} sub-project(s)`}
-            {project.children.length > 0 && project.depends_on.length > 0 && ' · '}
+            {kids}
+            {kids && project.depends_on.length > 0 && ' · '}
             {project.depends_on.length > 0 &&
               `uses ${project.depends_on.map((d) => projects.get(d)?.title ?? d).join(', ')}`}
           </Text>

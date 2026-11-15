@@ -8,6 +8,7 @@ import {
   Group,
   Loader,
   NavLink,
+  SegmentedControl,
   SimpleGrid,
   Stack,
   Table,
@@ -19,7 +20,15 @@ import { IconExternalLink, IconFileText, IconMessagePlus } from '@tabler/icons-r
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
-import { useDoc, useFeedbackList, useRegistry, useTree } from '../api/queries'
+import { notifications } from '@mantine/notifications'
+import {
+  useDoc,
+  useFeedbackList,
+  useRegistry,
+  useSetInboxEdits,
+  useSetProjectType,
+  useTree,
+} from '../api/queries'
 import { REGISTRY, locationOf, type Project, type SourceId } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
@@ -52,11 +61,87 @@ function SourceDoc({ source, path }: { source: SourceId; path: string }) {
   )
 }
 
+/** Project, module, or back to what the folder says (ADR 0016). Writes `type:` on the registry page. */
+function TypeControl({ project }: { project: Project }) {
+  const setType = useSetProjectType()
+  const value = project.type_source === 'page' ? project.type : 'auto'
+  return (
+    <Stack gap={2} align="flex-start">
+      <SegmentedControl
+        size="xs"
+        aria-label="Project or module"
+        value={value}
+        disabled={setType.isPending}
+        data={[
+          { value: 'auto', label: `Auto (${project.detected_type})` },
+          { value: 'project', label: 'Project' },
+          // A module is part of a project, so it needs a parent.
+          { value: 'module', label: 'Module', disabled: !project.parent },
+        ]}
+        onChange={(v) =>
+          setType.mutate(
+            { id: project.id, type: v === 'auto' ? null : (v as 'project' | 'module') },
+            {
+              onError: (err) => notifications.show({ color: 'red', title: 'Not changed', message: err.message }),
+            },
+          )
+        }
+      />
+      <Text size="xs" c="dimmed">
+        {project.type_source === 'page' ? 'Set on its registry page.' : 'Detected: '}
+        {project.type_source === 'detected' &&
+          (project.type === 'module'
+            ? `inside ${project.parent} and not a git repository of its own.`
+            : project.parent
+              ? 'a git repository of its own.'
+              : 'a top-level folder.')}
+      </Text>
+    </Stack>
+  )
+}
+
+/** Whether Archeion's /inbox may edit this project's files for its items (ADR 0017). Writes `inbox_edits:`. */
+export function InboxEditsControl({ project }: { project: Project }) {
+  const setEdits = useSetInboxEdits()
+  const value = project.inbox_edits_source === 'page' ? (project.inbox_edits ? 'on' : 'off') : 'auto'
+  const inherited = project.inbox_edits_source === 'owner' ? `as ${project.owner}` : 'allowed'
+  return (
+    <Stack gap={2} align="flex-start">
+      <SegmentedControl
+        size="xs"
+        aria-label="Inbox edits"
+        value={value}
+        disabled={setEdits.isPending}
+        data={[
+          { value: 'auto', label: `Auto (${inherited})` },
+          { value: 'on', label: 'Allowed' },
+          { value: 'off', label: 'Not allowed' },
+        ]}
+        onChange={(v) =>
+          setEdits.mutate(
+            { id: project.id, value: v === 'auto' ? null : v === 'on' },
+            {
+              onError: (err) => notifications.show({ color: 'red', title: 'Not changed', message: err.message }),
+            },
+          )
+        }
+      />
+      <Text size="xs" c="dimmed">
+        {project.inbox_edits
+          ? "Archeion's /inbox may edit this project's files to carry out its items."
+          : "Archeion's /inbox only answers this project's items; its own session does the edits."}
+      </Text>
+    </Stack>
+  )
+}
+
 function Facts({ project, projects }: { project: Project; projects: Map<string, Project> }) {
   const rows: [string, React.ReactNode][] = [
     ['Status', <StatusPill key="s" status={project.status} />],
     ['Path', project.path ? <Code key="p">{project.path}</Code> : <Text key="p" c="dimmed" size="sm">none (not on this machine)</Text>],
   ]
+  rows.push(['Type', <TypeControl key="t" project={project} />])
+  rows.push(['Inbox edits', <InboxEditsControl key="ie" project={project} />])
   if (project.root) rows.push(['Root', <Code key="r">{project.root}</Code>])
   if (project.kind) rows.push(['Kind', project.kind])
   if (project.group) {
@@ -138,9 +223,13 @@ export function ProjectPage() {
           <Group gap="xs">
             <Title order={2}>{project.title}</Title>
             <StatusPill status={project.status} />
-            {project.parent && (
+            {project.type === 'module' ? (
+              <Badge variant="light" color="grape" size="sm">
+                module{project.owner && <> of <ProjectLink id={project.owner} projects={projects} /></>}
+              </Badge>
+            ) : (
               <Badge variant="outline" size="sm">
-                sub-project
+                {project.parent ? 'sub-project' : 'project'}
               </Badge>
             )}
           </Group>
@@ -187,17 +276,20 @@ export function ProjectPage() {
         </Card>
       </SimpleGrid>
 
-      {project.children.length > 0 && (
-        <Stack gap="xs">
-          <Title order={4}>Sub-projects</Title>
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-            {project.children.map((c) => {
-              const child = projects.get(c)
-              return child ? <ProjectCard key={c} project={child} projects={projects} /> : null
-            })}
-          </SimpleGrid>
-        </Stack>
-      )}
+      {(['module', 'project'] as const).map((type) => {
+        const kids = project.children.map((c) => projects.get(c)).filter((c): c is Project => c?.type === type)
+        if (kids.length === 0) return null
+        return (
+          <Stack key={type} gap="xs">
+            <Title order={4}>{type === 'module' ? 'Modules' : 'Sub-projects'}</Title>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+              {kids.map((child) => (
+                <ProjectCard key={child.id} project={child} projects={projects} />
+              ))}
+            </SimpleGrid>
+          </Stack>
+        )
+      })}
 
       <Tabs value={tab} onChange={(v) => setParams(v && v !== 'notes' ? { tab: v } : {}, { replace: true })} keepMounted={false}>
         <Tabs.List>

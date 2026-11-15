@@ -10,9 +10,11 @@ body holds the cross-project notes (ADR 0006). Files starting with "_" are templ
     title: Example collector                      # optional display name
     path: ../example-service/collectors/example   # relative to this repo's root, or to `root`
     root: private                                 # optional: a folder granted in ARCHEION_ROOTS
-    parent: example-service                       # makes this a sub-project
+    parent: example-service                       # the project (or module) it sits in
+    type: module                                  # optional: project | module (ADR 0016)
     group: example-system                         # a groups/<group>.md page
     status: active                                # active | paused | archived | planned
+    inbox_edits: true                             # optional: /inbox may edit its files (ADR 0017)
     kind: library                                 # free text: service, frontend, library...
     ports: [20100]
     depends_on: [example-service]                 # projects this one calls or imports
@@ -35,6 +37,7 @@ from .roots import WORKSPACE, Roots
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.S)
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 STATUSES = {"active", "paused", "archived", "planned"}
+TYPES = ("project", "module")  # ADR 0016: a project has its own repository, a module lives in one
 PROJECTS_DIR = "projects"
 GROUPS_DIR = "groups"
 SELF_ID = "archeion"  # this repo's docs/ source, never a registered project
@@ -106,6 +109,15 @@ class Project:
     group: str | None = None
     status: str = "active"
     kind: str | None = None
+    # ADR 0016. `type` is what counts: the page's `type:` if set, else `detected_type`.
+    type: str = "project"
+    type_source: str = "detected"  # "page" | "detected"
+    detected_type: str = "project"
+    owner: str | None = None  # a module's project (nearest ancestor that's a project)
+    # ADR 0017: whether Archeion's /inbox may edit this project's files for its inbox items.
+    # From the page's `inbox_edits:`, else a module follows its project, else allowed.
+    inbox_edits: bool = True
+    inbox_edits_source: str = "default"  # "page" | "owner" | "default"
     ports: list[int] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
     docs_dir: str = "docs"
@@ -246,6 +258,14 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
         if isinstance(verified, date):
             verified = verified.isoformat()
         docs_dir = str(meta.get("docs_dir") or "docs").strip("/")
+        edits = meta.get("inbox_edits")
+        if edits is not None and not isinstance(edits, bool):
+            reg.warn(rel, f"inbox_edits '{edits}' must be true or false; ignored")
+            edits = None
+        page_type = meta.get("type")
+        if page_type is not None and page_type not in TYPES:
+            reg.warn(rel, f"unknown type '{page_type}' (use project or module); detected instead")
+            page_type = None
         project = Project(
             id=pid,
             title=str(meta.get("title") or _title_of(body, pid)),
@@ -267,6 +287,10 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
             if problem:
                 reg.warn(rel, f"path '{project.path}': {problem}")
             project.available = project.dir is not None
+        if page_type:
+            project.type, project.type_source = str(page_type), "page"
+        if edits is not None:
+            project.inbox_edits, project.inbox_edits_source = edits, "page"
         if not re.match(r"^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$", docs_dir) or ".." in docs_dir.split("/"):
             reg.warn(rel, f"docs_dir '{docs_dir}' must be a plain relative folder")
             project.docs_dir = "docs"
@@ -307,6 +331,7 @@ def _link(reg: Registry) -> None:
             seen.add(cur.parent)
             cur = reg.projects[cur.parent]
 
+    _types(reg)
     for p in reg.projects.values():
         if p.parent:
             reg.projects[p.parent].children.append(p.id)
@@ -318,6 +343,47 @@ def _link(reg: Registry) -> None:
             reg.groups[p.group] = Group(p.group, p.group, "", "")
         if group:
             reg.groups[group].projects.append(p.id)
+
+
+def is_repo(folder: Path | None) -> bool:
+    """The folder is the root of its own git repository (`.git` is a folder, or a file
+    for a submodule or a worktree)."""
+    return folder is not None and (folder / ".git").exists()
+
+
+def _types(reg: Registry) -> None:
+    """Project or module (ADR 0016). Detected: a page inside another (`parent:`) whose folder
+    isn't a repository of its own is a module; anything else is a project. A folder this
+    machine can't see counts as no repository. The page's `type:` overrides detection."""
+    for p in reg.projects.values():
+        p.detected_type = "module" if p.parent and not is_repo(p.dir) else "project"
+        if p.type_source != "page":
+            p.type = p.detected_type
+    for p in reg.projects.values():
+        if p.type == "project":
+            continue
+        if not p.parent:
+            reg.warn(p.page, "a module needs `parent:`, the project it's part of")
+            continue
+        p.owner = owning_project(reg, p).id
+    # A module lives in its project's repository, so it follows the project unless its page says.
+    for p in reg.projects.values():
+        if p.inbox_edits_source != "page" and p.owner and p.owner != p.id:
+            p.inbox_edits, p.inbox_edits_source = reg.projects[p.owner].inbox_edits, "owner"
+
+
+def owning_project(reg: Registry, p: Project) -> Project:
+    """The project a module is part of: its nearest ancestor that's a project. A project
+    owns itself. A chain of modules with no project above ends at the topmost page."""
+    cur = p
+    while cur.type != "project" and cur.parent and cur.parent in reg.projects:
+        cur = reg.projects[cur.parent]
+    return cur
+
+
+def modules_of(reg: Registry, p: Project) -> list[str]:
+    """The modules a project owns, at any depth (not nested projects or their modules)."""
+    return sorted(m.id for m in reg.projects.values() if m.type == "module" and m.owner == p.id)
 
 
 def effective_group(reg: Registry, p: Project) -> str | None:
@@ -408,7 +474,9 @@ def unregistered(
         name = item["name"]
         if name in reg.projects:
             name = f"{item['parent']}-{name}" if item["parent"] else name
-        out.append({**item, "name": name})
+        inside = reg.project_for_dir(target.parent) if item["parent"] else None
+        detected = "module" if inside and not is_repo(target) else "project"
+        out.append({**item, "name": name, "detected_type": detected})
     return out
 
 
@@ -421,8 +489,12 @@ def stub_page(item: dict) -> str:
     lines.append(f"path: {item['path']}")
     if item.get("parent"):
         lines.append(f"parent: {item['parent']}")
+    if item.get("type"):
+        lines.append(f"type: {item['type']}")
+    lines.append("status: active")
+    if item.get("inbox_edits") is not None:
+        lines.append(f"inbox_edits: {'true' if item['inbox_edits'] else 'false'}")
     lines += [
-        "status: active",
         "# verified: YYYY-MM-DD   (add it once this page is checked against the project)",
         "---",
         "",
@@ -468,6 +540,7 @@ def _entry(p: Project, root: str | None, folder: str) -> dict:
         "parent_folder": None,
         "parent": p.parent,
         "registered": p.id,
+        "detected_type": p.type,
     }
 
 
@@ -505,6 +578,8 @@ def survey(reg: Registry, repo_root: Path, roots: Roots | Path) -> list[dict]:
                     "parent_folder": item["parent"],
                     "parent": parent.id if parent else None,
                     "registered": None,
+                    # What it would be detected as once registered (ADR 0016).
+                    "detected_type": "module" if parent and not is_repo(target) else "project",
                 }
             )
         # Registered projects that discovery doesn't find (no CLAUDE.md, or nested deeper).
@@ -530,6 +605,7 @@ def register(
     root: str | None,
     path: str,
     name: str,
+    type: str | None = None,
 ) -> str:
     """Create the registry page for a folder that discovery found and nothing registers yet.
     Only such folders can be registered, so a page can't point anywhere else. Never
@@ -544,6 +620,8 @@ def register(
         raise RegisterError(f"'{name}' is reserved for Archeion's own sources")
     if name in reg.projects:
         raise RegisterError(f"a project named '{name}' is already registered")
+    if type is not None and type not in TYPES:
+        raise RegisterError(f"type must be project or module, not '{type}'")
     candidates = _discover_all(repo_root, roots, key or WORKSPACE)
     item = next((i for i in candidates if i["root"] == key and i["path"] == path), None)
     if item is None:
@@ -554,10 +632,87 @@ def register(
     parent = reg.project_for_dir(item["dir"].parent) if item["parent"] else None
     page = registry_root / PROJECTS_DIR / f"{name}.md"
     page.parent.mkdir(parents=True, exist_ok=True)
-    text = stub_page({"name": name, "root": key, "path": path, "parent": parent.id if parent else None})
+    if type == "module" and parent is None:
+        raise RegisterError("only a folder inside a registered project can be a module")
+    final = type or ("module" if parent and not is_repo(item["dir"]) else "project")
+    text = stub_page(
+        {
+            "name": name,
+            "root": key,
+            "path": path,
+            "parent": parent.id if parent else None,
+            "type": type,
+            # ADR 0017: written out, so the page shows it. A module follows its project.
+            "inbox_edits": True if final == "project" else None,
+        }
+    )
     try:
         with page.open("x", encoding="utf-8", newline="\n") as f:
             f.write(text)
     except FileExistsError:
         raise RegisterError(f"{PROJECTS_DIR}/{name}.md already exists in the registry") from None
     return page.relative_to(registry_root).as_posix()
+
+
+# --- single frontmatter lines of an existing page (ADR 0016, ADR 0017) ---------------------
+
+
+def set_type(registry_root: Path, reg: Registry, project_id: str, value: str | None) -> str:
+    """Set (`project` / `module`) or remove (None: back to detection) the `type:` line of a
+    project's registry page (ADR 0016). Returns the page's path."""
+    if value is not None and value not in TYPES:
+        raise RegisterError(f"type must be project or module, not '{value}'")
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if value == "module" and not project.parent:
+        raise RegisterError(f"'{project_id}' has no `parent:`, so it can't be a module of a project")
+    return _set_line(registry_root, project, "type", value, ("parent", "path"))
+
+
+def set_inbox_edits(registry_root: Path, reg: Registry, project_id: str, value: bool | None) -> str:
+    """Set (True / False) or remove (None: the default, or its project's setting for a module)
+    the `inbox_edits:` line of a project's registry page (ADR 0017). Returns the page's path."""
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    shown = None if value is None else ("true" if value else "false")
+    return _set_line(registry_root, project, "inbox_edits", shown, ("path", "parent", "type", "status"))
+
+
+def _set_line(
+    registry_root: Path, project: Project, key: str, value: str | None, after: tuple[str, ...]
+) -> str:
+    """Set (or, with None, remove) one `key:` line in the frontmatter of a project's registry
+    page. Every other byte of the page stays as it was. A new line goes after the last line
+    whose key is in `after`, so the page still reads in the documented order."""
+    base = (registry_root / PROJECTS_DIR).resolve()
+    page = (registry_root / project.page).resolve()
+    if page.parent != base or not page.is_file():
+        raise RegisterError(f"'{project.id}' has no page in {PROJECTS_DIR}/")
+    raw = page.read_bytes().decode("utf-8")
+    bom = "﻿" if raw.startswith("﻿") else ""
+    text = raw[len(bom) :]
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        raise RegisterError(f"{project.page} has no frontmatter to change")
+    nl = "\r\n" if "\r\n" in m.group(0) else "\n"
+    line_re = re.compile(rf"^{re.escape(key)}\s*:")
+    after_re = re.compile(rf"^({'|'.join(map(re.escape, after))})\s*:")
+    kept = [line for line in m.group(1).split(nl) if not line_re.match(line)]
+    if value is not None:
+        at = len(kept)
+        for i, line in enumerate(kept):
+            if after_re.match(line):
+                at = i + 1
+        kept.insert(at, f"{key}: {value}")
+    head = f"---{nl}{nl.join(kept)}{nl}---{nl}"
+    rest = text[m.end() :]
+    if not m.group(0).endswith("\n"):  # frontmatter closed at the very end of the file
+        head = head[: -len(nl)]
+    new = bom + head + rest
+    if new != raw:
+        tmp = page.with_name(f".{page.name}.tmp")
+        tmp.write_bytes(new.encode("utf-8"))
+        tmp.replace(page)
+    return project.page

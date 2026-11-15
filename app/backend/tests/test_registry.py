@@ -115,7 +115,7 @@ def test_stub_page_round_trips():
 def test_cli_projects(settings, capsys):
     assert main(["projects", "list"], settings) == 0
     out = capsys.readouterr().out
-    assert "Group one [g1]" in out and "- beta (active)" in out and "    - sub1 (active)" in out
+    assert "Group one [g1]" in out and "- beta (active)" in out and "    - sub1 (active, module)" in out
     assert "- alpha (active) -> beta" in out and "1 folder(s)" in out
 
     assert main(["projects", "scan"], settings) == 0

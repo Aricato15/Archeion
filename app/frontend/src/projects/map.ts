@@ -2,8 +2,10 @@ import type { Group, Project, Registry } from '../api/types'
 
 /**
  * Mermaid flowcharts generated from the registry, so the maps can't drift from the pages:
- * groups become subgraphs, sub-projects nest inside their parent, and depends_on becomes an
- * arrow. Projects outside the shown set that are linked to appear dashed.
+ * groups become subgraphs, modules and sub-projects nest inside their parent (modules drawn
+ * rounded, ADR 0016), and depends_on becomes an
+ * arrow. Projects outside the shown set that are linked to appear dashed. They're laid out
+ * with ELK, which keeps nested boxes and their arrows tidier than Mermaid's default (dagre).
  */
 
 const nodeId = (id: string) => `p_${id.replace(/[^A-Za-z0-9_]/g, '_')}`
@@ -57,7 +59,7 @@ export function buildMermaid(registry: Registry, opts: MapOptions = {}): string 
   const byId = new Map(registry.projects.map((p) => [p.id, p]))
   const groups = new Map<string, Group>(registry.groups.map((g) => [g.id, g]))
   const { shown, ghosts } = selectProjects(registry, opts)
-  const lines = [`flowchart ${opts.direction ?? 'LR'}`]
+  const lines = ['---', 'config:', '  layout: elk', '---', `flowchart ${opts.direction ?? 'LR'}`]
   const visible = new Set([...shown, ...ghosts])
   if (visible.size === 0) return ''
 
@@ -67,17 +69,20 @@ export function buildMermaid(registry: Registry, opts: MapOptions = {}): string 
     return !parent || !visible.has(parent)
   })
 
+  // Projects are boxes, modules rounded (ADR 0016).
+  const node = (id: string, title: string) =>
+    byId.get(id)?.type === 'module' ? `${nodeId(id)}(["${title}"])` : `${nodeId(id)}["${title}"]`
   const emit = (id: string, indent: string) => {
     const p = byId.get(id)
     const title = label(p?.title ?? id)
     const kids = childrenOf(id)
     if (kids.length) {
       lines.push(`${indent}subgraph ${nodeId(id)}_box["${title}"]`)
-      lines.push(`${indent}  ${nodeId(id)}["${title}"]`)
+      lines.push(`${indent}  ${node(id, title)}`)
       for (const k of kids) emit(k, `${indent}  `)
       lines.push(`${indent}end`)
     } else {
-      lines.push(`${indent}${nodeId(id)}["${title}"]`)
+      lines.push(`${indent}${node(id, title)}`)
     }
   }
 

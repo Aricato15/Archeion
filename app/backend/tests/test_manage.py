@@ -106,7 +106,13 @@ def test_register_writes_a_stub_and_links_the_parent(settings, outside):
     )
     assert page == "projects/omega.md"
     meta, _, err = split_frontmatter((settings.registry_root / page).read_text(encoding="utf-8"))
-    assert err is None and meta == {"name": "omega", "root": "private", "path": "omega", "status": "active"}
+    assert err is None and meta == {
+        "name": "omega",
+        "root": "private",
+        "path": "omega",
+        "status": "active",
+        "inbox_edits": True,  # ADR 0017
+    }
 
     reg = load_registry(settings.registry_root, settings.repo_root, roots)
     assert reg.projects["omega"].available
@@ -198,6 +204,7 @@ def test_api_roots_round_trip(authed, settings, outside):
                 "parent_folder": None,
                 "parent": None,
                 "registered": "omega",
+                "detected_type": "project",
             }
         ],
     }

@@ -6,7 +6,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 if (-not (Test-Path -LiteralPath $BackendPython)) { exit 0 }
 Push-Location $BackendDir
 try {
-    $out = & $BackendPython -m app inbox count --project archeion 2>$null
+    $out = & $BackendPython -m app inbox count 2>$null
 } finally { Pop-Location }
 $n = 0
 if ([int]::TryParse(("$out").Trim(), [ref]$n) -and $n -gt 0) {

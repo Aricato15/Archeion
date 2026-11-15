@@ -64,6 +64,8 @@ export type Source = { id: SourceId; title: string; kind: 'archeion' | 'registry
 
 export type ProjectStatus = 'active' | 'paused' | 'archived' | 'planned'
 
+export type ProjectType = 'project' | 'module'
+
 export type Project = {
   id: string
   title: string
@@ -75,6 +77,18 @@ export type Project = {
   group: string | null
   status: ProjectStatus | string
   kind: string | null
+  /** ADR 0016: a project has its own repository, a module lives inside one. */
+  type: ProjectType
+  /** 'page': set with `type:` on the registry page; 'detected': worked out from the folder. */
+  type_source: 'page' | 'detected'
+  /** What it would be without `type:` on its page. */
+  detected_type: ProjectType
+  /** A module's project (its nearest ancestor that's a project); null for a project. */
+  owner: string | null
+  /** ADR 0017: whether Archeion's /inbox may edit this project's files for its inbox items. */
+  inbox_edits: boolean
+  /** 'page': `inbox_edits:` on its page; 'owner': a module following its project; 'default': allowed. */
+  inbox_edits_source: 'page' | 'owner' | 'default'
   ports: number[]
   depends_on: string[]
   docs_dir: string
@@ -117,9 +131,11 @@ export type RootItem = {
   /** Where it is inside the root. */
   folder: string
   parent_folder: string | null
-  /** The registered project it would be a sub-project of. */
+  /** The registered project it sits inside. */
   parent: string | null
   registered: string | null
+  /** Its type once registered without a choice (ADR 0016), or a registered project's type. */
+  detected_type: ProjectType
 }
 
 export type RootSurvey = { name: string; folder: string | null; granted: boolean; items: RootItem[] }

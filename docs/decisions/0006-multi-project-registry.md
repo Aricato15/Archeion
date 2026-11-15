@@ -1,6 +1,6 @@
 # 0006: Multi-project registry, read-only project sources and per-project feedback
 
-- Status: Accepted (2026-11-15)
+- Status: Accepted (2026-11-15). Sub-projects refined into projects and modules by [ADR 0016](0016-projects-and-modules.md). Archeion's `/inbox` may also handle a project's items by [ADR 0017](0017-inbox-may-edit-registered-projects.md).
 - Date: 2026-11-15
 - Amends: hard rules 4 and 5 in `CLAUDE.md`, and [ADR 0002](0002-viewer-app-and-claude-feedback-loop.md)
 

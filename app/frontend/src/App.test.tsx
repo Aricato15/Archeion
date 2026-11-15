@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from './auth/LoginPage'
@@ -17,7 +17,13 @@ import { ProjectPage } from './projects/ProjectPage'
 import { ProjectsPage } from './projects/ProjectsPage'
 
 vi.mock('mermaid', () => ({
-  default: { initialize: vi.fn(), parse: vi.fn(async () => true), render: vi.fn(async () => ({ svg: '<svg/>' })) },
+  default: {
+    initialize: vi.fn(),
+    registerLayoutLoaders: vi.fn(),
+    registerIconPacks: vi.fn(),
+    parse: vi.fn(async () => true),
+    render: vi.fn(async () => ({ svg: '<svg/>' })),
+  },
 }))
 
 const item = {
@@ -50,6 +56,12 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   group: null,
   status: 'active',
   kind: null,
+  type: 'project',
+  type_source: 'detected',
+  detected_type: 'project',
+  owner: null,
+  inbox_edits: true,
+  inbox_edits_source: 'default',
   ports: [],
   depends_on: [],
   docs_dir: 'docs',
@@ -65,7 +77,13 @@ const registry = {
   projects: [
     project('gateway', { group: 'shop', ports: [20060], depends_on: ['datasvc'], kind: 'service' }),
     project('datasvc', { children: ['collector-a'], used_by: ['gateway'] }),
-    project('collector-a', { parent: 'datasvc', path: '../datasvc/collectors/collector-a' }),
+    project('collector-a', {
+      parent: 'datasvc',
+      path: '../datasvc/collectors/collector-a',
+      type: 'module',
+      detected_type: 'module',
+      owner: 'datasvc',
+    }),
     project('vault', { root: 'lab', path: 'vault', available: false }),
   ],
   groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: 'The shop apps.', projects: ['gateway'] }],
@@ -124,12 +142,12 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
         folder: '/work',
         granted: true,
         items: [
-          { name: 'gateway', path: '../gateway', root: null, folder: 'gateway', parent_folder: null, parent: null, registered: 'gateway' },
-          { name: 'newproj', path: '../newproj', root: null, folder: 'newproj', parent_folder: null, parent: null, registered: null },
-          { name: 'coll-b', path: '../datasvc/collectors/coll-b', root: null, folder: 'datasvc/collectors/coll-b', parent_folder: 'datasvc', parent: 'datasvc', registered: null },
+          { name: 'gateway', path: '../gateway', root: null, folder: 'gateway', parent_folder: null, parent: null, registered: 'gateway', detected_type: 'project' },
+          { name: 'newproj', path: '../newproj', root: null, folder: 'newproj', parent_folder: null, parent: null, registered: null, detected_type: 'project' },
+          { name: 'coll-b', path: '../datasvc/collectors/coll-b', root: null, folder: 'datasvc/collectors/coll-b', parent_folder: 'datasvc', parent: 'datasvc', registered: null, detected_type: 'module' },
         ],
       },
-      { name: 'gone', folder: null, granted: false, items: [{ name: 'far', path: 'far', root: 'gone', folder: 'far', parent_folder: null, parent: null, registered: 'far' }] },
+      { name: 'gone', folder: null, granted: false, items: [{ name: 'far', path: 'far', root: 'gone', folder: 'far', parent_folder: null, parent: null, registered: 'far', detected_type: 'project' }] },
     ],
     '/api/runner': { running: false, interval: '10m', pid: null, started_at: null, can_start: true, reason: null },
     '/api/runner/start': { running: true, interval: '10m', pid: 4242, started_at: '2026-11-15T03:00:00+00:00', can_start: true, reason: null },
@@ -291,7 +309,8 @@ describe('app', () => {
   it('renders a project page with facts, notes and sub-projects', async () => {
     mockApi(true)
     renderAt('/projects/datasvc')
-    expect(await screen.findByText('Sub-projects')).toBeTruthy()
+    expect(await screen.findByText('Modules')).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Auto (project)' })).toBeTruthy()
     expect(screen.getByText('Used by')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Prompt for datasvc' })).toBeTruthy()
   })
@@ -332,7 +351,7 @@ describe('app', () => {
     renderAt('/settings')
     expect(await screen.findByText('/lab')).toBeTruthy()
     expect(screen.getByText('Entries in .env that were refused')).toBeTruthy()
-    expect(await screen.findByText('sub-project of datasvc')).toBeTruthy()
+    expect(await screen.findByText(/inside datasvc; looks like a module/)).toBeTruthy()
     expect(screen.getByText('not granted on this machine')).toBeTruthy()
     expect(screen.getByText('2 not registered')).toBeTruthy()
     expect(screen.getAllByText('registered').length).toBe(2)
@@ -342,7 +361,31 @@ describe('app', () => {
     expect(await screen.findByText(/Registered newproj/)).toBeTruthy()
     const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
     const post = calls.find(([url, init]) => url === '/api/registry/projects' && init?.method === 'POST')
-    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: null, path: '../newproj', name: 'newproj' })
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: null, path: '../newproj', name: 'newproj', type: null })
+  })
+
+  it('shows a module, and sets its type from the project page', async () => {
+    mockApi(true)
+    renderAt('/projects/collector-a')
+    expect(await screen.findByText('module of')).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: 'Project' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      const put = calls.find(([url, init]) => url === '/api/registry/projects/collector-a/type' && init?.method === 'PUT')
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ type: 'project' })
+    })
+  })
+
+  it('switches whether the inbox may edit a project from the project page', async () => {
+    mockApi(true)
+    renderAt('/projects/gateway')
+    expect(await screen.findByRole('radio', { name: 'Auto (allowed)' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: 'Not allowed' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      const put = calls.find(([url, init]) => url === '/api/registry/projects/gateway/inbox-edits' && init?.method === 'PUT')
+      expect(JSON.parse(String(put?.[1]?.body))).toEqual({ inbox_edits: false })
+    })
   })
 
   it('starts with no roots on a clean slate', async () => {

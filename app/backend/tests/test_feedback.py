@@ -230,7 +230,12 @@ def test_cli_targets_projects(settings, authed, capsys, monkeypatch):
     monkeypatch.setenv("ARCHEION_CALLER_DIR", str(ws / "beta"))
     assert main(["inbox", "list", "--here"], settings) == 0
     out = capsys.readouterr().out
-    assert "No open feedback items for beta." in out and "alpha (1)" in out and "sub1 (1)" in out
+    # beta's session also gets the items for its module sub1 (ADR 0016), and only those
+    assert "[sub1]" in out and "Sub task." in out and "Alpha task." not in out
+    assert main(["inbox", "list", "--json", "--project", "beta"], settings) == 0
+    assert [i["body"] for i in json.loads(capsys.readouterr().out)] == ["Sub task."]
+    assert main(["inbox", "list", "--json", "--project", "sub1"], settings) == 0
+    assert [i["body"] for i in json.loads(capsys.readouterr().out)] == ["Sub task."]
     monkeypatch.setenv("ARCHEION_CALLER_DIR", str(ws / "gamma"))
     assert main(["inbox", "list", "--here"], settings) == 1
     assert "isn't inside a registered project" in capsys.readouterr().err

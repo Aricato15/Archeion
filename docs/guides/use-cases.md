@@ -5,7 +5,7 @@ How the viewer, **Archeion's session** and a **project's session** work together
 | Who | Where | What it does |
 |---|---|---|
 | **You** | The viewer (browser) | Reads docs, the registry and the maps. Leaves comments, prompts and reviews. Resolves Claude's answers. |
-| **Archeion's session** | `claude` started at Archeion's root | Owns the registry and the system docs. Works through Archeion's inbox with `/inbox`. Reads projects, never writes to them. |
+| **Archeion's session** | `claude` started at Archeion's root | Owns the registry and the system docs. Works through the inbox with `/inbox`: Archeion's items, and any project's items it's allowed to edit (`inbox_edits`, ADR 0017). Otherwise it only reads projects. |
 | **A project's session** | `claude` started in a project's folder, with the Archeion plugin | Owns that project's code and docs. Works through its inbox with `/archeion:inbox`. Reports to Archeion, never edits the registry. |
 
 Steps marked **(planned)** aren't built yet. Until they are, the step next to them says how to do the same thing today.

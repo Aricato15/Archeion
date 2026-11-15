@@ -12,6 +12,7 @@ import type {
   FeedbackSummary,
   NewFeedback,
   Project,
+  ProjectType,
   Registry,
   RootSurvey,
   RootsSettings,
@@ -116,8 +117,23 @@ export const useSaveRoots = () =>
   )
 
 export const useRegisterProject = () =>
-  useRegistryMutation((item: { root: string | null; path: string; name: string }) =>
+  useRegistryMutation((item: { root: string | null; path: string; name: string; type?: ProjectType | null }) =>
     api<{ page: string; project: Project | null }>('/registry/projects', { method: 'POST', json: item }),
+  )
+
+/** Set a project's type on its registry page, or null to go back to detection (ADR 0016). */
+export const useSetProjectType = () =>
+  useRegistryMutation(({ id, type }: { id: string; type: ProjectType | null }) =>
+    api<Project>(`/registry/projects/${encodeURIComponent(id)}/type`, { method: 'PUT', json: { type } }),
+  )
+
+/** Allow or forbid Archeion's /inbox editing a project's files, or null for the default (ADR 0017). */
+export const useSetInboxEdits = () =>
+  useRegistryMutation(({ id, value }: { id: string; value: boolean | null }) =>
+    api<Project>(`/registry/projects/${encodeURIComponent(id)}/inbox-edits`, {
+      method: 'PUT',
+      json: { inbox_edits: value },
+    }),
   )
 
 // --- inbox terminal (ADR 0013) ------------------------------------------------------------

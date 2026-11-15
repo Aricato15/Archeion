@@ -4,6 +4,7 @@ root: projects   # a root granted on the Settings page (ARCHEION_ROOTS)
 path: example-service   # relative to the root (without root: relative to this repo, inside ARCHEION_WORKSPACE_ROOT)
 group: example-system
 status: active
+inbox_edits: true   # Archeion's /inbox may edit it for its inbox items (ADR 0017)
 kind: service
 ports: [20100]
 depends_on: []

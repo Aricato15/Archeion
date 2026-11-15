@@ -13,6 +13,12 @@ function project(id: string, extra: Partial<Project> = {}): Project {
     group: null,
     status: 'active',
     kind: null,
+    type: 'project',
+    type_source: 'detected',
+    detected_type: 'project',
+    owner: null,
+    inbox_edits: true,
+    inbox_edits_source: 'default',
     ports: [],
     depends_on: [],
     docs_dir: 'docs',
@@ -41,7 +47,7 @@ const registry: Registry = {
 describe('buildMermaid', () => {
   it('maps everything: groups as subgraphs, sub-projects nested, deps as arrows', () => {
     const m = buildMermaid(registry)
-    expect(m.startsWith('flowchart LR')).toBe(true)
+    expect(m.startsWith('---\nconfig:\n  layout: elk\n---\nflowchart LR\n')).toBe(true)
     expect(m).toContain('subgraph g_shop["Shop"]')
     expect(m).toContain('subgraph p_datasvc_box["datasvc"]')
     expect(m).toContain('p_collector_a["coll  tei"]') // quotes stripped from labels

@@ -7,7 +7,7 @@ This folder is the committed **template**. Your real registry lives in `registry
 ```
 registry/
   overview.md          the big picture: which systems exist, which services stand alone
-  projects/<name>.md   one page per project or sub-project (format: projects/README.md)
+  projects/<name>.md   one page per project or module (format: projects/README.md)
   groups/<name>.md     one page per system of related projects
   interactions/        notable cross-project flows, one file each
 ```

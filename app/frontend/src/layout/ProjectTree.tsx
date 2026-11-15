@@ -1,6 +1,7 @@
-import { NavLink } from '@mantine/core'
-import { IconAlertTriangle, IconBox, IconStack2 } from '@tabler/icons-react'
-import { Link, useLocation } from 'react-router'
+import { Group, NavLink } from '@mantine/core'
+import { IconAlertTriangle, IconBox, IconChevronRight, IconPuzzle, IconStack2 } from '@tabler/icons-react'
+import { useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import type { Project, Registry } from '../api/types'
 import { projectUrl } from '../docs/links'
 
@@ -15,35 +16,75 @@ function Item({
   current: string | null
   onNavigate: () => void
 }) {
+  const navigate = useNavigate()
   const children = project.children.map((c) => projects.get(c)).filter((c): c is Project => Boolean(c))
   const active = current === project.id
   const inside = children.some((c) => c.id === current)
+  const [opened, setOpened] = useState(active || inside)
+  // Opening a project (or one of its modules) from anywhere unfolds it here.
+  const [wasHere, setWasHere] = useState(active || inside)
+  if (wasHere !== (active || inside)) {
+    setWasHere(active || inside)
+    if (active || inside) setOpened(true)
+  }
+
+  const warning =
+    project.path && !project.available ? <IconAlertTriangle size={12} color="var(--mantine-color-orange-6)" /> : undefined
+  const common = {
+    component: Link,
+    to: projectUrl(project.id),
+    label: project.title,
+    // Projects (their own repository) and modules (part of one) look different (ADR 0016).
+    leftSection: project.type === 'module' ? <IconPuzzle size={16} data-type="module" /> : <IconBox size={16} />,
+    active,
+    childrenOffset: 14,
+    py: 4,
+    c: project.status === 'archived' || project.status === 'paused' ? 'dimmed' : undefined,
+  } as const
+
+  if (children.length === 0) return <NavLink {...common} rightSection={warning} onClick={onNavigate} />
+
+  // A project with modules or sub-projects is a page of its own too. Mantine's NavLink turns a parent into a
+  // toggle (it prevents the link), so the label opens the page and unfolds it, and the chevron
+  // only folds and unfolds.
   return (
     <NavLink
-      component={Link}
-      to={projectUrl(project.id)}
-      label={project.title}
-      leftSection={<IconBox size={16} />}
+      {...common}
+      opened={opened}
+      disableRightSectionRotation
       rightSection={
-        project.path && !project.available ? <IconAlertTriangle size={12} color="var(--mantine-color-orange-6)" /> : undefined
+        <Group gap={4} wrap="nowrap">
+          {warning}
+          <IconChevronRight
+            size={14}
+            data-toggle
+            aria-hidden
+            style={{ transform: opened ? 'rotate(90deg)' : undefined, transition: 'transform 150ms ease' }}
+          />
+        </Group>
       }
-      active={active}
-      defaultOpened={active || inside}
-      childrenOffset={14}
-      onClick={onNavigate}
-      py={4}
-      c={project.status === 'archived' || project.status === 'paused' ? 'dimmed' : undefined}
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
+        if ((event.target as Element).closest('[data-toggle]')) {
+          setOpened((o) => !o)
+          return
+        }
+        setOpened(true)
+        navigate(projectUrl(project.id))
+        onNavigate()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === ' ') setOpened((o) => !o)
+      }}
     >
-      {children.length > 0
-        ? children.map((c) => (
-            <Item key={c.id} project={c} projects={projects} current={current} onNavigate={onNavigate} />
-          ))
-        : undefined}
+      {children.map((c) => (
+        <Item key={c.id} project={c} projects={projects} current={current} onNavigate={onNavigate} />
+      ))}
     </NavLink>
   )
 }
 
-/** Projects in the sidebar: grouped by system, sub-projects under their parent. */
+/** Projects in the sidebar: grouped by system, modules and sub-projects under their parent. */
 export function ProjectTree({ registry, onNavigate }: { registry: Registry; onNavigate: () => void }) {
   const { pathname } = useLocation()
   const projects = new Map(registry.projects.map((p) => [p.id, p]))

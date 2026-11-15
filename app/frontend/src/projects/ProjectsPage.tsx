@@ -39,7 +39,7 @@ export function Unregistered({ registry }: { registry: Registry }) {
   return (
     <Alert color="blue" icon={<IconFolderPlus size={18} />} title={`${registry.unregistered.length} unregistered folder(s)`}>
       <Text size="sm">
-        These folders in your roots look like projects or sub-projects but have no registry page yet:{' '}
+        These folders in your roots look like projects or modules but have no registry page yet:{' '}
         {registry.unregistered.map((u) => locationOf(u)).join(', ')}.
       </Text>
       <Text size="sm" mt="xs">
@@ -69,7 +69,7 @@ function Cards({ ids, projects }: { ids: string[]; projects: Map<string, Project
   )
 }
 
-/** Top-level projects only: sub-projects show on their parent's page. */
+/** Top-level projects only: modules and sub-projects show on their parent's page. */
 const tops = (ids: string[], projects: Map<string, Project>) =>
   ids.filter((id) => !projects.get(id)?.parent).sort()
 
@@ -100,7 +100,7 @@ export function ProjectsPage() {
       {reg.projects.length > 0 && (
         <Card withBorder radius="md">
           <Text size="xs" c="dimmed" mb="xs">
-            Generated from each page's frontmatter: groups are boxes, sub-projects sit inside their parent, arrows are{' '}
+            Generated from each page's frontmatter: groups are boxes, modules (rounded) and sub-projects sit inside their parent, arrows are{' '}
             <Code>depends_on</Code>.
           </Text>
           <RegistryMap registry={reg} />

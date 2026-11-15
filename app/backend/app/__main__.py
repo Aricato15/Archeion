@@ -19,7 +19,19 @@ from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import docs_fs
 from .services import feedback as fb
-from .services.registry import REGISTRY_ID, SELF_ID, Project, effective_group, split_frontmatter, stub_page
+from .services.registry import (
+    REGISTRY_ID,
+    SELF_ID,
+    Project,
+    Registry,
+    effective_group,
+    modules_of,
+    owning_project,
+    set_inbox_edits,
+    set_type,
+    split_frontmatter,
+    stub_page,
+)
 from .services.sources import SourceManager, SourceNotFound
 
 EXIT_NO_PASSWORD = 3
@@ -108,15 +120,23 @@ def _sources(settings: Settings) -> SourceManager:
 OWN_SOURCES = [SELF_ID, REGISTRY_ID]
 
 
+def _with_modules(reg: Registry, p: Project) -> list[str]:
+    """A project and the modules it owns: one repository, one session, one inbox (ADR 0016).
+    A module on its own (--project <module>) is just itself."""
+    return [p.id, *modules_of(reg, p)] if p.type == "project" else [p.id]
+
+
 def _target(settings: Settings, args: argparse.Namespace) -> list[str] | None:
-    """The sources to filter on: --project X, --here (the caller's folder), or None for all."""
+    """The sources to filter on: --project X, --here (the caller's folder), or None for all.
+    A project includes its modules; --here inside a module means the project it's part of."""
     if getattr(args, "project", None):
         project = args.project
         if project in OWN_SOURCES:
             return OWN_SOURCES
-        if project not in _sources(settings).registry.projects:
+        reg = _sources(settings).registry
+        if project not in reg.projects:
             raise ValueError(f"'{project}' isn't a registered project (see: projects list)")
-        return [project]
+        return _with_modules(reg, reg.projects[project])
     if getattr(args, "here", False):
         here = _caller_dir()
         if here.is_relative_to(settings.repo_root.resolve()):
@@ -125,7 +145,7 @@ def _target(settings: Settings, args: argparse.Namespace) -> list[str] | None:
         project = manager.registry.project_for_dir(here)
         if project is None:
             raise ValueError(_not_registered(here, manager))
-        return [project.id]
+        return _with_modules(manager.registry, owning_project(manager.registry, project))
     return None
 
 
@@ -227,16 +247,50 @@ def _doc_excerpt(settings: Settings, item: dict) -> str:
     return docs_fs.excerpt(docs_fs.read_text(target), lines=lines, heading=anchor.get("heading"))
 
 
+def _item_target(settings: Settings, item: dict) -> dict | None:
+    """For an item about a registered project: where its files are and whether Archeion's
+    /inbox may edit them (ADR 0017). None for Archeion's own items."""
+    source = item.get("source") or SELF_ID
+    if source in OWN_SOURCES:
+        return None
+    reg = _sources(settings).registry
+    p = reg.projects.get(source)
+    if p is None:
+        return {"project": source, "registered": False, "folder": None, "inbox_edits": False}
+    home = owning_project(reg, p) if p.type == "module" else p
+    return {
+        "project": p.id,
+        "registered": True,
+        "folder": str(p.dir) if p.dir else None,
+        # The repository the changes land in: the module's project, for a module.
+        "repository": str(home.dir) if home.dir else None,
+        "inbox_edits": p.inbox_edits and p.dir is not None,
+        "inbox_edits_source": p.inbox_edits_source,
+    }
+
+
+def _target_line(target: dict) -> str:
+    if not target["registered"]:
+        return f"       target: {target['project']} (no longer registered; no edits)"
+    if target["folder"] is None:
+        return f"       target: {target['project']} (not available on this machine; no edits)"
+    edits = "allowed" if target["inbox_edits"] else "not allowed (answer or ask, don't edit)"
+    return f"       target: {target['project']} in {target['folder']}; inbox edits {edits}"
+
+
 def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
     with _db(settings).conn() as conn:
         item = fb.get(conn, args.id)
         thread = fb.thread(conn, args.id)
     excerpt = _doc_excerpt(settings, item)
+    target = _item_target(settings, item)
     if args.json:
-        _print_json({"item": item, "thread": thread, "excerpt": excerpt})
+        _print_json({"item": item, "thread": thread, "excerpt": excerpt, "target": target})
         return 0
     print(_summary_line(item))
     print(f"       created {item['created_at']}, doc at commit {(item['doc_rev'] or '-')[:10]}")
+    if target:
+        print(_target_line(target))
     if len(thread) > 1:
         print("\nThread:")
         for t in thread:
@@ -333,8 +387,11 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
 
     def show(pid: str, depth: int) -> None:
         p = reg.projects[pid]
-        flags = [p.status] + ([f"root {p.root}"] if p.root else [])
+        flags = (
+            [p.status] + (["module"] if p.type == "module" else []) + ([f"root {p.root}"] if p.root else [])
+        )
         flags += [] if p.available or not p.path else ["not available"]
+        flags += [] if p.inbox_edits else ["no inbox edits"]
         extra = f" -> {', '.join(p.depends_on)}" if p.depends_on else ""
         print(f"{'  ' * depth}- {p.id} ({', '.join(flags)}){extra}")
         for child in sorted(p.children):
@@ -395,7 +452,9 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
             continue
         if args.write:
             target_dir.mkdir(parents=True, exist_ok=True)
-            page.write_text(stub_page(item), encoding="utf-8")
+            # ADR 0017: a project's page says inbox_edits outright; a module follows its project.
+            edits = True if item.get("detected_type", "project") == "project" else None
+            page.write_text(stub_page({**item, "inbox_edits": edits}), encoding="utf-8")
             print(f"create {label}: {rel}")
         else:
             print(f"would create {label}: {rel}")
@@ -440,6 +499,10 @@ def cmd_projects_show(settings: Settings, args: argparse.Namespace) -> int:
     print(f"{facts['id']} ({facts['title']})")
     print(f"  status: {facts['status']}" + (f", kind: {facts['kind']}" if facts["kind"] else ""))
     print(f"  path: {where}" + ("" if facts["available"] else " (not available on this machine)"))
+    how = "set on its page" if facts["type_source"] == "page" else "detected"
+    of = f" of {facts['owner']}" if facts["owner"] else ""
+    print(f"  type: {facts['type']}{of} ({how})")
+    print(f"  inbox edits: {_edits_text(facts)}")
     if facts["group"]:
         inherited = " (from its parent)" if facts["group_inherited"] else ""
         print(f"  group: {facts['group']} ({facts['group_title']}){inherited}")
@@ -449,8 +512,13 @@ def cmd_projects_show(settings: Settings, args: argparse.Namespace) -> int:
         print("  group: none (standalone)")
     if facts["parent"]:
         print(f"  part of: {facts['parent']}")
-    if facts["children"]:
-        print(f"  sub-projects: {names(sorted(facts['children']))}")
+    reg = manager.registry
+    modules = sorted(c for c in facts["children"] if reg.projects[c].type == "module")
+    nested = sorted(c for c in facts["children"] if reg.projects[c].type == "project")
+    if modules:
+        print(f"  modules: {names(modules)}")
+    if nested:
+        print(f"  sub-projects: {names(nested)}")
     print(f"  depends on: {names(facts['depends_on'])}")
     print(f"  used by: {names(sorted(facts['used_by']))}")
     print(f"  ports: {', '.join(str(n) for n in facts['ports']) or 'none'}")
@@ -459,6 +527,44 @@ def cmd_projects_show(settings: Settings, args: argparse.Namespace) -> int:
     if facts["notes"]:
         print("\nNotes from the registry page:")
         print(facts["notes"])
+    return 0
+
+
+def cmd_projects_type(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    reg = manager.registry
+    if args.name not in reg.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    value = None if args.type == "auto" else args.type
+    page = set_type(manager.registry_root, reg, args.name, value)
+    manager.reload()
+    p = manager.registry.projects[args.name]
+    how = "set on its page" if p.type_source == "page" else "detected"
+    of = f" of {p.owner}" if p.owner else ""
+    print(f"{p.id}: {p.type}{of} ({how}); registry/{page}")
+    return 0
+
+
+def _edits_text(facts: dict) -> str:
+    """Whether Archeion's /inbox may edit the project's files, and where that comes from."""
+    how = {
+        "page": "set on its page",
+        "owner": f"from {facts.get('owner')}",
+        "default": "default",
+    }.get(facts["inbox_edits_source"], facts["inbox_edits_source"])
+    return f"{'allowed' if facts['inbox_edits'] else 'not allowed'} ({how})"
+
+
+def cmd_projects_inbox_edits(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    reg = manager.registry
+    if args.name not in reg.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    value = {"on": True, "off": False, "auto": None}[args.value]
+    page = set_inbox_edits(manager.registry_root, reg, args.name, value)
+    manager.reload()
+    p = manager.registry.projects[args.name]
+    print(f"{p.id}: inbox edits {_edits_text(p.public())}; registry/{page}")
     return 0
 
 
@@ -559,6 +665,16 @@ def build_parser() -> argparse.ArgumentParser:
     which.add_argument("--here", action="store_true", help="the project the command runs in")
     show.add_argument("--json", action="store_true")
     show.set_defaults(func=cmd_projects_show)
+    pt = projects.add_parser("type", help="mark a page as a project or a module, or back to auto (ADR 0016)")
+    pt.add_argument("name", help="the registered name")
+    pt.add_argument("type", choices=["project", "module", "auto"], help="auto: detected from the folder")
+    pt.set_defaults(func=cmd_projects_type)
+    pe = projects.add_parser(
+        "inbox-edits", help="allow Archeion's /inbox to edit a project's files for its items (ADR 0017)"
+    )
+    pe.add_argument("name", help="the registered name")
+    pe.add_argument("value", choices=["on", "off", "auto"], help="auto: on, or a module's project's setting")
+    pe.set_defaults(func=cmd_projects_inbox_edits)
     ports = projects.add_parser("ports", help="the ports recorded in the registry, by project")
     ports.add_argument("--json", action="store_true")
     ports.set_defaults(func=cmd_projects_ports)

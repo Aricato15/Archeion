@@ -9,6 +9,7 @@ import {
   Group,
   List,
   Loader,
+  SegmentedControl,
   Stack,
   Switch,
   Table,
@@ -23,7 +24,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 import { useRegisterProject, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
 import { InboxTerminalCard } from '../runner/InboxTerminal'
-import type { RootEntry, RootItem, RootSurvey, RootsSettings } from '../api/types'
+import type { ProjectType, RootEntry, RootItem, RootSurvey, RootsSettings } from '../api/types'
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{1,31}$/
 
@@ -190,6 +191,7 @@ function RegisterRow({ item }: { item: RootItem }) {
   const register = useRegisterProject()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(item.name)
+  const [type, setType] = useState<ProjectType>(item.detected_type)
   if (!open) {
     return (
       <Button size="xs" variant="light" leftSection={<IconFolderPlus size={14} />} onClick={() => setOpen(true)}>
@@ -203,7 +205,8 @@ function RegisterRow({ item }: { item: RootItem }) {
         e.preventDefault()
         if (!item.path) return
         register.mutate(
-          { root: item.root, path: item.path, name },
+          // Only a choice that differs from detection goes on the page as `type:` (ADR 0016).
+          { root: item.root, path: item.path, name, type: type === item.detected_type ? null : type },
           {
             onSuccess: (res) =>
               notifications.show({
@@ -223,6 +226,17 @@ function RegisterRow({ item }: { item: RootItem }) {
             onChange={(e) => setName(e.currentTarget.value.trim().toLowerCase())}
             w={180}
           />
+          <SegmentedControl
+            size="xs"
+            aria-label="Register as"
+            value={type}
+            onChange={(v) => setType(v as ProjectType)}
+            data={[
+              { value: 'project', label: 'Project' },
+              // A module is part of a registered project.
+              { value: 'module', label: 'Module', disabled: !item.parent },
+            ]}
+          />
           <Button size="xs" type="submit" loading={register.isPending} disabled={!name}>
             Create page
           </Button>
@@ -241,10 +255,17 @@ function RegisterRow({ item }: { item: RootItem }) {
 }
 
 function SubProjectNote({ item }: { item: RootItem }) {
-  if (!item.parent_folder || item.registered) return null
+  if (item.registered) {
+    return item.detected_type === 'module' ? (
+      <Text size="xs" c="dimmed">
+        module of {item.parent}
+      </Text>
+    ) : null
+  }
+  if (!item.parent_folder) return null
   return item.parent ? (
     <Text size="xs" c="dimmed">
-      sub-project of {item.parent}
+      inside {item.parent}; looks like a {item.detected_type === 'module' ? 'module (no git repository of its own)' : 'project (its own git repository)'}
     </Text>
   ) : (
     <Text size="xs" c="dimmed">
@@ -335,8 +356,9 @@ export function SettingsPage() {
         <div>
           <Title order={3}>Projects in each root</Title>
           <Text size="sm" c="dimmed">
-            Folders with a CLAUDE.md, and sub-projects with a manifest two levels down. Registering one creates a stub
-            page in the private registry; it never changes the project.
+            Folders with a CLAUDE.md, and folders inside them with a manifest two levels down. Register each as a
+            project (its own repository) or a module (part of a project). Registering creates a stub page in the private
+            registry; it never changes the project.
           </Text>
         </div>
         <Switch label="Only unregistered" checked={onlyNew} onChange={(e) => setOnlyNew(e.currentTarget.checked)} />

@@ -1,6 +1,6 @@
 ---
 name: context
-description: Show where the project this session runs in sits in the user's system of projects, as recorded in Archeion's registry - its group and the projects in it, what it depends on, what depends on it, its sub-projects, its ports and the cross-project notes. Use when the user says "/archeion:context", asks how this project relates to the others, what calls it or what it calls, or before a change that affects other projects (an API, a port, data another project reads).
+description: Show where the project this session runs in sits in the user's system of projects, as recorded in Archeion's registry - its group and the projects in it, what it depends on, what depends on it, its modules and sub-projects, its ports and the cross-project notes. Use when the user says "/archeion:context", asks how this project relates to the others, what calls it or what it calls, or before a change that affects other projects (an API, a port, data another project reads).
 allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/archeion.ps1" projects show:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scripts/archeion.ps1" projects show:*)
 ---
 
@@ -25,5 +25,6 @@ If the command can't find Archeion, says Archeion is too old, or says this folde
 
 ## Notes
 
+- A **project** has its own git repository; a **module** is a part of one (shown as `type: module of <project>`). A session at the project's root covers its modules too, including their feedback.
 - `verified` is the date the page was last checked against the project. A page that's old or never verified may be stale.
 - The facts belong to Archeion's registry, and this project's own facts (endpoints, commands) belong in its own docs. Don't copy either into the other.

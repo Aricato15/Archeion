@@ -11,6 +11,7 @@ The terminal is where you work with Claude. The viewer is for reading the docs, 
 | You want to… | Start `claude` in | Then |
 |---|---|---|
 | Work on the system view: registry, maps, roadmap, ADRs, this viewer | Archeion's root folder | `/inbox` |
+| Clear every project's feedback from one place | Archeion's root folder | `/inbox` (edits a project only when its inbox edits are allowed) |
 | Work on one project | That project's folder | `/archeion:inbox` |
 
 Start it at Archeion's root, not a subfolder: the session-start hook that announces open feedback only fires there.
@@ -18,7 +19,7 @@ Start it at Archeion's root, not a subfolder: the session-start hook that announ
 ## In Archeion's session
 | Command | What it does |
 |---|---|
-| `/inbox` | Works through the feedback left for Archeion |
+| `/inbox` | Works through the feedback left for Archeion and for every registered project. For a project's item it reads that project's `CLAUDE.md`, edits its files when its inbox edits are allowed, runs its tests, and leaves the changes uncommitted there |
 | `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking. The viewer can run this for you: **Settings → Inbox terminal** starts, stops and restarts it in its own window, and the header badge shows whether it's running |
 | `/workspace-core:commit` | Reviews the staged changes, proposes a Conventional Commits message, and asks before committing |
 | `/workspace-core:handoff` | Writes a handoff note to `docs/notes/` for the next session |
@@ -44,6 +45,8 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects list` | The registered projects, by group, with any problems |
 | `projects scan` | Folders in your roots with no registry page yet (`--write` creates stub pages) |
 | `projects show --project <name>` | One project's place in the system |
+| `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
+| `projects inbox-edits <name> on\|off\|auto` | Allow or forbid Archeion's `/inbox` editing a project's files (auto: allowed, or as its project for a module) |
 | `projects ports` | Every recorded port, with clashes marked |
 | `password set` | Changes the admin password and logs out every session |
 

@@ -4,6 +4,11 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-15
+
+### Changed
+- `/archeion:context` explains projects and modules: a module is a part of a project, inside its repository, and the project's session covers it (Archeion's ADR 0016).
+
 ## [0.1.0] - 2026-11-15
 
 Requires Archeion 0.4.0 or later.
