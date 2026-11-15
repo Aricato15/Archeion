@@ -52,6 +52,7 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - `docs/roadmap/`: `roadmap.md` (now / next / later) plus dated plans for larger initiatives.
 - `docs/decisions/`: architecture decisions as `NNNN-title.md` (ADRs).
 - `docs/notes/`: session handoffs.
+- `docs/guides/claude-cli.md`: the terminal workflow, shown in the viewer's Claude CLI panel (`app/frontend/src/layout/GuidePanel.tsx`). Update it whenever a skill, plugin skill or CLI command is added, renamed or removed.
 - `app/backend/app/`: `main.py` (app factory, Origin guard, error mapping, routers behind the session dependency), `config.py`, `db.py` (pragmas, `BEGIN IMMEDIATE`, migrations by `PRAGMA user_version`), `security.py` (scrypt, sessions, rate limit), `paths.py` (the one doc-path check every route uses), `routers/`, `services/` (`docs_fs`, `git`, `events`, `feedback`), `__main__.py` (CLI).
 - `app/frontend/src/`: `api/` (fetch client, typed queries), `auth/`, `layout/` (shell, doc tree, feedback badge), `docs/` (Markdown, Mermaid, comment anchors, history and diffs), `feedback/`, `pages/` (roadmap, diagrams, search), `events/` (SSE → query invalidation).
 - `app/backend/app/services/registry.py` (registry pages, checks, discovery), `roots.py` (the named roots from `ARCHEION_ROOTS`, ADR 0008) and `sources.py` (doc sources: `archeion` plus one read-only source per registered project, with its file allowlist). Every docs route takes `source` (default `archeion`).

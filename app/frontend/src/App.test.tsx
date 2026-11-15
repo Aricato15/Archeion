@@ -88,6 +88,7 @@ const files: Record<string, unknown> = {
   'registry:groups/shop.md': { content: '# Shop\n\nThe shop apps.\n', dirty: false },
   'gateway:README.md': { content: '# Gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
   'gateway:docs/api.md': { content: '# Gateway API\n\nRoutes.\n', dirty: false },
+  'archeion:guides/claude-cli.md': { content: '# Working with Claude\n\nRun `/inbox` at the root.\n', dirty: false },
 }
 
 function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
@@ -354,5 +355,20 @@ describe('app', () => {
     renderAt('/feedback/7')
     expect(await screen.findByText('Done: tightened it.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Resolve' })).toBeTruthy()
+  })
+
+  it('opens and closes the Claude CLI guide panel', async () => {
+    window.localStorage.removeItem('archeion.guide-panel')
+    mockApi(true)
+    renderAt('/projects')
+    const toggle = await screen.findByRole('button', { name: 'Claude CLI guide' })
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(toggle)
+    expect(await screen.findByRole('heading', { name: 'Working with Claude' })).toBeTruthy()
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('link', { name: 'Open the guide as a page' }).getAttribute('href')).toBe('/docs/guides/claude-cli.md')
+    fireEvent.click(screen.getByRole('button', { name: 'Close the guide' }))
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    expect(window.localStorage.getItem('archeion.guide-panel')).toBe('false')
   })
 })

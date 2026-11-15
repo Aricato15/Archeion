@@ -15,7 +15,7 @@ import {
   useComputedColorScheme,
   useMantineColorScheme,
 } from '@mantine/core'
-import { useDisclosure, useHotkeys } from '@mantine/hooks'
+import { useDisclosure, useHotkeys, useLocalStorage } from '@mantine/hooks'
 import {
   IconBooks,
   IconBox,
@@ -27,6 +27,7 @@ import {
   IconSearch,
   IconSettings,
   IconSun,
+  IconTerminal2,
 } from '@tabler/icons-react'
 import { useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
@@ -36,6 +37,7 @@ import { DEFAULT_LINKS, LinkContextValue, type LinkContext } from '../docs/links
 import { useEvents } from '../events/useEvents'
 import { DocTree } from './DocTree'
 import { FeedbackBadge } from './FeedbackBadge'
+import { GuidePanel } from './GuidePanel'
 import { ProjectTree } from './ProjectTree'
 
 const NAV = [
@@ -65,13 +67,20 @@ export function Shell() {
   const scheme = useComputedColorScheme('light')
   const [q, setQ] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  // The Claude CLI panel on the right; whether it's open is remembered in this browser.
+  const [guide, setGuide] = useLocalStorage({ key: 'archeion.guide-panel', defaultValue: false })
+  const toggleGuide = () => setGuide((v) => !v)
   useEvents()
-  useHotkeys([['/', () => searchRef.current?.focus()]])
+  useHotkeys([
+    ['/', () => searchRef.current?.focus()],
+    ['mod+i', toggleGuide],
+  ])
 
   return (
     <AppShell
       header={{ height: 56 }}
       navbar={{ width: 280, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      aside={{ width: { md: 340, lg: 400 }, breakpoint: 'md', collapsed: { desktop: !guide, mobile: !guide } }}
       padding="md"
     >
       <AppShell.Header>
@@ -108,6 +117,17 @@ export function Shell() {
               }}
             />
             <FeedbackBadge />
+            <Tooltip label={guide ? 'Hide the Claude CLI guide (Ctrl+I)' : 'Show the Claude CLI guide (Ctrl+I)'}>
+              <ActionIcon
+                variant={guide ? 'filled' : 'default'}
+                size="lg"
+                aria-label="Claude CLI guide"
+                aria-pressed={guide}
+                onClick={toggleGuide}
+              >
+                <IconTerminal2 size={18} />
+              </ActionIcon>
+            </Tooltip>
             <Tooltip label="Toggle color scheme">
               <ActionIcon
                 variant="default"
@@ -166,11 +186,12 @@ export function Shell() {
         </AppShell.Section>
       </AppShell.Navbar>
 
-      <AppShell.Main>
-        <LinkContextValue.Provider value={links}>
+      <LinkContextValue.Provider value={links}>
+        <GuidePanel opened={guide} onClose={() => setGuide(false)} />
+        <AppShell.Main>
           <Outlet />
-        </LinkContextValue.Provider>
-      </AppShell.Main>
+        </AppShell.Main>
+      </LinkContextValue.Provider>
     </AppShell>
   )
 }

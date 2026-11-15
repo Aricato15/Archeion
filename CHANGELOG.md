@@ -11,6 +11,7 @@ All notable changes to Archeion are recorded here. The format follows
 - **A Settings page in the viewer** ([ADR 0010](docs/decisions/0010-manage-roots-and-registration-in-the-viewer.md)): add and remove named roots, applied without a restart and saved to `ARCHEION_ROOTS` in `.env` (the previous file is kept as `.env.bak`). Before a root that registered projects use is removed, the page says which projects.
 - The same page lists the projects in each root, shows which are registered, and registers the others with a stub page in `registry/projects/`. It never overwrites a page and never touches the project.
 - API: `GET`/`PUT /api/settings/roots`, `GET /api/registry/roots`, `POST /api/registry/projects`.
+- **A Claude CLI panel in the viewer**: a panel on the right, opened and closed from the header (or Ctrl+I), that shows how to work with Claude from the terminal. Its content is the doc `docs/guides/claude-cli.md`, so it updates live and has a page of its own. The browser remembers whether it's open.
 - **First-run setup in the viewer** ([ADR 0011](docs/decisions/0011-create-the-admin-password-in-the-viewer.md)): on a fresh start the login page asks you to create the admin password, then logs you in. It works only while no password exists, and only when the backend listens on this machine. `GET`/`POST /api/auth/setup`.
 
 ### Changed
