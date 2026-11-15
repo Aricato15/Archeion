@@ -7,11 +7,26 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-15
+
+Many projects, some related and some not, some with sub-projects ([ADR 0006](docs/decisions/0006-multi-project-registry.md)).
+
 ### Added
+- **Project registry:** a page per project or sub-project in `docs/system/projects/`, with YAML frontmatter (`path`, `parent`, `group`, `status`, `kind`, `ports`, `depends_on`, `docs_dir`, `verified`), and a page per group in `docs/system/groups/`. The backend checks it and reports problems instead of failing. It's seeded with the workspace's four projects and example-data's three collectors.
+- **Generated maps:** Mermaid diagrams drawn from the registry, one overall, one per group and one per project, so they can't drift.
+- **Read-only project sources:** each registered project's README, CLAUDE.md, CHANGELOG, ROADMAP and docs folder are shown live, with history and diffs from its own git repo. Links between docs follow into other projects. Every docs route takes `source`.
+- **Projects UI:** a projects overview (with warnings and unregistered folders), group pages, project pages (facts, map, sub-projects, notes, README, CLAUDE.md, docs and feedback), a project tree in the sidebar, and `/p/<project>/...` doc views.
+- **Per-project feedback:** items record their project (migration 3), follow-ups inherit it, and the list can be filtered by project. The inbox CLI gains `--project` and `--here`. A portable `project-inbox` skill is in `integrations/workspace-core/`.
+- **Roadmaps:** Archeion's cross-project roadmap plus each project's own, filterable by group or project.
+- `projects list` and `projects scan [--write]` CLI commands, and the `ARCHEION_WORKSPACE_ROOT` setting (in `configure.bat`).
+- Search and diagrams cover every source and can be filtered by one.
 - `configure.bat`: an interactive editor for `.env`. It prompts for each setting (Enter keeps the current value), validates it (workspace port ranges, relative paths, numbers, distinct ports), shows a summary, and writes `.env`, keeping any unknown keys and saving the old file as `.env.bak`. Secret settings are prompted hidden.
 - `scripts/settings.schema.json`: the single definition of every setting. `.env.example`, the script defaults and Vite's defaults all come from it, and a backend test keeps it in line with `config.py`.
 
 ### Changed
+- `GET /api/roadmap` returns `{cross, projects}`, and diagram entries carry `source` and `code`.
+- Archeion's `/inbox` and its SessionStart hook only handle Archeion's own items.
+- `docs/interactions/map.md` describes the generated maps instead of holding a hand-drawn one.
 - `setup.bat` regenerates `.env.example` from the schema instead of copying it to `.env`. Without a `.env`, the defaults apply.
 
 ## [0.1.0] - 2026-11-15

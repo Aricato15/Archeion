@@ -7,8 +7,8 @@ Repository (tracked on GitHub, no secrets or machine config) holding my system-w
 2. **Root helper scripts.** The project root has `setup.bat` (installs the backend venv and frontend node_modules), `configure.bat` (interactive editor for `.env`), `start.bat` (starts backend and frontend, each in its own window), `stop.bat` (stops them by port) and `set_admin_password.bat` (hidden prompt, stores only a hash). They work from any folder (`cd /d "%~dp0"`), and longer logic lives in `scripts/*.ps1`. `start.bat` refuses to start until an admin password is set. Keep these scripts working whenever the app changes.
 3. **Authentication is enforced.** Every backend endpoint requires a logged-in admin session, except `GET /api/health` and `POST /api/auth/login`. The password is stored only as a salted scrypt hash in the backend's SQLite database, never in a file or `.env`. Sessions use an HttpOnly cookie. Changing the password logs out every session. The backend listens on `127.0.0.1` by default. The frontend shows a login page and nothing else until you're logged in. Claude's local access (`/inbox`) goes through the backend's own CLI, not an unauthenticated API.
 4. **Backend + frontend.** The viewer is two parts that talk over HTTP: `app/backend/` (API) and `app/frontend/` (UI). The frontend never reads the filesystem directly. It goes through the backend API.
-5. **The frontend shows my docs, plans and diagrams**, and the backend serves everything it needs: the doc tree, file content, Mermaid diagrams, roadmap, git history of each doc, and live updates when a file changes.
-6. **Feedback loop with Claude.** Prompts, reviews and comments I write in the frontend are stored by the backend and reach Claude. Claude's replies and doc changes show up back in the frontend. See `docs/decisions/0002-viewer-app-and-claude-feedback-loop.md`.
+5. **The frontend shows my docs, plans and diagrams**, and the backend serves everything it needs: the doc tree, file content, Mermaid diagrams, roadmap, git history of each doc, and live updates when a file changes. Besides this repo's `docs/`, it serves **read-only** each registered project's `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md` and docs folder, and nothing else of it, and it never writes to a project (`docs/decisions/0006-multi-project-registry.md`).
+6. **Feedback loop with Claude.** Prompts, reviews and comments I write in the frontend are stored by the backend and reach Claude. Claude's replies and doc changes show up back in the frontend. Each item targets a project: this repo's `/inbox` handles Archeion's own items, and each project's session handles its own (ADR 0006). See `docs/decisions/0002-viewer-app-and-claude-feedback-loop.md`.
 
 ## Purpose
 Sessions here should:
@@ -46,24 +46,28 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - Docs: before finishing, check that relative links between docs resolve.
 
 ## Architecture
-- `docs/system/`: the system point of view. `overview.md` (the big picture) and `projects/<project>.md` (one page per project: purpose, owns, exposes, depends on).
-- `docs/interactions/`: how projects talk to each other. `map.md` holds the dependency/interaction diagram; one file per notable flow or integration.
+- `docs/system/`: the system point of view. `overview.md` (the big picture), `projects/<project>.md` (the registry: one page per project or sub-project, structural facts in YAML frontmatter, cross-project notes in the body; format in `projects/README.md`) and `groups/<group>.md` (one page per system of related projects).
+- `docs/interactions/`: how projects talk to each other, one file per notable flow or integration. The maps themselves are generated from the registry frontmatter (Projects page in the viewer), not drawn by hand.
 - `docs/roadmap/`: `roadmap.md` (now / next / later) plus dated plans for larger initiatives.
 - `docs/decisions/`: architecture decisions as `NNNN-title.md` (ADRs).
 - `docs/notes/`: session handoffs.
 - `app/backend/app/`: `main.py` (app factory, Origin guard, error mapping, routers behind the session dependency), `config.py`, `db.py` (pragmas, `BEGIN IMMEDIATE`, migrations by `PRAGMA user_version`), `security.py` (scrypt, sessions, rate limit), `paths.py` (the one doc-path check every route uses), `routers/`, `services/` (`docs_fs`, `git`, `events`, `feedback`), `__main__.py` (CLI).
 - `app/frontend/src/`: `api/` (fetch client, typed queries), `auth/`, `layout/` (shell, doc tree, feedback badge), `docs/` (Markdown, Mermaid, comment anchors, history and diffs), `feedback/`, `pages/` (roadmap, diagrams, search), `events/` (SSE → query invalidation).
-- Live updates: a watchfiles watcher on `docs/` and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
+- `app/backend/app/services/registry.py` (registry pages, checks, discovery) and `sources.py` (doc sources: `archeion` plus one read-only source per registered project, with its file allowlist). Every docs route takes `source` (default `archeion`).
+- `app/frontend/src/projects/`: projects overview, group and project pages, and `map.ts`, which generates the Mermaid maps from the registry. `docs/links.ts` resolves links across sources.
+- Live updates: watchfiles (project roots without recursion, docs folders with recursion, restarted when the registry changes) and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
+- `integrations/workspace-core/skills/project-inbox/`: the portable `/inbox` for other projects, kept here for review. It gets installed into `_shared/` separately.
 - `.githooks/pre-commit` + `check-sensitive.ps1`: blocks commits with secrets, absolute paths or personal info. Activated with `git config core.hooksPath .githooks`. Scan everything by hand with `powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All`.
 - `setup.bat`, `configure.bat`, `start.bat`, `stop.bat`, `set_admin_password.bat` (root) and `scripts/` (`common.ps1`, `setup.ps1`, `configure.ps1`, `settings.schema.json`, `start.ps1`, `stop.ps1`, `archeion.ps1`, `inbox-count.ps1`, `bump-version.ps1`).
 - `.claude/settings.json` runs `scripts/inbox-count.ps1` as a SessionStart hook, which announces open feedback.
 
 ## Conventions
 - One fact lives in one place; link to it rather than copying it.
-- Each project page records the date it was last verified against the real project.
+- Each registry page records `verified:` (the date its frontmatter was last checked against the real project). Facts that belong to a project (endpoints, commands, internals) stay in that project's own docs, which the viewer shows live. Link to them, don't copy them.
+- New projects: `scripts/archeion.ps1 projects scan` (dry run), then `--write` for stub pages. `projects list` shows the tree and problems.
 - Use the workspace port ranges and database rules (`../CLAUDE.md`) as the baseline when describing or planning services.
 - Roadmap items use absolute dates, never "next week".
-- When starting a session, check for open feedback from the frontend (see ADR 0002) before other work.
+- When starting a session, check for open feedback from the frontend (see ADR 0002) before other work: `inbox list --project archeion`.
 
 ## Gotchas
 - `core.hooksPath` lives in `.git/config`, which isn't versioned. After every fresh clone, run `git config core.hooksPath .githooks`, or the sensitive-content check won't run.
@@ -71,5 +75,7 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - The check also runs on code. A line like `token = something_long` or `password: some.value` trips its secret pattern even when nothing secret is in it. Name such variables `raw`, `pw`, `secret` and so on, and generate test passwords at runtime (`tests/conftest.py: make_pw`). <!-- sensitive-ok: example of what trips the check -->
 - `.claude/settings.json` denies reading `.env.*`, and that covers `.env.example` too, so Claude can't write it. It's generated anyway: change `scripts/settings.schema.json`, then run `configure.bat` (or `scripts\configure.ps1 -ExampleOnly`).
 - FastAPI 0.163 keeps included routers as `_IncludedRouter` objects, so `app.routes` isn't flat. `tests/test_auth_required.py` walks `app.openapi()["paths"]` instead.
+- Project sources are read at runtime from `ARCHEION_WORKSPACE_ROOT` (default `..`). Registry `path`s must be relative and stay inside it. Nothing from a project is ever copied into this repo, which is what keeps publishing Archeion from publishing the projects.
+- `inbox --here` needs the caller's folder. `scripts/archeion.ps1` passes it as `ARCHEION_CALLER_DIR`, because the CLI itself runs from `app/backend/`.
 - The SessionStart hook uses a relative path (`scripts/inbox-count.ps1`), so it only fires when Claude Code starts at the repo root.
 - uv only reads `UV_PROJECT_ENVIRONMENT` from the environment. Set it to `venv` before any `uv` command in `app/backend/`, or uv creates a second `.venv/`.
