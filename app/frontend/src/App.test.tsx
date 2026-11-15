@@ -90,7 +90,7 @@ const files: Record<string, unknown> = {
   'gateway:docs/api.md': { content: '# Gateway API\n\nRoutes.\n', dirty: false },
 }
 
-function mockApi(loggedIn: boolean, firstRun = false) {
+function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
   const routes: Record<string, unknown> = {
     '/api/auth/session': loggedIn ? { expires_at: '2026-11-22T00:00:00+00:00' } : null,
     '/api/version': { version: '0.2.0' },
@@ -148,6 +148,10 @@ function mockApi(loggedIn: boolean, firstRun = false) {
         { project: 'datasvc', title: 'datasvc', roadmap: null },
       ],
     },
+  }
+  if (noRoots) {
+    routes['/api/settings/roots'] = { workspace: null, roots: [], errors: [], editable: true, locked_reason: null }
+    routes['/api/registry/roots'] = []
   }
   vi.stubGlobal(
     'fetch',
@@ -335,6 +339,14 @@ describe('app', () => {
     const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
     const post = calls.find(([url, init]) => url === '/api/registry/projects' && init?.method === 'POST')
     expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: null, path: '../newproj', name: 'newproj' })
+  })
+
+  it('starts with no roots on a clean slate', async () => {
+    mockApi(true, false, true)
+    renderAt('/settings')
+    expect(await screen.findByText('No roots yet')).toBeTruthy()
+    expect(await screen.findByText('Nothing to show until you add a root.')).toBeTruthy()
+    expect(screen.queryByText('workspace')).toBeNull()
   })
 
   it('renders a thread with Claude’s reply', async () => {

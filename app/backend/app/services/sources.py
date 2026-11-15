@@ -161,14 +161,14 @@ class SourceManager:
         docs_root: Path,
         registry_root: Path,
         repo_root: Path,
-        workspace_root: Path,
+        workspace_root: Path | None,
         roots: Roots | None = None,
     ) -> None:
         self.docs_root = docs_root
         self.registry_root = registry_root
         self.repo_root = repo_root
         self.workspace_root = workspace_root
-        self.roots = roots or Roots(workspace=workspace_root.resolve())
+        self.roots = roots or Roots(workspace=workspace_root.resolve() if workspace_root else None)
         self._lock = threading.Lock()
         self.version = 0
         self.changed = asyncio.Event()

@@ -26,9 +26,10 @@ class Settings(BaseSettings):
     db_path: str = "app/backend/data/archeion.db"
     session_idle_hours: float = 12
     session_max_days: float = 7
-    # The folder holding all projects (relative to the repo root). Registered project paths
-    # must stay inside it (ADR 0006).
-    workspace_root: str = ".."
+    # An optional folder holding projects (relative to the repo root), the root named
+    # "workspace": pages without `root:` resolve inside it (ADR 0006). Empty by default, so
+    # nothing is granted until you add a root (ADR 0012).
+    workspace_root: str = ""
     # More folders projects may live in, as name=folder;name=folder (ADR 0008). A registry
     # page picks one with `root: <name>`. Machine-specific, so only ever set in .env.
     roots: str = ""
@@ -54,7 +55,9 @@ class Settings(BaseSettings):
         return (p if p.is_absolute() else (self.repo_root / p)).resolve()
 
     @cached_property
-    def workspace_dir(self) -> Path:
+    def workspace_dir(self) -> Path | None:
+        if not self.workspace_root.strip():
+            return None
         p = Path(self.workspace_root)
         return (p if p.is_absolute() else (self.repo_root / p)).resolve()
 

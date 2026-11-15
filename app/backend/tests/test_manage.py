@@ -236,3 +236,52 @@ def test_manage_routes_need_a_session(client):
     assert client.put("/api/settings/roots", json={"roots": []}).status_code == 401
     assert client.get("/api/registry/roots").status_code == 401
     assert client.post("/api/registry/projects", json={"path": "x", "name": "x"}).status_code == 401
+
+
+# --- no root by default (ADR 0012) --------------------------------------------------------
+
+
+@pytest.fixture
+def bare(settings):
+    """The defaults: no workspace root and no named roots."""
+    from app.config import Settings
+
+    return Settings(**{**settings.model_dump(), "workspace_root": "", "_env_file": None})
+
+
+def test_nothing_is_granted_by_default(bare):
+    from app.config import Settings
+
+    assert Settings.model_fields["workspace_root"].default == ""
+    assert bare.workspace_dir is None and bare.project_roots.all() == []
+    reg = load_registry(bare.registry_root, bare.repo_root, bare.project_roots)
+    assert not any(p.available for p in reg.projects.values())
+    assert any("no workspace folder is granted" in w["message"] for w in reg.warnings)
+    assert survey(reg, bare.repo_root, bare.project_roots) == []
+
+
+def test_api_starts_with_no_roots(bare, db, pw, outside):
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from tests.conftest import ORIGIN
+
+    client = TestClient(create_app(bare), headers={"Origin": ORIGIN})
+    assert client.post("/api/auth/login", json={"password": pw}).status_code == 204
+    view = client.get("/api/settings/roots").json()
+    assert view["workspace"] is None and view["roots"] == []
+    assert client.get("/api/registry/roots").json() == []
+    assert client.get("/api/registry").json()["unregistered"] == []
+
+    r = client.put("/api/settings/roots", json={"roots": [{"name": "private", "folder": str(outside)}]})
+    assert r.status_code == 200, r.text
+    assert [x["name"] for x in client.get("/api/registry/roots").json()] == ["private"]
+
+
+def test_api_removes_the_workspace_root(authed, settings):
+    assert authed.get("/api/settings/roots").json()["workspace"] is not None
+    r = authed.put("/api/settings/roots", json={"roots": [], "keep_workspace": False})
+    assert r.status_code == 200 and r.json()["workspace"] is None
+    env = (settings.repo_root / ".env").read_text(encoding="utf-8")
+    assert "ARCHEION_WORKSPACE_ROOT=\n" in env and "ARCHEION_ROOTS=\n" in env
+    assert not any(p["available"] for p in authed.get("/api/registry").json()["projects"])

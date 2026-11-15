@@ -32,8 +32,9 @@
           "name": "ARCHEION_WORKSPACE_ROOT",
           "type": "relpath",
           "allow_parent": true,
-          "default": "..",
-          "description": "The folder holding all your projects, relative to the repo root. Registered project paths must stay inside it, and projects scan looks for new ones there."
+          "optional": true,
+          "default": "",
+          "description": "Optional: a folder holding projects, relative to the repo root (e.g. ..), granted as the root named workspace. Registry pages without root: resolve inside it. Empty by default, so nothing is granted until you add a root (ADR 0012); prefer named roots, from the viewer's Settings page. Type - to clear it."
         },
         {
           "name": "ARCHEION_ROOTS",

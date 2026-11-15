@@ -24,6 +24,8 @@ from .services.sources import SourceManager, SourceNotFound
 
 EXIT_NO_PASSWORD = 3
 
+NO_ROOTS = "No roots are granted yet, so Archeion reads no projects. Add one on the viewer's Settings page."
+
 
 def _db(settings: Settings) -> Database:
     db = Database(settings.db_file)
@@ -327,7 +329,7 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
         _print_json({**reg.public(), "unregistered": manager.unregistered()})
         return 0
     if not reg.projects:
-        print("No projects registered yet. Run: projects scan")
+        print("No projects registered yet. Run: projects scan" if manager.roots.all() else NO_ROOTS)
 
     def show(pid: str, depth: int) -> None:
         p = reg.projects[pid]
@@ -363,8 +365,11 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
     Existing pages are never touched."""
     manager = _sources(settings)
     if args.root and manager.roots.get(args.root) is None:
-        known = ", ".join(name for name, _ in manager.roots.all())
+        known = ", ".join(name for name, _ in manager.roots.all()) or "none"
         raise ValueError(f"no root named '{args.root}' (configured: {known}; see ARCHEION_ROOTS)")
+    if not manager.roots.all():
+        print(NO_ROOTS)
+        return 0
     missing = manager.unregistered(args.root)
     if args.only:
         wanted = {n.lower() for n in args.only}

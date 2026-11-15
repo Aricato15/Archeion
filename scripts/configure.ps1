@@ -143,8 +143,8 @@ if (-not $Defaults) {
                 }
                 $answer = "$answer".Trim()
                 if ($answer -eq '') { $answer = $values[$s.name] }
-                elseif ($answer -eq '-' -and $s.type -eq 'roots') { $answer = '' }
-                $problem = if ($answer -eq '' -and $s.type -in @('secret', 'roots')) { $null } else { Test-Value $s $answer }
+                elseif ($answer -eq '-' -and ($s.type -eq 'roots' -or $s.optional)) { $answer = '' }
+                $problem = if ($answer -eq '' -and ($s.type -in @('secret', 'roots') -or $s.optional)) { $null } else { Test-Value $s $answer }
                 if ($problem) { Write-Host "  $($s.name) $problem. Try again." -ForegroundColor Yellow; continue }
                 if ($s.type -eq 'host' -and $answer -eq '0.0.0.0') {
                     Write-Host '  Note: 0.0.0.0 exposes the backend to your network. Login is still required.' -ForegroundColor Yellow
@@ -161,7 +161,7 @@ $errors = New-Object System.Collections.Generic.List[string]
 foreach ($g in $schema.groups) {
     foreach ($s in $g.settings) {
         $v = $values[$s.name]
-        if ($s.type -in @('secret', 'roots') -and $v -eq '') { continue }
+        if (($s.type -in @('secret', 'roots') -or $s.optional) -and $v -eq '') { continue }
         $problem = Test-Value $s $v
         if ($problem) { $errors.Add("$($s.name) $problem (value: $v)") }
     }

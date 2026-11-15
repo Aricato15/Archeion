@@ -99,7 +99,8 @@ export type Registry = {
 export type RootEntry = { name: string; folder: string; projects: string[] }
 
 export type RootsSettings = {
-  workspace: RootEntry
+  /** ARCHEION_WORKSPACE_ROOT, the root named "workspace"; null when it isn't set (the default, ADR 0012). */
+  workspace: RootEntry | null
   roots: RootEntry[]
   /** Entries of ARCHEION_ROOTS that were refused; saving drops them. */
   errors: string[]

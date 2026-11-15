@@ -78,11 +78,13 @@ To change or reset the admin password, run `powershell -NoProfile -ExecutionPoli
 On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
 
 ## Registering a project
-Projects don't go inside Archeion. They sit **next to it**, in the workspace root: the folder that contains `archeion/`. That's the default `ARCHEION_WORKSPACE_ROOT` (`..`). If your projects live somewhere else, set it with `configure.bat` to a folder that holds both Archeion and the projects. A project somewhere else can stay where it is: grant Archeion its folder as a named root (see [Projects in other folders](#projects-in-other-folders)).
+Projects don't go inside Archeion, and Archeion reads none of them until you say so. **On a fresh start no folder is granted** ([ADR 0012](docs/decisions/0012-no-root-granted-by-default.md)). On the **Settings** page, add the folder that holds your projects as a root (for example `projects`, the folder that contains `archeion/`), then register the projects you want. Projects can stay wherever they are: add one root per folder (see [Projects in other folders](#projects-in-other-folders)).
+
+`ARCHEION_WORKSPACE_ROOT` still works for older setups. When it's set (to `..`, say), its folder is the root named `workspace`, and pages without `root:` resolve inside it. It's empty by default.
 
 ```mermaid
 flowchart TB
-  subgraph ws["workspace root (ARCHEION_WORKSPACE_ROOT, default ..)"]
+  subgraph ws["a granted root, e.g. projects = the folder that holds archeion/"]
     direction LR
     A["archeion/<br/>(skipped: it's Archeion itself)"]
     P1["example-app/<br/>CLAUDE.md ✔"]
@@ -140,7 +142,7 @@ flowchart LR
   P -- "read-only: README, CLAUDE.md, docs" --> V["Viewer"]
 ```
 
-- **Granting is the permission.** Archeion reads only inside the workspace root and the granted roots. Take a root out of `.env` and its projects show a "root isn't configured" warning, and their docs are gone until you grant it again.
+- **Granting is the permission.** Archeion reads only inside the granted roots, and there are none until you add one. Take a root out of `.env` and its projects show a "root isn't configured" warning, and their docs are gone until you grant it again.
 - **The registry stays portable.** A page says `root: private` and a `path` relative to that root, never a drive path. On another machine, map `private` to wherever that folder lives there.
 - **Applied at once from the viewer.** A root added or removed on the Settings page takes effect without a restart. One changed with `configure.bat` needs a restart. If `ARCHEION_ROOTS` is set in the environment Archeion starts with, it overrides `.env`, and the Settings page shows the roots read-only.
 - **Register:** the Register button on the Settings page, or `projects scan --root private`, then `--write` (with `--only <name>` to pick some).

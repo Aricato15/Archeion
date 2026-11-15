@@ -22,7 +22,7 @@ import { IconAlertTriangle, IconFolderPlus, IconLock, IconPlus, IconTrash } from
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useRegisterProject, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
-import type { RootItem, RootSurvey, RootsSettings } from '../api/types'
+import type { RootEntry, RootItem, RootSurvey, RootsSettings } from '../api/types'
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{1,31}$/
 
@@ -35,12 +35,14 @@ function RootsCard({ data }: { data: RootsSettings }) {
   const nameProblem =
     name && !NAME_RE.test(name)
       ? '2–32 characters: lowercase letters, digits and -'
-      : name === 'workspace' || current.some((r) => r.name === name)
-        ? 'That name is taken'
+      : name === 'workspace'
+        ? "'workspace' is reserved for ARCHEION_WORKSPACE_ROOT"
+        : current.some((r) => r.name === name)
+          ? 'That name is taken'
         : null
 
-  const submit = (roots: { name: string; folder: string }[], done: string) =>
-    save.mutate(roots, {
+  const submit = (roots: { name: string; folder: string }[], done: string, keepWorkspace = true) =>
+    save.mutate({ roots, keepWorkspace }, {
       onSuccess: () => {
         notifications.show({ color: 'green', message: done })
         setName('')
@@ -48,7 +50,7 @@ function RootsCard({ data }: { data: RootsSettings }) {
       },
     })
 
-  const remove = (root: RootsSettings['roots'][number]) => {
+  const remove = (root: RootEntry) => {
     if (
       root.projects.length > 0 &&
       !window.confirm(
@@ -57,11 +59,14 @@ function RootsCard({ data }: { data: RootsSettings }) {
       )
     )
       return
-    submit(
-      current.filter((r) => r.name !== root.name),
-      `Removed the root '${root.name}'.`,
-    )
+    if (root.name === 'workspace') submit(current, "Removed the root 'workspace'.", false)
+    else
+      submit(
+        current.filter((r) => r.name !== root.name),
+        `Removed the root '${root.name}'.`,
+      )
   }
+  const rows = [...(data.workspace ? [data.workspace] : []), ...data.roots]
 
   return (
     <Card withBorder>
@@ -92,60 +97,51 @@ function RootsCard({ data }: { data: RootsSettings }) {
             </Text>
           </Alert>
         )}
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Folder</Table.Th>
-              <Table.Th>Registered</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            <Table.Tr>
-              <Table.Td>
-                <Code>workspace</Code>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" style={{ wordBreak: 'break-all' }}>
-                  {data.workspace.folder}
-                </Text>
-              </Table.Td>
-              <Table.Td>{data.workspace.projects.length}</Table.Td>
-              <Table.Td>
-                <Tooltip label="Always granted. Set by ARCHEION_WORKSPACE_ROOT in configure.bat.">
-                  <IconLock size={16} aria-label="Always granted" />
-                </Tooltip>
-              </Table.Td>
-            </Table.Tr>
-            {data.roots.map((r) => (
-              <Table.Tr key={r.name}>
-                <Table.Td>
-                  <Code>{r.name}</Code>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" style={{ wordBreak: 'break-all' }}>
-                    {r.folder}
-                  </Text>
-                </Table.Td>
-                <Table.Td>{r.projects.length}</Table.Td>
-                <Table.Td>
-                  <Tooltip label={`Remove the root '${r.name}'`}>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label={`Remove the root ${r.name}`}
-                      disabled={!data.editable || save.isPending}
-                      onClick={() => remove(r)}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Table.Td>
+        {rows.length === 0 ? (
+          <Alert color="blue" title="No roots yet">
+            Archeion reads no projects until you grant it a folder. Add the folder that holds your projects below; you
+            choose which of them to register afterwards.
+          </Alert>
+        ) : (
+          <Table striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Name</Table.Th>
+                <Table.Th>Folder</Table.Th>
+                <Table.Th>Registered</Table.Th>
+                <Table.Th />
               </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+            </Table.Thead>
+            <Table.Tbody>
+              {rows.map((r) => (
+                <Table.Tr key={r.name}>
+                  <Table.Td>
+                    <Code>{r.name}</Code>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" style={{ wordBreak: 'break-all' }}>
+                      {r.folder}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>{r.projects.length}</Table.Td>
+                  <Table.Td>
+                    <Tooltip label={`Remove the root '${r.name}'`}>
+                      <ActionIcon
+                        variant="subtle"
+                        color="red"
+                        aria-label={`Remove the root ${r.name}`}
+                        disabled={!data.editable || save.isPending}
+                        onClick={() => remove(r)}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        )}
         {data.editable && (
           <form
             onSubmit={(e) => {
@@ -346,6 +342,11 @@ export function SettingsPage() {
       </Group>
       {survey.isPending && <Loader />}
       {survey.isError && <Alert color="red">{survey.error.message}</Alert>}
+      {survey.data?.length === 0 && (
+        <Text size="sm" c="dimmed">
+          Nothing to show until you add a root.
+        </Text>
+      )}
       {survey.data?.map((r) => <RootProjects key={r.name} root={r} onlyNew={onlyNew} />)}
     </Stack>
   )

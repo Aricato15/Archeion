@@ -160,7 +160,7 @@ class Registry:
 
 
 def _as_roots(roots: Roots | Path) -> Roots:
-    return roots if isinstance(roots, Roots) else Roots(workspace=roots.resolve())
+    return roots if isinstance(roots, Roots) else Roots(workspace=roots.resolve())  # tests, old callers
 
 
 def _resolve_project_dir(
@@ -179,6 +179,11 @@ def _resolve_project_dir(
         target, outside = (bound / raw).resolve(), f"path points outside the root '{root}'"
     else:
         bound = roots.workspace
+        if bound is None:
+            return None, (
+                "no workspace folder is granted, so a page without root: can't be found; "
+                "add the folder as a root on the Settings page and set root: <name>"
+            )
         target, outside = (repo_root / raw).resolve(), "path points outside the workspace"
     if not target.is_relative_to(bound):
         return None, outside

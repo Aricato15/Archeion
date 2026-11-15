@@ -1,7 +1,9 @@
 """Named project roots: the folders Archeion may read projects from (ADR 0008).
 
-The workspace root (ARCHEION_WORKSPACE_ROOT) is always the root named "workspace". More
-roots are granted in .env, as ARCHEION_ROOTS=name=folder;name=folder. A registry page
+Nothing is granted by default (ADR 0012). Roots are granted in .env, as
+ARCHEION_ROOTS=name=folder;name=folder, usually from the viewer's Settings page. The older
+workspace root (ARCHEION_WORKSPACE_ROOT, empty by default) is the root named "workspace"
+when it's set: pages without `root:` resolve inside it. A registry page
 picks its root with `root: <name>`, and its `path` is then relative to that root.
 Granting a root is the permission: no project outside the roots is ever read.
 """
@@ -18,7 +20,7 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,31}$")
 
 @dataclass
 class Roots:
-    workspace: Path
+    workspace: Path | None = None  # ARCHEION_WORKSPACE_ROOT; None: not granted
     named: dict[str, Path] = field(default_factory=dict)  # granted in .env, without workspace
     errors: list[str] = field(default_factory=list)  # entries of ARCHEION_ROOTS that were refused
 
@@ -26,7 +28,8 @@ class Roots:
         return self.workspace if name == WORKSPACE else self.named.get(name)
 
     def all(self) -> list[tuple[str, Path]]:
-        return [(WORKSPACE, self.workspace), *self.named.items()]
+        head = [(WORKSPACE, self.workspace)] if self.workspace is not None else []
+        return [*head, *self.named.items()]
 
 
 def root_problem(folder: Path, repo_root: Path) -> str | None:
@@ -42,10 +45,10 @@ def root_problem(folder: Path, repo_root: Path) -> str | None:
     return None
 
 
-def parse_roots(raw: str, repo_root: Path, workspace: Path) -> Roots:
+def parse_roots(raw: str, repo_root: Path, workspace: Path | None) -> Roots:
     """Parse ARCHEION_ROOTS. Bad entries are left out and reported in `errors`, so one
     typo doesn't stop the app."""
-    roots = Roots(workspace=workspace.resolve())
+    roots = Roots(workspace=workspace.resolve() if workspace is not None else None)
     for entry in (raw or "").split(";"):
         entry = entry.strip()
         if not entry:
@@ -79,7 +82,7 @@ def parse_roots(raw: str, repo_root: Path, workspace: Path) -> Roots:
 # --- editing from the viewer (ADR 0010) -------------------------------------------------
 
 ENV_KEY = "ARCHEION_ROOTS"
-_ENV_LINE = re.compile(rf"^\s*(?:export\s+)?{ENV_KEY}\s*=")
+WORKSPACE_KEY = "ARCHEION_WORKSPACE_ROOT"
 
 
 def format_roots(entries: list[tuple[str, str]]) -> tuple[str, list[str]]:
@@ -105,22 +108,26 @@ def env_value(value: str) -> str:
 
 
 def write_env_roots(env_path: Path, value: str) -> None:
-    """Set ARCHEION_ROOTS in .env, leaving every other line as it was. The previous file
-    is kept as .env.bak, as configure.bat does."""
+    write_env(env_path, {ENV_KEY: value})
+
+
+def write_env(env_path: Path, values: dict[str, str]) -> None:
+    """Set these keys in .env, leaving every other line as it was. The previous file is
+    kept as .env.bak, as configure.bat does."""
     old = env_path.read_text(encoding="utf-8-sig") if env_path.is_file() else ""
-    line = f"{ENV_KEY}={env_value(value)}"
-    lines, done = [], False
+    patterns = {k: re.compile(rf"^\s*(?:export\s+)?{k}\s*=") for k in values}
+    lines: list[str] = []
+    done: set[str] = set()
     for raw in old.splitlines():
-        if _ENV_LINE.match(raw):
-            if not done:
-                lines.append(line)
-                done = True
-            continue
-        lines.append(raw)
-    if not done:
-        if not old:
-            lines.append("# Machine-specific and gitignored: never commit this file. configure.bat edits it.")
-        lines.append(line)
+        key = next((k for k, pat in patterns.items() if pat.match(raw)), None)
+        if key is None:
+            lines.append(raw)
+        elif key not in done:
+            lines.append(f"{key}={env_value(values[key])}")
+            done.add(key)
+    if not old:
+        lines.append("# Machine-specific and gitignored: never commit this file. configure.bat edits it.")
+    lines += [f"{k}={env_value(v)}" for k, v in values.items() if k not in done]
     if env_path.is_file():
         env_path.with_name(env_path.name + ".bak").write_bytes(env_path.read_bytes())
     tmp = env_path.with_name(env_path.name + ".tmp")

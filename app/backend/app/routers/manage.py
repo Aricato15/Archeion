@@ -14,7 +14,15 @@ from pydantic import BaseModel, Field
 from ..deps import AppState, get_state
 from ..services.events import Event
 from ..services.registry import register, survey
-from ..services.roots import ENV_KEY, NAME_RE, WORKSPACE, format_roots, parse_roots, write_env_roots
+from ..services.roots import (
+    ENV_KEY,
+    NAME_RE,
+    WORKSPACE,
+    WORKSPACE_KEY,
+    format_roots,
+    parse_roots,
+    write_env,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -26,6 +34,9 @@ class RootIn(BaseModel):
 
 class RootsIn(BaseModel):
     roots: list[RootIn] = Field(max_length=50)
+    # False removes the workspace root (ARCHEION_WORKSPACE_ROOT); it can't be added here,
+    # because new roots are named roots (ADR 0012).
+    keep_workspace: bool = True
 
 
 class RegisterIn(BaseModel):
@@ -35,11 +46,12 @@ class RegisterIn(BaseModel):
 
 
 def _locked() -> str | None:
-    if ENV_KEY in os.environ:
-        return (
-            f"{ENV_KEY} is set in the environment Archeion was started with, and that overrides .env. "
-            "Change it there, or unset it and restart Archeion to edit roots here."
-        )
+    for key in (ENV_KEY, WORKSPACE_KEY):
+        if key in os.environ:
+            return (
+                f"{key} is set in the environment Archeion was started with, and that overrides .env. "
+                "Change it there, or unset it and restart Archeion to edit roots here."
+            )
     return None
 
 
@@ -51,7 +63,11 @@ def _roots_view(state: AppState) -> dict:
         used.setdefault(p.root or WORKSPACE, []).append(p.id)
     locked = _locked()
     return {
-        "workspace": {"name": WORKSPACE, "folder": str(roots.workspace), "projects": used.get(WORKSPACE, [])},
+        "workspace": (
+            {"name": WORKSPACE, "folder": str(roots.workspace), "projects": used.get(WORKSPACE, [])}
+            if roots.workspace is not None
+            else None
+        ),
         "roots": [
             {"name": name, "folder": str(folder), "projects": used.get(name, [])}
             for name, folder in roots.named.items()
@@ -87,13 +103,19 @@ async def put_roots(body: RootsIn, state: AppState = Depends(get_state)) -> dict
     ]
     raw, more = format_roots([(r.name, r.folder) for r in body.roots])
     problems += more
-    roots = parse_roots(raw, settings.repo_root, settings.workspace_dir)
+    drop_workspace = not body.keep_workspace and state.sources.roots.workspace is not None
+    roots = parse_roots(raw, settings.repo_root, None if drop_workspace else state.sources.roots.workspace)
     problems += roots.errors
     if problems:
         raise ValueError("Not saved: " + "; ".join(problems))
-    write_env_roots(settings.repo_root / ".env", raw)
+    values = {ENV_KEY: raw}
+    if drop_workspace:
+        values[WORKSPACE_KEY] = ""
+        settings.workspace_root = ""
+    write_env(settings.repo_root / ".env", values)
     settings.roots = raw
-    settings.__dict__.pop("project_roots", None)
+    for cached in ("project_roots", "workspace_dir"):
+        settings.__dict__.pop(cached, None)
     state.sources.set_roots(roots)
     _changed(state)
     return _roots_view(state)

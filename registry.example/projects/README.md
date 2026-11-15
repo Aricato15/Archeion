@@ -6,8 +6,8 @@ One page per project or sub-project. The YAML frontmatter holds the structural f
 ---
 name: example-collector                       # id; defaults to the file name
 title: Example collector                      # display name (else the first heading)
-path: ../example-service/collectors/example   # relative to the repo root, inside the workspace
-# root: private                               # or: a folder granted in ARCHEION_ROOTS, and path relative to it
+root: projects                                # a root granted on the Settings page (ARCHEION_ROOTS)
+path: example-service/collectors/example      # relative to that root (without root: relative to this repo, inside ARCHEION_WORKSPACE_ROOT)
 parent: example-service                       # makes it a sub-project
 group: example-system                         # a page in ../groups/; sub-projects inherit their parent's
 status: active                                # active | planned | paused | archived

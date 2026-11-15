@@ -109,8 +109,9 @@ function useRegistryMutation<V, R>(fn: (vars: V) => Promise<R>) {
 }
 
 export const useSaveRoots = () =>
-  useRegistryMutation((roots: { name: string; folder: string }[]) =>
-    api<RootsSettings>('/settings/roots', { method: 'PUT', json: { roots } }),
+  useRegistryMutation(
+    ({ roots, keepWorkspace = true }: { roots: { name: string; folder: string }[]; keepWorkspace?: boolean }) =>
+      api<RootsSettings>('/settings/roots', { method: 'PUT', json: { roots, keep_workspace: keepWorkspace } }),
   )
 
 export const useRegisterProject = () =>

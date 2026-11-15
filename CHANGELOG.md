@@ -14,6 +14,7 @@ All notable changes to Archeion are recorded here. The format follows
 - **First-run setup in the viewer** ([ADR 0011](docs/decisions/0011-create-the-admin-password-in-the-viewer.md)): on a fresh start the login page asks you to create the admin password, then logs you in. It works only while no password exists, and only when the backend listens on this machine. `GET`/`POST /api/auth/setup`.
 
 ### Changed
+- **No root is granted by default** ([ADR 0012](docs/decisions/0012-no-root-granted-by-default.md)). `ARCHEION_WORKSPACE_ROOT` is now empty by default, so a fresh start reads no projects until you add a root on the Settings page. When it's set, it still works as the root named `workspace`, and the Settings page can remove it. The CLI says when no root is granted.
 - `start.bat` starts without an admin password, and says to create it in the viewer.
 - Stub pages, from the viewer or `projects scan --write`, no longer set `verified`: nobody has checked them yet.
 - `configure.bat` writes roots with forward slashes, so a folder in quotes (one with a space) can't be read back with `
