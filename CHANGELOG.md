@@ -7,6 +7,10 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Registry pages saved with a UTF-8 byte-order mark (as PowerShell 5.1 and older Notepad save them) lost their frontmatter without a warning, so the project's path and root were ignored. The mark is now skipped.
+- `--here` in a project whose root isn't granted on this machine said to register it. It now says the project may be registered with a root that isn't configured, and names it.
+
 ## [0.4.0] - 2026-11-15
 
 ### Added

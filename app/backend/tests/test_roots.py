@@ -126,6 +126,14 @@ def test_removing_a_root_makes_its_projects_unavailable(rsettings, settings):
     assert any("isn't configured" in w["message"] for w in reg.warnings)
 
 
+def test_here_explains_a_root_that_isnt_granted(rsettings, settings, outside, monkeypatch, capsys):
+    _page(rsettings, "omega", "---\nroot: private\npath: omega\n---\n")
+    monkeypatch.setenv("ARCHEION_CALLER_DIR", str(outside / "omega"))
+    assert main(["inbox", "count", "--here"], settings) == 1  # settings: no root granted
+    err = capsys.readouterr().err
+    assert "its root isn't configured on this machine" in err and "omega (root 'private')" in err
+
+
 def test_discover_covers_every_root(rsettings):
     found = discover(rsettings.repo_root, rsettings.project_roots)
     by_name = {f["name"]: (f["root"], f["path"], f["parent"]) for f in found}

@@ -120,9 +120,10 @@ def _target(settings: Settings, args: argparse.Namespace) -> list[str] | None:
         here = _caller_dir()
         if here.is_relative_to(settings.repo_root.resolve()):
             return OWN_SOURCES
-        project = _sources(settings).registry.project_for_dir(here)
+        manager = _sources(settings)
+        project = manager.registry.project_for_dir(here)
         if project is None:
-            raise ValueError(_not_registered(here))
+            raise ValueError(_not_registered(here, manager))
         return [project.id]
     return None
 
@@ -132,8 +133,20 @@ def _caller_dir() -> Path:
     return Path(os.environ.get("ARCHEION_CALLER_DIR") or os.getcwd()).resolve()
 
 
-def _not_registered(here: Path) -> str:
-    return f"{here.name} isn't inside a registered project; register it first (projects scan)"
+def _not_registered(here: Path, manager: SourceManager) -> str:
+    msg = f"{here.name} isn't inside a registered project; register it first (projects scan)"
+    # A registered project whose root isn't granted here can't be matched by folder.
+    missing = sorted(
+        f"{p.id} (root '{p.root}')"
+        for p in manager.registry.projects.values()
+        if p.root and manager.roots.get(p.root) is None
+    )
+    if missing:
+        msg += (
+            ". Or it's registered, but its root isn't configured on this machine (ARCHEION_ROOTS"
+            f" in Archeion's .env): {', '.join(missing)}"
+        )
+    return msg
 
 
 def _project_arg(settings: Settings, manager: SourceManager, args: argparse.Namespace) -> Project:
@@ -148,7 +161,7 @@ def _project_arg(settings: Settings, manager: SourceManager, args: argparse.Name
         raise ValueError("this is Archeion itself, not a registered project; use --project <name>")
     project = reg.project_for_dir(here)
     if project is None:
-        raise ValueError(_not_registered(here))
+        raise ValueError(_not_registered(here, manager))
     return project
 
 
