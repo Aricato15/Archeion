@@ -21,16 +21,16 @@ flowchart LR
 ```
 
 ### Authentication
-- One admin account. set_admin_password.bat (root) runs the backend CLI python -m app password set: hidden input, salted scrypt hash stored in the backend's SQLite database, never in a file. password status tells start.bat whether one is set.
-- POST /api/auth/login issues a random session ID in an HttpOnly, SameSite=Strict cookie. Sessions live in SQLite with an expiry. POST /api/auth/logout ends one. Setting a new password deletes all sessions.
-- Everything except GET /api/health and POST /api/auth/login needs a valid session, including SSE. Login attempts are rate-limited.
-- The backend binds 127.0.0.1 unless AOP_HOST says otherwise.
-- /inbox (option A) uses the backend CLI (python -m app inbox list|claim|reply), the same service, on the same machine, so no API token is needed.
+- One admin account. `set_admin_password.bat` (root) runs the backend CLI `python -m app password set`: hidden input, salted scrypt hash stored in the backend's SQLite database, never in a file. `password status` tells `start.bat` whether one is set.
+- `POST /api/auth/login` issues a random session ID in an HttpOnly, SameSite=Strict cookie. Sessions live in SQLite with an expiry. `POST /api/auth/logout` ends one. Setting a new password deletes all sessions.
+- Everything except `GET /api/health` and `POST /api/auth/login` needs a valid session, including SSE. Login attempts are rate-limited.
+- The backend binds `127.0.0.1` unless `AOP_HOST` says otherwise.
+- `/inbox` (option A) uses the backend CLI (`python -m app inbox list|claim|reply`), the same service, on the same machine, so no API token is needed.
 
 ### Root helper scripts
-- start.bat: checks for pp/backend/venv, pp/frontend/node_modules and a set password, then starts the backend and frontend dev server in separate windows.
-- stop.bat: stops both by port (from .env or the defaults 20300/20301) using scripts/stop.ps1.
-- set_admin_password.bat: sets or changes the admin password.
+- `start.bat`: checks for `app/backend/venv`, `app/frontend/node_modules` and a set password, then starts the backend and frontend dev server in separate windows.
+- `stop.bat`: stops both by port (from `.env` or the defaults 20300/20301) using `scripts/stop.ps1`.
+- `set_admin_password.bat`: sets or changes the admin password.
 
 ### Backend serves the viewer
 - `GET /api/docs/tree`, `GET /api/docs/file?path=` (raw Markdown; the frontend renders Markdown and Mermaid).
