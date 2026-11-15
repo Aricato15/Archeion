@@ -47,9 +47,10 @@ function SetupForm({ minLength, onDone }: { minLength: number; onDone: () => voi
   return (
     <form onSubmit={submit}>
       <Stack>
+        <Title order={4}>You&apos;re new here!</Title>
         <Text size="sm">
-          Welcome. Archeion has no admin password yet. Create it now: you&apos;ll log in with it from then on. Only a
-          salted hash is stored, in the backend&apos;s database.
+          Give Archeion a password to use. You&apos;ll log in with it from now on. Only a salted hash of it is stored,
+          in the backend&apos;s database.
         </Text>
         <PasswordInput
           label="New admin password"
@@ -69,7 +70,7 @@ function SetupForm({ minLength, onDone }: { minLength: number; onDone: () => voi
         />
         {setup.isError && <Alert color="red">{message(setup.error)}</Alert>}
         <Button type="submit" loading={setup.isPending} disabled={!first || short || first !== second}>
-          Create password and log in
+          Save password and log in
         </Button>
       </Stack>
     </form>
@@ -91,6 +92,20 @@ export function LoginPage() {
       <Center h="100vh">
         <Loader />
       </Center>
+    )
+  }
+  // Without the backend we can't tell a fresh start from a normal login, so say so.
+  if (status.isError) {
+    return (
+      <Frame>
+        <Alert color="red" title="Can't reach the backend">
+          The viewer is up, but the backend isn&apos;t answering. Is its window still open? Start Archeion with
+          start.bat (stop.bat first if half of it is running).
+        </Alert>
+        <Button onClick={() => status.refetch()} loading={status.isFetching}>
+          Try again
+        </Button>
+      </Frame>
     )
   }
 

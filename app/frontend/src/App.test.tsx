@@ -229,14 +229,22 @@ describe('app', () => {
   it('asks for a new admin password on a fresh start', async () => {
     mockApi(false, true)
     renderAt('/docs/README.md')
-    const first = await screen.findByLabelText('New admin password')
+    expect(await screen.findByText("You're new here!")).toBeTruthy()
+    const first = screen.getByLabelText('New admin password')
     expect(screen.queryByLabelText('Admin password')).toBeNull()
     fireEvent.change(first, { target: { value: 'short' } })
     expect(screen.getByText('Use at least 12 characters')).toBeTruthy()
     fireEvent.change(first, { target: { value: 'long-enough-secret' } })
     fireEvent.change(screen.getByLabelText('Repeat it'), { target: { value: 'long-enough-secret!' } })
     expect(screen.getByText("The two entries don't match")).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Create password and log in' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Save password and log in' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('says so when the backend is down, instead of showing a login form', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })))
+    renderAt('/login')
+    expect(await screen.findByText("Can't reach the backend")).toBeTruthy()
+    expect(screen.queryByLabelText('Admin password')).toBeNull()
   })
 
   it('renders a doc with the shell, project tree, badges and cross-project links', async () => {
