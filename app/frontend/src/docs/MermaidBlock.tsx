@@ -3,6 +3,32 @@ import { useEffect, useId, useState } from 'react'
 
 type State = { svg: string; error: null } | { svg: null; error: string } | { svg: null; error: null }
 
+type Mermaid = (typeof import('mermaid'))['default']
+let loading: Promise<Mermaid> | null = null
+
+/**
+ * Loads mermaid once, with the ELK layout (`layout: elk` in a diagram's frontmatter) and icon
+ * packs for architecture diagrams (`logos:` for products, `mdi:` for generic icons). Each extra
+ * is fetched only when a diagram first asks for it.
+ */
+function loadMermaid(): Promise<Mermaid> {
+  loading ??= Promise.all([import('mermaid'), import('@mermaid-js/layout-elk')])
+    .then(([{ default: mermaid }, { default: elkLayouts }]) => {
+      // A tiny module: the ELK engine itself is another chunk, loaded by the first ELK diagram.
+      mermaid.registerLayoutLoaders(elkLayouts)
+      mermaid.registerIconPacks([
+        { name: 'logos', loader: () => import('@iconify-json/logos').then((m) => m.icons) },
+        { name: 'mdi', loader: () => import('@iconify-json/mdi').then((m) => m.icons) },
+      ])
+      return mermaid
+    })
+    .catch((err: unknown) => {
+      loading = null
+      throw err
+    })
+  return loading
+}
+
 /** Renders a Mermaid diagram. mermaid is loaded only when the first diagram appears. */
 export function MermaidBlock({ code }: { code: string }) {
   const scheme = useComputedColorScheme('light')
@@ -12,8 +38,8 @@ export function MermaidBlock({ code }: { code: string }) {
   useEffect(() => {
     let cancelled = false
     const id = `mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, '')}`
-    import('mermaid')
-      .then(async ({ default: mermaid }) => {
+    loadMermaid()
+      .then(async (mermaid) => {
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',

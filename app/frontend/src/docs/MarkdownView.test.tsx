@@ -8,6 +8,8 @@ import { MarkdownView } from './MarkdownView'
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
+    registerLayoutLoaders: vi.fn(),
+    registerIconPacks: vi.fn(),
     parse: vi.fn(async (code: string) => {
       if (code.includes('broken')) throw new Error('Parse error on line 1')
       return true
