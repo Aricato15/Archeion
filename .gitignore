@@ -32,3 +32,13 @@ app/backend/venv/
 app/backend/data/
 app/frontend/node_modules/
 app/frontend/dist/
+
+# never commit databases or keys
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.pfx

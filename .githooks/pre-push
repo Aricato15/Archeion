@@ -1,5 +1,0 @@
-#!/bin/sh
-# archeion is private and local-only. It must never be pushed
-# anywhere (GitHub or any other remote). See docs/decisions/0001-never-push-to-a-remote.md.
-echo "pre-push: BLOCKED. archeion is local-only and must never be pushed." >&2
-exit 1

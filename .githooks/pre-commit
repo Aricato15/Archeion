@@ -1,0 +1,3 @@
+#!/bin/sh
+# Rejects commits that contain secrets, absolute paths or personal information.
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/.githooks/check-sensitive.ps1"

@@ -1,6 +1,6 @@
 # 0001: Never push to a remote
 
-- Status: Accepted
+- Status: Superseded by 0003 (2026-11-15)
 - Date: 2026-11-15
 
 ## Context
