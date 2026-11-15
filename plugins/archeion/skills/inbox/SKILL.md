@@ -17,7 +17,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/scrip
 | Command | What it does |
 |---|---|
 | `list --here` (`--status open\|in_progress\|answered\|resolved\|all`, `--json`) | This project's items, oldest first (default: open) |
-| `show <id>` (`--json`) | The request, its thread, the quoted text and an excerpt of the doc it points at |
+| `show <id>` (`--json`) | The request, the quoted text and an excerpt of the doc it points at. For a reply in a thread, the whole conversation so far, in full (`conversation` in `--json`) |
 | `claim <id>` | open → in_progress. Do this before working, so the browser shows the item is being handled. |
 | `reply <id> --file <path>` | in_progress → answered. The file is UTF-8 Markdown and is shown in the browser. |
 | `release <id>` | in_progress → open, when you can't or shouldn't finish it |
@@ -33,13 +33,13 @@ Stop and tell the user if the command says:
 1. Run `inbox list --here`. If nothing is open, say so and stop.
 2. Handle the items **oldest first**, one at a time:
    1. `inbox claim <id>`. If the claim fails because the item is no longer open, skip it.
-   2. `inbox show <id>`. Read the request, the thread (earlier replies give context for a follow-up) and the excerpt. Then read the doc it names in this project, because the excerpt is only the anchored part and the doc may have changed since the item was written.
+   2. `inbox show <id>`. Read the request and the excerpt. When the item is a reply in a thread, `show` prints the conversation so far: read all of it, then answer the message marked **Your request now**, building on your earlier replies instead of repeating them. Then read the doc it names in this project, because the excerpt is only the anchored part and the doc may have changed since the item was written.
    3. Do the work, following this project's own `CLAUDE.md`. The kinds of item:
       - **comment:** a remark on the anchored spot. Usually that spot needs an edit, or a question needs an answer.
       - **review:** feedback on the doc as a whole.
       - **prompt:** a task. It may touch several files, or none.
 
-      If the request is ambiguous or risky, don't guess: reply with your question, and the user answers with a follow-up. If it really belongs to another project or to the system view, say so in the reply instead of editing outside this project. `/archeion:report` can pass it to Archeion.
+      If the request is ambiguous or risky, don't guess: reply with your question, and the user answers in the same thread. If it really belongs to another project or to the system view, say so in the reply instead of editing outside this project. `/archeion:report` can pass it to Archeion.
    4. Write the reply to a temporary file in your scratchpad directory and send it with `inbox reply <id> --file <file>`. Keep it short Markdown: what you did, which files changed (relative paths), and anything the user needs to decide. If you changed nothing, say why.
    5. If you can't finish an item, `inbox release <id>` and tell the user why in the chat.
 3. Sum up in the chat: each item handled (id, one line each) and the files changed. Don't commit on your own: offer the project's usual commit flow.

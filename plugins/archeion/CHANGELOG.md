@@ -4,6 +4,11 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-16
+
+### Changed
+- `/archeion:inbox` reads a reply in a thread with the whole conversation that `inbox show` prints, and answers the newest message (Archeion's ADR 0018). With an older Archeion it works as before.
+
 ## [0.1.1] - 2026-11-15
 
 ### Changed
