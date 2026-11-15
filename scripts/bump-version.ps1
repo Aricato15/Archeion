@@ -1,7 +1,9 @@
-# Changes the app version everywhere it's recorded (ADR 0005).
-#   scripts\bump-version.ps1 -Part minor      # 0.1.0 -> 0.2.0
+# Changes a version everywhere it's recorded.
+#   scripts\bump-version.ps1 -Part minor                  # the app (ADR 0005): 0.1.0 -> 0.2.0
 #   scripts\bump-version.ps1 -Set 1.0.0
+#   scripts\bump-version.ps1 -Target plugin -Part patch   # the Archeion plugin (ADR 0009)
 param(
+    [ValidateSet('app', 'plugin')][string]$Target = 'app',
     [ValidateSet('major', 'minor', 'patch')][string]$Part,
     [string]$Set
 )
@@ -10,8 +12,17 @@ $ErrorActionPreference = 'Stop'
 
 $semver = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
 $versionFile = Join-Path $RepoRoot 'VERSION'
-$current = (Get-Content -LiteralPath $versionFile -Raw).Trim()
-if ($current -notmatch $semver) { throw "VERSION holds '$current', which isn't MAJOR.MINOR.PATCH" }
+$pluginJson = Join-Path $RepoRoot 'plugins\archeion\.claude-plugin\plugin.json'
+$marketplaceJson = Join-Path $RepoRoot '.claude-plugin\marketplace.json'
+$versionField = [regex]'"version"\s*:\s*"([^"]*)"'
+if ($Target -eq 'plugin') {
+    $m = $versionField.Match([IO.File]::ReadAllText($pluginJson))
+    if (-not $m.Success) { throw "plugin.json has no version" }
+    $current = $m.Groups[1].Value
+} else {
+    $current = (Get-Content -LiteralPath $versionFile -Raw).Trim()
+}
+if ($current -notmatch $semver) { throw "The $Target version is '$current', which isn't MAJOR.MINOR.PATCH" }
 
 if ($Set) {
     if ($Set -notmatch $semver) { throw "'$Set' isn't MAJOR.MINOR.PATCH" }
@@ -25,12 +36,35 @@ if ($Set) {
     }
     $new = "$major.$minor.$patch"
 } else {
-    Write-Host "Current version: $current. Pass -Part major|minor|patch or -Set X.Y.Z."
+    Write-Host "Current $Target version: $current. Pass -Part major|minor|patch or -Set X.Y.Z."
     exit 0
 }
 
 function Set-FileText([string]$Path, [string]$Text) {
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding $false))
+}
+
+function Add-ChangelogRelease([string]$Path, [string]$Version) {
+    $log = [IO.File]::ReadAllText($Path)
+    if ($log -notmatch [regex]::Escape("## [$Version]")) {
+        $date = Get-Date -Format 'yyyy-MM-dd'
+        $log = ([regex]'(?m)^## \[Unreleased\]\s*$').Replace($log, "## [Unreleased]`n`n## [$Version] - $date`n", 1)
+        Set-FileText $Path $log
+    }
+}
+
+if ($Target -eq 'plugin') {
+    # plugin.json and the marketplace entry carry the same version; Claude Code uses it to
+    # spot updates, so it changes whenever the plugin does (the commit hook checks this).
+    foreach ($file in @($pluginJson, $marketplaceJson)) {
+        $text = [IO.File]::ReadAllText($file)
+        if (-not $versionField.IsMatch($text)) { throw "$file has no version field" }
+        Set-FileText $file ($versionField.Replace($text, "`"version`": `"$new`"", 1))
+    }
+    Add-ChangelogRelease (Join-Path $RepoRoot 'plugins\archeion\CHANGELOG.md') $new
+    Write-Host "Plugin version $current -> $new. Updated plugin.json, .claude-plugin/marketplace.json and plugins/archeion/CHANGELOG.md."
+    Write-Host "Move the Unreleased notes under [$new], then commit as: chore(plugin): release $new"
+    exit 0
 }
 
 Set-FileText $versionFile "$new`n"
@@ -48,13 +82,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "npm version failed" }
 } finally { Pop-Location }
 
-$changelog = Join-Path $RepoRoot 'CHANGELOG.md'
-$log = [IO.File]::ReadAllText($changelog)
-if ($log -notmatch [regex]::Escape("## [$new]")) {
-    $date = Get-Date -Format 'yyyy-MM-dd'
-    $log = ([regex]'(?m)^## \[Unreleased\]\s*$').Replace($log, "## [Unreleased]`n`n## [$new] - $date", 1)
-    Set-FileText $changelog $log
-}
+Add-ChangelogRelease (Join-Path $RepoRoot 'CHANGELOG.md') $new
 
 Write-Host "Version $current -> $new. Updated VERSION, pyproject.toml, uv.lock, package.json, package-lock.json and CHANGELOG.md."
 Write-Host "Move the Unreleased notes under [$new], then commit as: chore(release): $new"

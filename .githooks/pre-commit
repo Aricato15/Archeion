@@ -1,3 +1,6 @@
 #!/bin/sh
-# Rejects commits that contain secrets, absolute paths or personal information.
-exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/.githooks/check-sensitive.ps1"
+# Rejects commits that contain secrets, absolute paths or personal information, and
+# commits that change the Archeion plugin without changing its version (ADR 0009).
+top="$(git rev-parse --show-toplevel)"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$top/.githooks/check-sensitive.ps1" || exit 1
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$top/.githooks/check-plugin-version.ps1"
