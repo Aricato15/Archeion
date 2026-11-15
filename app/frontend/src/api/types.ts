@@ -168,3 +168,15 @@ export type NewFeedback = {
   anchor?: Anchor | null
   parent_id?: number | null
 }
+
+/** The inbox terminal: Claude Code running `/loop <interval> /inbox` (ADR 0013). */
+export type RunnerStatus = {
+  running: boolean
+  /** The saved interval, such as 10m or 1h. A running terminal keeps the one it started with. */
+  interval: string
+  pid: number | null
+  started_at: string | null
+  can_start: boolean
+  /** Why it can't be started here, when can_start is false. */
+  reason: string | null
+}

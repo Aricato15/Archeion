@@ -15,6 +15,7 @@ import type {
   Registry,
   RootSurvey,
   RootsSettings,
+  RunnerStatus,
   Roadmaps,
   SearchHit,
   Source,
@@ -118,6 +119,28 @@ export const useRegisterProject = () =>
   useRegistryMutation((item: { root: string | null; path: string; name: string }) =>
     api<{ page: string; project: Project | null }>('/registry/projects', { method: 'POST', json: item }),
   )
+
+// --- inbox terminal (ADR 0013) ------------------------------------------------------------
+
+/** Polled, so the page notices when the window is closed by hand. */
+export const useRunner = () =>
+  useQuery({ queryKey: ['runner'], queryFn: () => api<RunnerStatus>('/runner'), refetchInterval: 5000 })
+
+function useRunnerMutation<V>(fn: (vars: V) => Promise<RunnerStatus>) {
+  const qc = useQueryClient()
+  return useMutation({ mutationFn: fn, onSuccess: (data) => qc.setQueryData(['runner'], data) })
+}
+
+export const useSetRunnerInterval = () =>
+  useRunnerMutation((interval: string) => api<RunnerStatus>('/runner', { method: 'PUT', json: { interval } }))
+
+export const useStartRunner = () =>
+  useRunnerMutation((interval?: string) =>
+    api<RunnerStatus>('/runner/start', { method: 'POST', json: interval ? { interval } : {} }),
+  )
+
+export const useStopRunner = () =>
+  useRunnerMutation<void>(() => api<RunnerStatus>('/runner/stop', { method: 'POST', json: {} }))
 
 // --- docs ------------------------------------------------------------------------------
 // Every doc query is keyed by [kind, source, path, ...] so live updates can target them.

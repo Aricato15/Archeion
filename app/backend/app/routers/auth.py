@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 import sqlite3
 import time
 
@@ -17,6 +16,7 @@ from ..security import (
     create_session,
     delete_session,
     get_pw_hash,
+    local_only,
     pw_is_set,
     set_first_pw,
     verify_pw,
@@ -40,17 +40,6 @@ class LoginBody(BaseModel):
 
 class SetupBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
-
-
-def _local_only(host: str) -> bool:
-    """Whether the backend listens on this machine only. First-run setup is offered only
-    then: on another interface, anyone who reached it first could claim the account."""
-    if host == "localhost":
-        return True
-    try:
-        return ipaddress.ip_address(host).is_loopback
-    except ValueError:
-        return False
 
 
 def _start_session(state: AppState, conn: sqlite3.Connection, response: Response) -> None:
@@ -105,7 +94,7 @@ def setup_status(state: AppState = Depends(get_state), conn: sqlite3.Connection 
     needed = not pw_is_set(conn)
     return {
         "needed": needed,
-        "allowed": needed and _local_only(state.settings.host),
+        "allowed": needed and local_only(state.settings.host),
         "min_length": MIN_PW_LEN,
     }
 
@@ -119,7 +108,7 @@ def setup(
 ) -> None:
     """Create the first admin password and log in. Refused once a password exists: changing
     it stays with the CLI (password set), which logs out every session."""
-    if not _local_only(state.settings.host):
+    if not local_only(state.settings.host):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "Archeion listens beyond this machine, so set the password with the CLI: password set",

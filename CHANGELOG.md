@@ -8,6 +8,7 @@ All notable changes to Archeion are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **The inbox terminal, started from the viewer** ([ADR 0013](docs/decisions/0013-start-the-inbox-terminal-from-the-viewer.md)). **Settings → Inbox terminal** opens a Claude Code window at the repo root running `/loop <interval> /inbox`, and stops or restarts it. The backend tracks the window by PID and process start time, so the status survives a backend restart. The interval is set on the card. A header badge shows whether it's running. API: `GET`/`PUT /api/runner`, `POST /api/runner/start`, `POST /api/runner/stop`.
 - **A Use cases page** in the sidebar: everyday jobs, step by step, across the viewer, Archeion's session and a project's session. These are registering a project and keeping its docs current, reviewing changes that affect other projects, and starting a new project from a clean slate. It's the doc `docs/guides/use-cases.md`.
 
 ## [0.5.0] - 2026-11-15

@@ -22,6 +22,7 @@ import { IconAlertTriangle, IconFolderPlus, IconLock, IconPlus, IconTrash } from
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useRegisterProject, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
+import { InboxTerminalCard } from '../runner/InboxTerminal'
 import type { RootEntry, RootItem, RootSurvey, RootsSettings } from '../api/types'
 
 const NAME_RE = /^[a-z0-9][a-z0-9-]{1,31}$/
@@ -348,6 +349,8 @@ export function SettingsPage() {
         </Text>
       )}
       {survey.data?.map((r) => <RootProjects key={r.name} root={r} onlyNew={onlyNew} />)}
+
+      <InboxTerminalCard />
     </Stack>
   )
 }

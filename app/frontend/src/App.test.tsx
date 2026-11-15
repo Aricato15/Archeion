@@ -131,6 +131,8 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
       },
       { name: 'gone', folder: null, granted: false, items: [{ name: 'far', path: 'far', root: 'gone', folder: 'far', parent_folder: null, parent: null, registered: 'far' }] },
     ],
+    '/api/runner': { running: false, interval: '10m', pid: null, started_at: null, can_start: true, reason: null },
+    '/api/runner/start': { running: true, interval: '10m', pid: 4242, started_at: '2026-11-15T03:00:00+00:00', can_start: true, reason: null },
     '/api/registry/projects': { page: 'projects/newproj.md', project: null },
     '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { gateway: 1 } },
     '/api/feedback/7': { item, thread: [item] },
@@ -371,5 +373,19 @@ describe('app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close the guide' }))
     expect(toggle.getAttribute('aria-pressed')).toBe('false')
     expect(window.localStorage.getItem('archeion.guide-panel')).toBe('false')
+  })
+
+  it('shows the inbox terminal on Settings and starts it', async () => {
+    mockApi(true)
+    renderAt('/settings')
+    expect(await screen.findByText('stopped')).toBeTruthy()
+    expect(screen.getByText('Inbox terminal')).toBeTruthy()
+    expect(screen.getByText('inbox loop')).toBeTruthy() // the header badge
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    expect(await screen.findByText('running')).toBeTruthy()
+    expect(screen.getByText(/PID 4242/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy()
+    const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+    expect(calls.some(([url, init]) => url.includes('/api/runner/start') && init?.method === 'POST')).toBe(true)
   })
 })

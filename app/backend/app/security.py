@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import sqlite3
 import threading
@@ -205,3 +206,15 @@ class LoginLimiter:
     def reset(self, key: str) -> None:
         with self._lock:
             self._failures.pop(key, None)
+
+
+def local_only(host: str) -> bool:
+    """Whether the backend listens on this machine only. First-run setup (ADR 0011) and the
+    inbox terminal (ADR 0013) are offered only then: on another interface, anyone who reached
+    it first could claim the account, and a window would open on a machine nobody's looking at."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False

@@ -115,11 +115,29 @@ def _m4_feedback_origin(conn: sqlite3.Connection) -> None:
     _exec_all(conn, "ALTER TABLE feedback ADD COLUMN origin TEXT")
 
 
+def _m5_runner(conn: sqlite3.Connection) -> None:
+    # The inbox terminal the viewer starts (ADR 0013): its interval, and while it runs its
+    # PID plus the process's start time, so a reused PID isn't taken for it.
+    _exec_all(
+        conn,
+        """
+        CREATE TABLE runner (
+          id            INTEGER PRIMARY KEY CHECK (id = 1),
+          interval      TEXT NOT NULL DEFAULT '10m',
+          pid           INTEGER,
+          proc_started  INTEGER,
+          started_at    TEXT
+        )
+        """,
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
     _m3_feedback_source,
     _m4_feedback_origin,
+    _m5_runner,
 ]
 
 

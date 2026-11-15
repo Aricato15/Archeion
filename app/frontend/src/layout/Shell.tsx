@@ -34,6 +34,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useLogout, useRegistry, useTree, useVersion } from '../api/queries'
 import { REGISTRY, SELF } from '../api/types'
+import { InboxTerminalBadge } from '../runner/InboxTerminal'
 import { DEFAULT_LINKS, LinkContextValue, type LinkContext } from '../docs/links'
 import { useEvents } from '../events/useEvents'
 import { DocTree } from './DocTree'
@@ -119,6 +120,7 @@ export function Shell() {
                 if (e.key === 'Escape') searchRef.current?.blur()
               }}
             />
+            <InboxTerminalBadge />
             <FeedbackBadge />
             <Tooltip label={guide ? 'Hide the Claude CLI guide (Ctrl+I)' : 'Show the Claude CLI guide (Ctrl+I)'}>
               <ActionIcon

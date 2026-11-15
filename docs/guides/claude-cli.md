@@ -19,7 +19,7 @@ Start it at Archeion's root, not a subfolder: the session-start hook that announ
 | Command | What it does |
 |---|---|
 | `/inbox` | Works through the feedback left for Archeion |
-| `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking |
+| `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking. The viewer can run this for you: **Settings → Inbox terminal** starts, stops and restarts it in its own window, and the header badge shows whether it's running |
 | `/workspace-core:commit` | Reviews the staged changes, proposes a Conventional Commits message, and asks before committing |
 | `/workspace-core:handoff` | Writes a handoff note to `docs/notes/` for the next session |
 
