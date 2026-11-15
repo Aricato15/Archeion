@@ -1,4 +1,4 @@
-# archeion
+# Archeion
 
 Repository (tracked on GitHub, no secrets or machine config) holding my system-wide point of view: how my projects interact with each other, architecture overviews, and the roadmap. It also has a local web app (backend + frontend) where I view these docs, plans and diagrams, and send prompts, reviews and feedback to Claude.
 
@@ -25,8 +25,8 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - Frontend (`app/frontend/`): TypeScript, React, Vite, npm, Mantine (same as the workspace's other UIs). *(Proposed, not built yet.)*
 
 ## Ports
-- Backend: **20300** (AI / Agent APIs range, because it drives Claude), set by `AOP_PORT`.
-- Frontend dev server: **20301**, set by `AOP_FRONTEND_PORT`.
+- Backend: **20300** (AI / Agent APIs range, because it drives Claude), set by `ARCHEION_PORT`.
+- Frontend dev server: **20301**, set by `ARCHEION_FRONTEND_PORT`.
 
 ## Environment
 - Docs: none.
