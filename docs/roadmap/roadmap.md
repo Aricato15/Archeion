@@ -4,10 +4,12 @@ _Last updated: 2026-11-15_
 
 ## Now
 - Use the viewer day to day and fix what gets in the way (PATCH releases).
+- Done on 2026-11-15: in 0.3.0 named roots, so projects outside the workspace can be registered without moving ([ADR 0008](../decisions/0008-named-project-roots.md)), and in 0.4.0 the Archeion plugin for project sessions, installed at user level with its own version, 0.1.0 ([ADR 0009](../decisions/0009-archeion-plugin-for-project-sessions.md), [the plan](2026-11-15-named-roots-and-plugin-plan.md)).
 - Done on 2026-11-15: the viewer app, phases 0–4 ([the plan](2026-11-15-viewer-app-plan.md)), and in 0.2.0 the multi-project registry with read-only project sources, per-project feedback and the private registry folder ([ADR 0006](../decisions/0006-multi-project-registry.md), [ADR 0007](../decisions/0007-keep-project-information-out-of-the-repo.md)).
 
 ## Next
-- Decide on [ADR 0008](../decisions/0008-named-project-roots.md) (named roots, so projects outside the workspace can be registered without moving) and [ADR 0009](../decisions/0009-archeion-plugin-for-project-sessions.md) (an Archeion plugin, installed at user level and versioned separately, that gives every project session its inbox and system context). If accepted, build 0008 first, then 0009, each as a MINOR release ([the plan](2026-11-15-named-roots-and-plugin-plan.md), which starts from a clean slate). 0009 replaces the plan to install the portable project inbox into the shared workspace plugin.
+- Merge `feat/named-roots-and-plugin` into `main` after the viewer checks in the [end-to-end notes](../notes/2026-11-15-named-roots-and-plugin-e2e.md).
+- Leave `verified` unset on stub pages from `projects scan --write`, until someone checks the page.
 - Keep the registry pages' `verified` dates current, and add a group page whenever related projects form a new system.
 
 ## Later

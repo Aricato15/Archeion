@@ -1,5 +1,7 @@
 # Plan: named roots and the Archeion plugin
 
+_Status (2026-11-15): phases 0 to 3 are done, and the [end-to-end notes](../notes/2026-11-15-named-roots-and-plugin-e2e.md) have the results. Phase 4 (merge) waits for the user's own checks in the viewer._
+
 _Written 2026-11-15. Implements [ADR 0008](../decisions/0008-named-project-roots.md) and [ADR 0009](../decisions/0009-archeion-plugin-for-project-sessions.md). Phases 1 and 2 accept the two ADRs as they're built. The work is on the branch `feat/named-roots-and-plugin`._
 
 ```mermaid
