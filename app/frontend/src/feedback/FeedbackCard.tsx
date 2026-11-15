@@ -31,6 +31,15 @@ export function ProjectBadge({ id }: { id: string }) {
   )
 }
 
+/** Which project's own session sent an item (/archeion:report, ADR 0009). */
+export function OriginBadge({ id }: { id: string }) {
+  return (
+    <Badge variant="light" size="sm" color="teal" component={Link} to={projectUrl(id)} style={{ cursor: 'pointer' }}>
+      from {id}
+    </Badge>
+  )
+}
+
 export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; showDoc?: boolean }) {
   const first = item.body.trim().split('\n')[0] ?? ''
   const link = docLink(item)
@@ -47,6 +56,7 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; sho
             </Badge>
             <StatusBadge item={item} />
             {item.source !== SELF && <ProjectBadge id={item.source} />}
+            {item.origin && <OriginBadge id={item.origin} />}
             {item.parent_id && (
               <Group gap={2}>
                 <IconCornerDownRight size={14} />

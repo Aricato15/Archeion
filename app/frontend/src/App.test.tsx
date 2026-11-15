@@ -23,6 +23,7 @@ const item = {
   id: 7,
   kind: 'comment',
   source: 'archeion',
+  origin: null,
   doc_path: 'README.md',
   anchor: { heading: 'Docs', lines: [1, 1], quote: 'Docs' },
   body: 'Tighten the intro.',
@@ -36,6 +37,7 @@ const item = {
   answered_at: '2026-11-15T03:05:00+00:00',
 }
 const projectItem = { ...item, id: 8, source: 'gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
+const reportItem = { ...item, id: 9, origin: 'gateway', doc_path: null, anchor: null, status: 'open', body: 'Gateway moved to port 20061.' }
 
 const project = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -136,7 +138,7 @@ function mockApi(loggedIn: boolean) {
       }
       if (url.pathname === '/api/feedback') {
         const source = url.searchParams.get('source')
-        body = [item, projectItem].filter((i) => !source || i.source === source)
+        body = [item, projectItem, reportItem].filter((i) => !source || i.source === source)
       }
       if (body === undefined) return new Response('{"detail":"not mocked"}', { status: 404 })
       if (body === null) return new Response('{"detail":"not logged in"}', { status: 401 })
@@ -268,6 +270,7 @@ describe('app', () => {
     renderAt('/feedback')
     expect(await screen.findByText('Tighten the intro.')).toBeTruthy()
     expect(screen.getByText('Document the routes.')).toBeTruthy()
+    expect(screen.getByText('from gateway')).toBeTruthy()
   })
 
   it('renders a thread with Claude’s reply', async () => {

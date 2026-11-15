@@ -14,13 +14,13 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from .config import Settings
+from .config import Settings, read_version
 from .db import Database
 from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import docs_fs
 from .services import feedback as fb
-from .services.registry import REGISTRY_ID, SELF_ID, stub_page
+from .services.registry import REGISTRY_ID, SELF_ID, Project, effective_group, split_frontmatter, stub_page
 from .services.sources import SourceManager, SourceNotFound
 
 EXIT_NO_PASSWORD = 3
@@ -117,17 +117,39 @@ def _target(settings: Settings, args: argparse.Namespace) -> list[str] | None:
             raise ValueError(f"'{project}' isn't a registered project (see: projects list)")
         return [project]
     if getattr(args, "here", False):
-        # The wrapper scripts cd into app/backend; they pass the caller's folder along.
-        here = Path(os.environ.get("ARCHEION_CALLER_DIR") or os.getcwd()).resolve()
+        here = _caller_dir()
         if here.is_relative_to(settings.repo_root.resolve()):
             return OWN_SOURCES
         project = _sources(settings).registry.project_for_dir(here)
         if project is None:
-            raise ValueError(
-                f"{here.name} isn't inside a registered project; register it first (projects scan)"
-            )
+            raise ValueError(_not_registered(here))
         return [project.id]
     return None
+
+
+def _caller_dir() -> Path:
+    # The wrapper scripts cd into app/backend; they pass the caller's folder along.
+    return Path(os.environ.get("ARCHEION_CALLER_DIR") or os.getcwd()).resolve()
+
+
+def _not_registered(here: Path) -> str:
+    return f"{here.name} isn't inside a registered project; register it first (projects scan)"
+
+
+def _project_arg(settings: Settings, manager: SourceManager, args: argparse.Namespace) -> Project:
+    """The project named by --project, or the one the caller's folder is in (--here)."""
+    reg = manager.registry
+    if getattr(args, "project", None):
+        if args.project not in reg.projects:
+            raise ValueError(f"'{args.project}' isn't a registered project (see: projects list)")
+        return reg.projects[args.project]
+    here = _caller_dir()
+    if here.is_relative_to(settings.repo_root.resolve()):
+        raise ValueError("this is Archeion itself, not a registered project; use --project <name>")
+    project = reg.project_for_dir(here)
+    if project is None:
+        raise ValueError(_not_registered(here))
+    return project
 
 
 def _summary_line(item: dict) -> str:
@@ -143,6 +165,8 @@ def _summary_line(item: dict) -> str:
     if len(first) > 80:
         first = first[:77] + "..."
     parent = f" follow-up of #{item['parent_id']}" if item["parent_id"] else ""
+    if item.get("origin"):
+        parent += f" from {item['origin']}"
     return f"#{item['id']:<4} {item['status']:<11} {item['kind']:<7} {where}{parent}\n       {first}"
 
 
@@ -237,6 +261,36 @@ def cmd_inbox_release(settings: Settings, args: argparse.Namespace) -> int:
     with _db(settings).conn() as conn:
         item = fb.release(conn, args.id)
     print(f"Released #{item['id']}; it's open again.")
+    return 0
+
+
+def _read_text_arg(value: str) -> str:
+    if value == "-":
+        return sys.stdin.buffer.read().decode("utf-8")
+    return Path(value).read_text(encoding="utf-8")
+
+
+def cmd_inbox_create(settings: Settings, args: argparse.Namespace) -> int:
+    """A new item, written from a session rather than the viewer (/archeion:report). It
+    records which registered project the caller is in as its origin (ADR 0009)."""
+    manager = _sources(settings)
+    to = args.to
+    if to == REGISTRY_ID:
+        to = SELF_ID
+    if to != SELF_ID and to not in manager.registry.projects:
+        raise ValueError(f"'{to}' isn't a registered project (see: projects list)")
+    here = _caller_dir()
+    origin = None
+    if not here.is_relative_to(settings.repo_root.resolve()):
+        found = manager.registry.project_for_dir(here)
+        origin = found.id if found else None
+    body = _read_text_arg(args.file).strip()
+    if not body:
+        raise ValueError("the item is empty")
+    with _db(settings).conn() as conn:
+        item = fb.create(conn, kind=args.kind, body=body, source=to, origin=origin)
+    sender = f" from {origin}" if origin else ""
+    print(f"Created #{item['id']} ({item['kind']}) for {to}{sender}. It shows up in the viewer.")
     return 0
 
 
@@ -337,6 +391,89 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _project_facts(manager: SourceManager, p: Project) -> dict:
+    """A project's place in the system, for a session working in it (/archeion:context)."""
+    reg = manager.registry
+    group_id = effective_group(reg, p)
+    group = reg.groups.get(group_id) if group_id else None
+    notes = ""
+    page = manager.registry_root / p.page
+    if page.is_file():
+        notes = split_frontmatter(page.read_text(encoding="utf-8", errors="replace"))[1].strip()
+    return {
+        **p.public(),
+        "group": group_id,
+        "group_title": group.title if group else None,
+        "group_inherited": bool(group_id and not p.group),
+        "group_members": sorted(group.projects) if group else [],
+        "notes": notes,
+    }
+
+
+def cmd_projects_show(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    facts = _project_facts(manager, _project_arg(settings, manager, args))
+    if args.json:
+        _print_json(facts)
+        return 0
+
+    def names(ids: list[str]) -> str:
+        return ", ".join(ids) if ids else "none"
+
+    where = f"{facts['root']}:{facts['path']}" if facts["root"] else (facts["path"] or "none")
+    print(f"{facts['id']} ({facts['title']})")
+    print(f"  status: {facts['status']}" + (f", kind: {facts['kind']}" if facts["kind"] else ""))
+    print(f"  path: {where}" + ("" if facts["available"] else " (not available on this machine)"))
+    if facts["group"]:
+        inherited = " (from its parent)" if facts["group_inherited"] else ""
+        print(f"  group: {facts['group']} ({facts['group_title']}){inherited}")
+        others = [m for m in facts["group_members"] if m != facts["id"]]
+        print(f"    with: {names(others)}")
+    else:
+        print("  group: none (standalone)")
+    if facts["parent"]:
+        print(f"  part of: {facts['parent']}")
+    if facts["children"]:
+        print(f"  sub-projects: {names(sorted(facts['children']))}")
+    print(f"  depends on: {names(facts['depends_on'])}")
+    print(f"  used by: {names(sorted(facts['used_by']))}")
+    print(f"  ports: {', '.join(str(n) for n in facts['ports']) or 'none'}")
+    print(f"  verified: {facts['verified'] or 'never'}")
+    print(f"  registry page: registry/{facts['page']}")
+    if facts["notes"]:
+        print("\nNotes from the registry page:")
+        print(facts["notes"])
+    return 0
+
+
+def cmd_projects_ports(settings: Settings, args: argparse.Namespace) -> int:
+    """Every port the registry records, so a new one can be picked without a clash."""
+    reg = _sources(settings).registry
+    by_port: dict[int, list[str]] = {}
+    for p in reg.projects.values():
+        for port in p.ports:
+            by_port.setdefault(port, []).append(p.id)
+    rows = [{"port": port, "projects": sorted(ids)} for port, ids in sorted(by_port.items())]
+    clashes = [r for r in rows if len(r["projects"]) > 1]
+    if args.json:
+        _print_json({"ports": rows, "clashes": clashes})
+        return 0
+    if not rows:
+        print("No ports are recorded in the registry.")
+        return 0
+    for r in rows:
+        mark = "  <- used twice" if len(r["projects"]) > 1 else ""
+        print(f"{r['port']:>6}  {', '.join(r['projects'])}{mark}")
+    if clashes:
+        print(f"\n{len(clashes)} port(s) are recorded for more than one project.")
+    return 0
+
+
+def cmd_version(settings: Settings, _: argparse.Namespace) -> int:
+    print(read_version(settings.repo_root))
+    return 0
+
+
 # --- parser -----------------------------------------------------------------------------
 
 
@@ -383,6 +520,11 @@ def build_parser() -> argparse.ArgumentParser:
     rep.add_argument("id", type=int)
     rep.add_argument("--file", required=True, help="UTF-8 file with the reply (Markdown), or - for stdin")
     rep.set_defaults(func=cmd_inbox_reply)
+    new = inbox.add_parser("create", help="a new item from this session, e.g. a change to report (open)")
+    new.add_argument("--to", default=SELF_ID, help="the project it is for (default: archeion)")
+    new.add_argument("--kind", default="prompt", choices=fb.KINDS)
+    new.add_argument("--file", required=True, help="UTF-8 file with the text (Markdown), or - for stdin")
+    new.set_defaults(func=cmd_inbox_create)
 
     projects = sub.add_parser("projects", help="the project registry").add_subparsers(
         dest="action", required=True
@@ -395,6 +537,17 @@ def build_parser() -> argparse.ArgumentParser:
     ps.add_argument("--root", help="only scan this root ('workspace' or a name from ARCHEION_ROOTS)")
     ps.add_argument("--only", nargs="+", metavar="NAME", help="only these folders (names as scan lists them)")
     ps.set_defaults(func=cmd_projects_scan)
+    show = projects.add_parser("show", help="one project's place in the system (for /archeion:context)")
+    which = show.add_mutually_exclusive_group(required=True)
+    which.add_argument("--project", help="the project's name")
+    which.add_argument("--here", action="store_true", help="the project the command runs in")
+    show.add_argument("--json", action="store_true")
+    show.set_defaults(func=cmd_projects_show)
+    ports = projects.add_parser("ports", help="the ports recorded in the registry, by project")
+    ports.add_argument("--json", action="store_true")
+    ports.set_defaults(func=cmd_projects_ports)
+
+    sub.add_parser("version", help="Archeion's version").set_defaults(func=cmd_version)
     return parser
 
 

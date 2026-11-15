@@ -21,7 +21,7 @@ import { SELF, type FeedbackItem, type FeedbackStatus } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
 import { MarkdownView } from '../docs/MarkdownView'
 import { formatDate } from '../lib/format'
-import { ProjectBadge, StatusBadge } from './FeedbackCard'
+import { OriginBadge, ProjectBadge, StatusBadge } from './FeedbackCard'
 import { FeedbackForm, type FeedbackDraft } from './FeedbackForm'
 import { KIND_LABEL, docLink } from './labels'
 
@@ -48,6 +48,7 @@ function ItemView({ item, current }: { item: FeedbackItem; current: boolean }) {
             </Badge>
             <StatusBadge item={item} />
             {item.source !== SELF && <ProjectBadge id={item.source} />}
+            {item.origin && <OriginBadge id={item.origin} />}
           </Group>
           <Text size="xs" c="dimmed">
             {formatDate(item.created_at)}

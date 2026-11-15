@@ -114,6 +114,8 @@ export type FeedbackItem = {
   id: number
   kind: FeedbackKind
   source: SourceId
+  /** The registered project whose session sent it (ADR 0009); null when written in the viewer. */
+  origin: string | null
   doc_path: string | null
   anchor: Anchor | null
   body: string

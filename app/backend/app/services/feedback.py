@@ -65,6 +65,7 @@ def create(
     parent_id: int | None = None,
     doc_rev: str | None = None,
     source: str = "archeion",
+    origin: str | None = None,
 ) -> dict:
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
@@ -74,11 +75,12 @@ def create(
             _status_of(conn, parent_id)
         cur = conn.execute(
             "INSERT INTO feedback"
-            " (kind, source, doc_path, anchor, body, parent_id, doc_rev, created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " (kind, source, origin, doc_path, anchor, body, parent_id, doc_rev, created_at, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 source,
+                origin,
                 doc_path,
                 json.dumps(anchor) if anchor else None,
                 body,

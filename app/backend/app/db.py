@@ -109,7 +109,18 @@ def _m3_feedback_source(conn: sqlite3.Connection) -> None:
     )
 
 
-MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [_m1_auth, _m2_feedback, _m3_feedback_source]
+def _m4_feedback_origin(conn: sqlite3.Connection) -> None:
+    # Which registered project sent an item from its own session (/archeion:report,
+    # ADR 0009). NULL: written in the viewer. A plain id, like source.
+    _exec_all(conn, "ALTER TABLE feedback ADD COLUMN origin TEXT")
+
+
+MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
+    _m1_auth,
+    _m2_feedback,
+    _m3_feedback_source,
+    _m4_feedback_origin,
+]
 
 
 def migrate(conn: sqlite3.Connection) -> int:
