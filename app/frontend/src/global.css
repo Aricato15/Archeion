@@ -1,0 +1,51 @@
+.markdown-body {
+  position: relative;
+  padding-left: 40px;
+}
+
+.markdown-body.markdown-compact {
+  padding-left: 0;
+}
+
+.markdown-compact > :first-child {
+  margin-top: 0;
+}
+
+.markdown-compact > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body [data-line-start],
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  scroll-margin-top: 80px;
+}
+
+.markdown-body .block-flash {
+  animation: block-flash 2.5s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes block-flash {
+  from {
+    background: var(--mantine-color-yellow-light);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diff-view .d2h-file-header {
+  display: none;
+}
+
+.diff-view .d2h-wrapper {
+  font-size: 12px;
+}
