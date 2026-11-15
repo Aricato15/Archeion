@@ -1,0 +1,60 @@
+{
+  "$comment": "Single source of the .env settings. configure.bat prompts for these and writes .env; it also regenerates .env.example from them. To add a setting: add an entry here (and to app/backend/app/config.py if the backend reads it). tests/test_settings_schema.py keeps the two in sync. Types: host, port, int, number, relpath, string, secret (prompted hidden, never written to .env.example).",
+  "groups": [
+    {
+      "title": "Backend",
+      "settings": [
+        {
+          "name": "ARCHEION_HOST",
+          "type": "host",
+          "default": "127.0.0.1",
+          "description": "Address the backend listens on. Keep 127.0.0.1 unless other machines must reach it."
+        },
+        {
+          "name": "ARCHEION_PORT",
+          "type": "port",
+          "default": "20300",
+          "range": [20300, 20399],
+          "description": "Backend port (workspace AI / Agent APIs range, see ../CLAUDE.md)."
+        },
+        {
+          "name": "ARCHEION_DB_PATH",
+          "type": "relpath",
+          "default": "app/backend/data/archeion.db",
+          "description": "The backend's SQLite database (admin credential hash, sessions, feedback), relative to the repo root."
+        }
+      ]
+    },
+    {
+      "title": "Frontend",
+      "settings": [
+        {
+          "name": "ARCHEION_FRONTEND_PORT",
+          "type": "port",
+          "default": "20301",
+          "range": [20300, 20399],
+          "description": "Frontend dev server port (Vite). It proxies /api to the backend."
+        }
+      ]
+    },
+    {
+      "title": "Sessions",
+      "settings": [
+        {
+          "name": "ARCHEION_SESSION_IDLE_HOURS",
+          "type": "number",
+          "default": "12",
+          "min": 0.1,
+          "description": "Log out after this many hours without activity."
+        },
+        {
+          "name": "ARCHEION_SESSION_MAX_DAYS",
+          "type": "number",
+          "default": "7",
+          "min": 0.1,
+          "description": "Log out this many days after login at the latest."
+        }
+      ]
+    }
+  ]
+}
