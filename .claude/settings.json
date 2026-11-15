@@ -21,6 +21,19 @@
       "PowerShell(git commit -n:*)"
     ]
   },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/inbox-count.ps1",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  },
   "extraKnownMarketplaces": {
     "claude-projects": {
       "source": {
