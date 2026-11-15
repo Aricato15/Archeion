@@ -23,6 +23,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
 } finally { Pop-Location }
 
+Write-Host "== Registry"
+$registry = Join-Path $RepoRoot 'registry'
+if (Test-Path -LiteralPath $registry) {
+    Write-Host "   registry\ exists; left as it is."
+} else {
+    Copy-Item -LiteralPath (Join-Path $RepoRoot 'registry.example') -Destination $registry -Recurse
+    Write-Host "   Created registry\ from registry.example\ (gitignored: your project details stay on this machine)."
+    Write-Host "   Fill it with: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\archeion.ps1 projects scan --write"
+}
+
 Write-Host "== Settings"
 & (Join-Path $PSScriptRoot 'configure.ps1') -ExampleOnly
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot '.env'))) {

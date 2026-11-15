@@ -116,6 +116,11 @@ def worktree_diff(cwd: Path, rel: str, current: str) -> str:
     return f"diff --git a/{rel} b/{rel}\n{body}"
 
 
+def is_ignored(cwd: Path, rel: str) -> bool:
+    """True when git ignores the file (e.g. the private registry): it has no history by design."""
+    return _git(cwd, "check-ignore", "-q", "--", rel, check=False).returncode == 0
+
+
 def is_dirty(cwd: Path, rel: str, current: str) -> bool:
     """True when the working-tree content differs from HEAD (line endings ignored).
 

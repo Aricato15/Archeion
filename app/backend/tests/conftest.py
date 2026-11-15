@@ -52,10 +52,14 @@ def repo(tmp_path: Path) -> Path:
     (docs / ".hidden.md").write_text("secret-ish\n", encoding="utf-8")
     (root / "outside.md").write_text("# Not a doc\n", encoding="utf-8")
     (root / "VERSION").write_text("9.9.9\n", encoding="utf-8")
-    reg = docs / "system" / "projects"
+    # The registry is its own gitignored folder, as in the real repo (ADR 0007).
+    (root / ".gitignore").write_text("/registry/\n", encoding="utf-8")
+    reg = root / "registry" / "projects"
     reg.mkdir(parents=True)
-    (docs / "system" / "groups").mkdir()
-    (docs / "system" / "groups" / "g1.md").write_text(
+    (root / "registry" / "groups").mkdir()
+    (root / "registry" / "groups" / "_template.md").write_text("---\ntitle: ignored\n---\n", encoding="utf-8")
+    (reg / "_template.md").write_text("---\nname: ignored\n---\n", encoding="utf-8")
+    (root / "registry" / "groups" / "g1.md").write_text(
         "---\ntitle: Group one\n---\n# Group one\n\nAlpha and beta together.\n", encoding="utf-8"
     )
     (reg / "alpha.md").write_text(

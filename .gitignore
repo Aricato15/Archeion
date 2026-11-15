@@ -27,6 +27,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# The working registry: names, paths, ports and notes about my projects (ADR 0007).
+# Only the empty template in registry.example/ is committed.
+/registry/
+
 # viewer app environments and data
 app/backend/venv/
 app/backend/data/

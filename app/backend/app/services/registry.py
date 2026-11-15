@@ -1,21 +1,22 @@
 """The project registry: which projects exist, how they nest and group, and how they connect.
 
-One Markdown page per project in docs/system/projects/ and one per group (a system of
-related projects) in docs/system/groups/. The structural facts live in YAML frontmatter;
-the page body holds the cross-project notes. See ADR 0006.
+It lives in the gitignored registry folder (ARCHEION_REGISTRY_DIR, default registry/;
+ADR 0007): one Markdown page per project in projects/ and one per group (a system of
+related projects) in groups/. The structural facts live in YAML frontmatter; the page
+body holds the cross-project notes (ADR 0006). Files starting with "_" are templates.
 
     ---
-    name: example-collector                                   # id; defaults to the file name
-    title: example-shop collector                   # optional display name
-    path: ../example-data/collectors/example-collector # relative to this repo's root
-    parent: example-data                 # makes this a sub-project
-    group: example-system                               # a docs/system/groups/<group>.md page
-    status: active                              # active | paused | archived | planned
-    kind: library                               # free text: service, frontend, library...
+    name: example-collector                       # id; defaults to the file name
+    title: Example collector                      # optional display name
+    path: ../example-service/collectors/example   # relative to this repo's root
+    parent: example-service                       # makes this a sub-project
+    group: example-system                         # a groups/<group>.md page
+    status: active                                # active | paused | archived | planned
+    kind: library                                 # free text: service, frontend, library...
     ports: [20100]
-    depends_on: [example-data]           # projects this one calls or imports
-    docs_dir: docs                              # where its docs live inside `path`
-    verified: 2026-11-15                        # when the frontmatter was last checked
+    depends_on: [example-service]                 # projects this one calls or imports
+    docs_dir: docs                                # where its docs live inside `path`
+    verified: 2026-11-15                          # when the frontmatter was last checked
     ---
 """
 
@@ -31,9 +32,11 @@ import yaml
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.S)
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 STATUSES = {"active", "paused", "archived", "planned"}
-PROJECTS_DIR = "system/projects"
-GROUPS_DIR = "system/groups"
-SELF_ID = "archeion"  # this repo is the "archeion" source, never a registered project
+PROJECTS_DIR = "projects"
+GROUPS_DIR = "groups"
+SELF_ID = "archeion"  # this repo's docs/ source, never a registered project
+REGISTRY_ID = "registry"  # the registry folder's own source, never a registered project
+RESERVED_IDS = {SELF_ID, REGISTRY_ID}
 
 
 def split_frontmatter(text: str) -> tuple[dict, str, str | None]:
@@ -151,7 +154,7 @@ class Registry:
 
 def _resolve_project_dir(repo_root: Path, workspace_root: Path, raw: str) -> tuple[Path | None, str | None]:
     if re.match(r"^[A-Za-z]:", raw) or raw.startswith(("/", "\\")):
-        return None, "path must be relative to this repo's root (e.g. ../example-gateway)"
+        return None, "path must be relative to this repo's root (e.g. ../my-service)"
     target = (repo_root / raw).resolve()
     if not target.is_relative_to(workspace_root):
         return None, "path points outside the workspace"
@@ -162,30 +165,30 @@ def _resolve_project_dir(repo_root: Path, workspace_root: Path, raw: str) -> tup
     return target, None
 
 
-def load_registry(docs_root: Path, repo_root: Path, workspace_root: Path) -> Registry:
+def load_registry(registry_root: Path, repo_root: Path, workspace_root: Path) -> Registry:
     reg = Registry()
     workspace_root = workspace_root.resolve()
 
-    groups_dir = docs_root / GROUPS_DIR
+    groups_dir = registry_root / GROUPS_DIR
     if groups_dir.is_dir():
         for page in sorted(groups_dir.glob("*.md")):
-            rel = page.relative_to(docs_root).as_posix()
+            if page.name.lower() == "readme.md" or page.name.startswith((".", "_")):
+                continue
+            rel = page.relative_to(registry_root).as_posix()
             meta, body, err = split_frontmatter(page.read_text(encoding="utf-8", errors="replace"))
             if err:
                 reg.warn(rel, err)
             gid = str(meta.get("name") or page.stem)
-            if page.name.lower() == "readme.md":
-                continue
             reg.groups[gid] = Group(
                 gid, str(meta.get("title") or _title_of(body, gid)), rel, _summary_of(body)
             )
 
-    projects_dir = docs_root / PROJECTS_DIR
+    projects_dir = registry_root / PROJECTS_DIR
     pages = sorted(projects_dir.rglob("*.md")) if projects_dir.is_dir() else []
     for page in pages:
         if page.name.lower() == "readme.md" or any(x.startswith((".", "_")) for x in page.parts[-3:]):
             continue
-        rel = page.relative_to(docs_root).as_posix()
+        rel = page.relative_to(registry_root).as_posix()
         meta, body, err = split_frontmatter(page.read_text(encoding="utf-8", errors="replace"))
         if err:
             reg.warn(rel, err)
@@ -193,8 +196,8 @@ def load_registry(docs_root: Path, repo_root: Path, workspace_root: Path) -> Reg
         if not ID_RE.match(pid):
             reg.warn(rel, f"'{pid}' isn't a valid project name (lowercase letters, digits, . _ -)")
             continue
-        if pid == SELF_ID:
-            reg.warn(rel, "archeion is this repo; its docs are already the 'archeion' source")
+        if pid in RESERVED_IDS:
+            reg.warn(rel, f"'{pid}' is reserved for Archeion's own sources; pick another name")
             continue
         if pid in reg.projects:
             reg.warn(rel, f"duplicate project name '{pid}' (also in {reg.projects[pid].page})")
@@ -279,7 +282,7 @@ def _link(reg: Registry) -> None:
             reg.projects[dep].used_by.append(p.id)
         group = effective_group(reg, p)
         if p.group and p.group not in reg.groups:
-            reg.warn(p.page, f"group '{p.group}' has no page in docs/{GROUPS_DIR}/")
+            reg.warn(p.page, f"group '{p.group}' has no page in {GROUPS_DIR}/")
             reg.groups[p.group] = Group(p.group, p.group, "", "")
         if group:
             reg.groups[group].projects.append(p.id)
@@ -309,7 +312,7 @@ def _rel_from(repo_root: Path, target: Path) -> str:
 
 def discover(repo_root: Path, workspace_root: Path) -> list[dict]:
     """Projects in the workspace (folders with a CLAUDE.md) and their sub-projects
-    (a manifest two levels down, like collectors/example-collector/pyproject.toml)."""
+    (a manifest two levels down, like collectors/<name>/pyproject.toml)."""
     found: list[dict] = []
     workspace_root = workspace_root.resolve()
     repo_root = repo_root.resolve()

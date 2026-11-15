@@ -95,7 +95,7 @@ function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft 
             description="The project whose Claude session picks this up"
             data={(sources.data ?? [{ id: SELF, title: 'Archeion', kind: SELF }]).map((s) => ({
               value: s.id,
-              label: s.id === SELF ? 'Archeion (cross-project)' : s.title,
+              label: s.id === SELF ? 'Archeion (cross-project)' : s.id === 'registry' ? 'Registry (private)' : s.title,
             }))}
             value={source}
             onChange={(v) => {

@@ -2,7 +2,7 @@ import { Alert, Anchor, Card, Group, Loader, SimpleGrid, Stack, Text, Title } fr
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { useDoc, useRegistry } from '../api/queries'
-import { SELF } from '../api/types'
+import { REGISTRY } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { ProjectCard } from './ProjectCard'
@@ -13,7 +13,7 @@ export function GroupPage() {
   const id = useParams().id ?? ''
   const registry = useRegistry()
   const group = registry.data?.groups.find((g) => g.id === id)
-  const page = useDoc(SELF, group?.page ?? '', Boolean(group?.page))
+  const page = useDoc(REGISTRY, group?.page ?? '', Boolean(group?.page))
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
 
   if (registry.isPending) return <Loader />
@@ -25,12 +25,12 @@ export function GroupPage() {
       <Group justify="space-between" align="baseline">
         <Title order={2}>{group.title}</Title>
         {group.page ? (
-          <Anchor component={Link} to={docUrl(SELF, group.page)} size="sm">
+          <Anchor component={Link} to={docUrl(REGISTRY, group.page)} size="sm">
             Edit or comment on {group.page}
           </Anchor>
         ) : (
           <Text size="sm" c="orange">
-            No page yet: create docs/system/groups/{id}.md
+            No page yet: create registry/groups/{id}.md
           </Text>
         )}
       </Group>
@@ -45,7 +45,7 @@ export function GroupPage() {
       </SimpleGrid>
       {page.data && (
         <Card withBorder radius="md">
-          <MarkdownView content={page.data.content} docPath={group.page} />
+          <MarkdownView content={page.data.content} docPath={group.page} source={REGISTRY} />
         </Card>
       )}
     </Stack>

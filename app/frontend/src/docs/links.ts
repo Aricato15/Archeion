@@ -1,16 +1,16 @@
 import { createContext, useContext } from 'react'
-import { SELF, type SourceId } from '../api/types'
+import { REGISTRY, SELF, type SourceId } from '../api/types'
 
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i
 
 /**
- * Where each source lives, relative to this repo's root: "docs" for archeion, the registry
- * `path` (e.g. "../example-gateway") for projects. With it, a link written in any doc can be
+ * Where each source lives, relative to this repo's root: "docs" for archeion, "registry" for
+ * the private registry folder, the registry `path` (e.g. "../my-service") for projects. With it, a link written in any doc can be
  * followed into whichever source it points at, so docs never need to copy each other.
  */
 export type LinkContext = { bases: Record<SourceId, string> }
-export const DEFAULT_LINKS: LinkContext = { bases: { [SELF]: 'docs' } }
+export const DEFAULT_LINKS: LinkContext = { bases: { [SELF]: 'docs', [REGISTRY]: 'registry' } }
 export const LinkContextValue = createContext<LinkContext>(DEFAULT_LINKS)
 export const useLinkContext = () => useContext(LinkContextValue)
 
@@ -82,7 +82,9 @@ export function resolveLink(ctx: LinkContext, source: SourceId, fromDoc: string,
   const found = locate(ctx, full)
   if (!found) return { kind: 'outside', href }
   if (found.rel === '') {
-    return found.source === SELF ? { kind: 'outside', href } : { kind: 'project', to: projectUrl(found.source) }
+    return found.source === SELF || found.source === REGISTRY
+      ? { kind: 'outside', href }
+      : { kind: 'project', to: projectUrl(found.source) }
   }
   if (found.rel.toLowerCase().endsWith('.md')) return { kind: 'doc', to: docUrl(found.source, found.rel, hash) }
   if (IMAGE.test(found.rel)) return { kind: 'file', href: rawUrl(found.source, found.rel) }

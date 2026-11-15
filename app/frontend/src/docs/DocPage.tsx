@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
 import { useDoc, useFeedbackList, useRegistry } from '../api/queries'
-import { SELF, type Anchor as FeedbackAnchor } from '../api/types'
+import { REGISTRY, SELF, isOwnSource, type Anchor as FeedbackAnchor } from '../api/types'
 import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { DocFeedbackPanel } from '../feedback/DocFeedbackPanel'
 import { formatDate } from '../lib/format'
@@ -40,9 +40,8 @@ export function DocPage() {
   const registry = useRegistry()
   const feedback = useFeedbackList({ source, doc_path: path }, path.endsWith('.md'))
   // A registry page in archeion links to the project page it describes, and the other way round.
-  const describes =
-    source === SELF ? registry.data?.projects.find((p) => p.page === path) : undefined
-  const project = source !== SELF ? registry.data?.projects.find((p) => p.id === source) : undefined
+  const describes = source === REGISTRY ? registry.data?.projects.find((p) => p.page === path) : undefined
+  const project = !isOwnSource(source) ? registry.data?.projects.find((p) => p.id === source) : undefined
   const [historyOpen, history] = useDisclosure(false)
   const [historyRev, setHistoryRev] = useState<string | null>(null)
   const [panelOpen, panel] = useDisclosure(false)
@@ -75,7 +74,7 @@ export function DocPage() {
   }
 
   const crumbs = useMemo(() => path.split('/'), [path])
-  const root = source === SELF ? 'docs' : (project?.title ?? source)
+  const root = source === SELF ? 'docs' : source === REGISTRY ? 'registry' : (project?.title ?? source)
 
   if (!path.endsWith('.md')) {
     return <Text c="dimmed">Pick a doc from the sidebar.</Text>
@@ -97,7 +96,7 @@ export function DocPage() {
       <Stack gap="xs" style={{ flex: 1, minWidth: 0, maxWidth: 960 }}>
         <Group justify="space-between" wrap="wrap" gap="xs">
           <Breadcrumbs separatorMargin={4}>
-            {source === SELF ? (
+            {isOwnSource(source) ? (
               <Text size="sm" c="dimmed">
                 {root}
               </Text>
@@ -124,9 +123,16 @@ export function DocPage() {
                 Project page
               </Button>
             )}
-            {source !== SELF && (
+            {!isOwnSource(source) && (
               <Tooltip label="This project's own file, shown read-only. Comments go to its inbox.">
                 <Badge variant="outline">read-only</Badge>
+              </Tooltip>
+            )}
+            {data.private && (
+              <Tooltip label="Gitignored on purpose: it stays on this machine, so it has no git history.">
+                <Badge variant="light" color="grape">
+                  private
+                </Badge>
               </Tooltip>
             )}
             {data.dirty && (

@@ -6,7 +6,7 @@ function project(id: string, extra: Partial<Project> = {}): Project {
   return {
     id,
     title: id,
-    page: `system/projects/${id}.md`,
+    page: `projects/${id}.md`,
     path: `../${id}`,
     parent: null,
     group: null,
@@ -26,13 +26,13 @@ function project(id: string, extra: Partial<Project> = {}): Project {
 
 const registry: Registry = {
   projects: [
-    project('web', { group: 'example-system', depends_on: ['bff'] }),
-    project('bff', { group: 'example-system', depends_on: ['cdc'], used_by: ['web'] }),
-    project('cdc', { children: ['example-collector'], used_by: ['bff'] }),
-    project('example-collector', { parent: 'cdc', title: 'example-shop "tei"' }),
+    project('web', { group: 'shop', depends_on: ['bff'] }),
+    project('bff', { group: 'shop', depends_on: ['datasvc'], used_by: ['web'] }),
+    project('datasvc', { children: ['collector-a'], used_by: ['bff'] }),
+    project('collector-a', { parent: 'datasvc', title: 'coll "tei"' }),
     project('notes', { status: 'archived' }),
   ],
-  groups: [{ id: 'example-system', title: 'example-system', page: 'system/groups/example-system.md', summary: '', projects: ['web', 'bff'] }],
+  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web', 'bff'] }],
   warnings: [],
   unregistered: [],
 }
@@ -41,28 +41,28 @@ describe('buildMermaid', () => {
   it('maps everything: groups as subgraphs, sub-projects nested, deps as arrows', () => {
     const m = buildMermaid(registry)
     expect(m.startsWith('flowchart LR')).toBe(true)
-    expect(m).toContain('subgraph g_example-system["example-system"]')
-    expect(m).toContain('subgraph p_cdc_box["cdc"]')
-    expect(m).toContain('p_example-collector["example-shop  tei"]') // quotes stripped from labels
+    expect(m).toContain('subgraph g_shop["Shop"]')
+    expect(m).toContain('subgraph p_datasvc_box["datasvc"]')
+    expect(m).toContain('p_collector_a["coll  tei"]') // quotes stripped from labels
     expect(m).toContain('p_web --> p_bff')
-    expect(m).toContain('p_bff --> p_cdc')
+    expect(m).toContain('p_bff --> p_datasvc')
     expect(m).toContain('class p_notes inactive')
     expect(m).not.toContain('ghost')
   })
 
   it('maps one group, with outside dependencies dashed', () => {
-    const m = buildMermaid(registry, { group: 'example-system' })
-    expect(m).not.toContain('subgraph g_example-system')
-    expect(m).toContain('p_bff --> p_cdc')
-    expect(m).toContain('class p_cdc ghost')
+    const m = buildMermaid(registry, { group: 'shop' })
+    expect(m).not.toContain('subgraph g_shop')
+    expect(m).toContain('p_bff --> p_datasvc')
+    expect(m).toContain('class p_datasvc ghost')
     expect(m).not.toContain('p_notes')
   })
 
   it('focuses one project with its family and direct links', () => {
-    const { shown, ghosts } = selectProjects(registry, { focus: 'cdc' })
-    expect([...shown].sort()).toEqual(['cdc', 'example-collector'])
+    const { shown, ghosts } = selectProjects(registry, { focus: 'datasvc' })
+    expect([...shown].sort()).toEqual(['collector-a', 'datasvc'])
     expect([...ghosts]).toEqual(['bff'])
-    expect(buildMermaid(registry, { focus: 'cdc' })).toContain('p_bff --> p_cdc')
+    expect(buildMermaid(registry, { focus: 'datasvc' })).toContain('p_bff --> p_datasvc')
   })
 
   it('returns nothing for an empty registry', () => {

@@ -20,7 +20,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
 import { useDoc, useFeedbackList, useRegistry, useTree } from '../api/queries'
-import { SELF, type Project, type SourceId } from '../api/types'
+import { REGISTRY, type Project, type SourceId } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { FeedbackCard } from '../feedback/FeedbackCard'
@@ -115,7 +115,7 @@ export function ProjectPage() {
   const registry = useRegistry()
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
   const project = projects.get(id)
-  const notes = useDoc(SELF, project?.page ?? '', Boolean(project))
+  const notes = useDoc(REGISTRY, project?.page ?? '', Boolean(project))
   const available = Boolean(project?.available)
   const tree = useTree(id, available && tab === 'docs')
   const feedback = useFeedbackList({ source: id }, available)
@@ -159,7 +159,7 @@ export function ProjectPage() {
             size="xs"
             variant="default"
             component={Link}
-            to={docUrl(SELF, project.page)}
+            to={docUrl(REGISTRY, project.page)}
             leftSection={<IconFileText size={14} />}
           >
             Registry page
@@ -226,11 +226,11 @@ export function ProjectPage() {
           {notes.data ? (
             <Stack gap="xs">
               <Text size="xs" c="dimmed">
-                From <Anchor component={Link} to={docUrl(SELF, project.page)} size="xs">docs/{project.page}</Anchor>:
+                From <Anchor component={Link} to={docUrl(REGISTRY, project.page)} size="xs">registry/{project.page}</Anchor> (private):
                 what this project means to the rest of the system. Its own facts stay in its own docs (the other
                 tabs).
               </Text>
-              <MarkdownView content={notes.data.content} docPath={project.page} />
+              <MarkdownView content={notes.data.content} docPath={project.page} source={REGISTRY} />
             </Stack>
           ) : (
             <Loader size="sm" />

@@ -54,9 +54,10 @@ def doc_file(
     info = docs_fs.file_info(target, rel)
     info["source"] = src.id
     try:
-        info["dirty"] = git.is_dirty(src.root, rel, info["content"])
+        info["private"] = git.is_ignored(src.root, rel)
+        info["dirty"] = False if info["private"] else git.is_dirty(src.root, rel, info["content"])
     except git.GitError:
-        info["dirty"] = False
+        info["private"], info["dirty"] = False, False
     return info
 
 

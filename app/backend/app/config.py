@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # The folder holding all projects (relative to the repo root). Registered project paths
     # must stay inside it (ADR 0006).
     workspace_root: str = ".."
+    # The private registry folder (gitignored; setup.bat creates it from registry.example/).
+    registry_dir: str = "registry"
 
     # Not meant for .env: tests point these at a temporary repo.
     repo_root: Path = REPO_ROOT
@@ -41,6 +43,11 @@ class Settings(BaseSettings):
     @cached_property
     def docs_root(self) -> Path:
         return (self.repo_root / "docs").resolve()
+
+    @cached_property
+    def registry_root(self) -> Path:
+        p = Path(self.registry_dir)
+        return (p if p.is_absolute() else (self.repo_root / p)).resolve()
 
     @cached_property
     def workspace_dir(self) -> Path:

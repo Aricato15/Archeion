@@ -30,7 +30,7 @@ import {
 import { useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useLogout, useRegistry, useTree, useVersion } from '../api/queries'
-import { SELF } from '../api/types'
+import { REGISTRY, SELF } from '../api/types'
 import { DEFAULT_LINKS, LinkContextValue, type LinkContext } from '../docs/links'
 import { useEvents } from '../events/useEvents'
 import { DocTree } from './DocTree'
@@ -50,6 +50,7 @@ export function Shell() {
   const navigate = useNavigate()
   const logout = useLogout()
   const tree = useTree(SELF)
+  const registryTree = useTree(REGISTRY)
   const registry = useRegistry()
   // Where every source lives, so links between docs of different projects resolve (links.ts).
   const links = useMemo<LinkContext>(() => {
@@ -148,6 +149,14 @@ export function Shell() {
               <Divider my="xs" label="projects" labelPosition="left" />
               <ProjectTree registry={registry.data} onNavigate={close} />
             </>
+          )}
+          <Divider my="xs" label="registry/ (private)" labelPosition="left" />
+          {registryTree.data && registryTree.data.children?.length ? (
+            <DocTree tree={registryTree.data} source={REGISTRY} onNavigate={close} />
+          ) : (
+            <Text size="xs" c="dimmed" px="sm">
+              No registry yet. Run setup.bat to create it from registry.example/.
+            </Text>
           )}
           <Divider my="xs" label="archeion docs/" labelPosition="left" />
           {tree.isPending && <Loader size="sm" m="sm" />}

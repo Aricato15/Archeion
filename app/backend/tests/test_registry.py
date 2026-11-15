@@ -5,7 +5,7 @@ from app.services.registry import discover, load_registry, split_frontmatter, st
 
 
 def _load(settings):
-    return load_registry(settings.docs_root, settings.repo_root, settings.workspace_dir)
+    return load_registry(settings.registry_root, settings.repo_root, settings.workspace_dir)
 
 
 def test_frontmatter():
@@ -30,7 +30,7 @@ def test_registry_structure(settings):
 
 
 def test_registry_warnings(settings):
-    reg_dir = settings.docs_root / "system" / "projects"
+    reg_dir = settings.registry_root / "projects"
     (reg_dir / "broken.md").write_text(
         "---\npath: ../nowhere\nparent: ghost\ngroup: nogroup\ndepends_on: [ghost, broken]\n"
         "status: weird\nports: [abc]\n---\n# Broken\n",
@@ -41,6 +41,7 @@ def test_registry_warnings(settings):
     (reg_dir / "absolute.md").write_text(absolute, encoding="utf-8")
     (reg_dir / "self.md").write_text("---\npath: .\n---\n", encoding="utf-8")
     (reg_dir / "archeion.md").write_text("---\npath: .\n---\n", encoding="utf-8")
+    (reg_dir / "registry.md").write_text("---\n---\n", encoding="utf-8")
     (reg_dir / "dup.md").write_text("---\nname: alpha\n---\n", encoding="utf-8")
     (reg_dir / "Bad Name.md").write_text("# x\n", encoding="utf-8")
     reg = _load(settings)
@@ -54,7 +55,7 @@ def test_registry_warnings(settings):
     assert "outside the workspace" in text
     assert "must be relative" in text
     assert "points at this repo itself" in text
-    assert "archeion is this repo" in text
+    assert "is reserved for Archeion" in text
     assert "duplicate project name 'alpha'" in text
     assert "isn't a valid project name" in text
     assert reg.projects["broken"].available is False and reg.projects["broken"].parent is None
@@ -62,7 +63,7 @@ def test_registry_warnings(settings):
 
 
 def test_parent_cycle_is_broken(settings):
-    reg_dir = settings.docs_root / "system" / "projects"
+    reg_dir = settings.registry_root / "projects"
     (reg_dir / "c1.md").write_text("---\nparent: c2\n---\n", encoding="utf-8")
     (reg_dir / "c2.md").write_text("---\nparent: c1\n---\n", encoding="utf-8")
     reg = _load(settings)
@@ -88,15 +89,17 @@ def test_discover_and_unregistered(settings):
     }  # _shared and this repo are skipped
     from app.services.sources import SourceManager
 
-    manager = SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir)
+    manager = SourceManager(
+        settings.docs_root, settings.registry_root, settings.repo_root, settings.workspace_dir
+    )
     assert [u["name"] for u in manager.unregistered()] == ["gamma"]
 
 
 def test_stub_page_round_trips():
-    page = stub_page({"name": "example-collector", "path": "../cdc/collectors/example-collector", "parent": "cdc"}, "2026-11-15")
+    page = stub_page({"name": "coll", "path": "../svc/collectors/coll", "parent": "svc"}, "2026-11-15")
     meta, body, err = split_frontmatter(page)
-    assert err is None and meta["parent"] == "cdc" and meta["path"] == "../cdc/collectors/example-collector"
-    assert body.startswith("\n# example-collector")
+    assert err is None and meta["parent"] == "svc" and meta["path"] == "../svc/collectors/coll"
+    assert body.startswith("\n# coll")
 
 
 def test_cli_projects(settings, capsys):
@@ -107,9 +110,39 @@ def test_cli_projects(settings, capsys):
 
     assert main(["projects", "scan"], settings) == 0
     assert "would create gamma (../gamma)" in capsys.readouterr().out
-    page = settings.docs_root / "system" / "projects" / "gamma.md"
+    page = settings.registry_root / "projects" / "gamma.md"
     assert not page.exists()
     assert main(["projects", "scan", "--write"], settings) == 0
     assert page.exists() and "path: ../gamma" in page.read_text(encoding="utf-8")
     assert main(["projects", "scan"], settings) == 0
     assert "Every project in the workspace is registered." in capsys.readouterr().out
+
+
+def test_templates_are_ignored_and_registry_is_a_source(settings, authed):
+    reg = _load(settings)
+    assert "ignored" not in reg.projects and "_template" not in reg.groups
+    tree = authed.get("/api/docs/tree", params={"source": "registry"}).json()
+    names = {c["name"] for c in tree["children"]}
+    assert {"projects", "groups"} <= names
+    # archeion's docs/ no longer holds the registry
+    assert authed.get("/api/docs/file", params={"path": "system/projects/alpha.md"}).status_code == 404
+
+
+def test_cli_own_sources(settings, authed, capsys):
+    authed.post(
+        "/api/feedback",
+        json={
+            "kind": "comment",
+            "body": "Fix alpha's page.",
+            "source": "registry",
+            "doc_path": "projects/alpha.md",
+        },
+    )
+    authed.post("/api/feedback", json={"kind": "prompt", "body": "Archeion task."})
+    import json
+
+    assert main(["inbox", "list", "--json", "--project", "archeion"], settings) == 0
+    assert sorted(i["body"] for i in json.loads(capsys.readouterr().out)) == [
+        "Archeion task.",
+        "Fix alpha's page.",
+    ]

@@ -17,7 +17,9 @@ def test_event_format():
 
 
 def _manager(settings):
-    return SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir)
+    return SourceManager(
+        settings.docs_root, settings.registry_root, settings.repo_root, settings.workspace_dir
+    )
 
 
 def test_doc_change_grouping(repo, settings):
@@ -110,7 +112,7 @@ def test_watcher_sees_edits_and_registry_changes(repo, settings):
             (alpha / "docs" / "api.md").write_text("# Alpha API v2\n", encoding="utf-8")
             await wait_for(lambda e: e.data.get("source") == "alpha")
             # Registering gamma reloads the registry and starts watching it.
-            (docs / "system" / "projects" / "gamma.md").write_text(
+            (repo / "registry" / "projects" / "gamma.md").write_text(
                 "---\npath: ../gamma\n---\n# Gamma\n", encoding="utf-8"
             )
             await wait_for(lambda e: e.type == "registry.changed")

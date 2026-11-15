@@ -1,5 +1,6 @@
-"""Doc sources: this repo's docs/ ("archeion") plus, read-only, each registered project's
-own README.md, CLAUDE.md, CHANGELOG.md, ROADMAP.md and docs folder (ADR 0006).
+"""Doc sources: this repo's docs/ ("archeion"), the gitignored registry folder ("registry",
+ADR 0007), plus, read-only, each registered project's own README.md, CLAUDE.md,
+CHANGELOG.md, ROADMAP.md and docs folder (ADR 0006).
 
 Every file access goes through Source.resolve(), which applies the same path rules as
 before (no '..', no dotfiles, allowed types, size limit, no symlinks out) plus the
@@ -14,7 +15,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..paths import ALLOWED_EXT, MARKDOWN_EXT, MAX_FILE_BYTES, DocNotFound, DocPathError, validate_rel_path
-from .registry import SELF_ID, Project, Registry, load_registry, unregistered
+from .registry import REGISTRY_ID, SELF_ID, Project, Registry, load_registry, unregistered
+
+# Sources that are folders of this repo: every allowed file in them is served.
+FULL_KINDS = {SELF_ID, REGISTRY_ID}
 
 TOP_FILES = ("README.md", "CLAUDE.md", "CHANGELOG.md", "ROADMAP.md")
 ROADMAP_CANDIDATES = ("docs/roadmap/roadmap.md", "docs/roadmap.md", "ROADMAP.md")
@@ -29,12 +33,12 @@ class Source:
     id: str
     title: str
     root: Path  # paths are relative to this folder
-    kind: str  # "archeion" | "project"
+    kind: str  # "archeion" | "registry" | "project"
     docs_dir: str | None = None  # project sources: the only folder besides TOP_FILES
     project: Project | None = field(default=None, repr=False)
 
     def allows(self, rel: str) -> bool:
-        if self.kind == SELF_ID:
+        if self.kind in FULL_KINDS:
             return True
         if rel in TOP_FILES:
             return True
@@ -64,7 +68,7 @@ class Source:
         root = self.root.resolve()
         out: list[tuple[str, Path]] = []
         candidates: list[Path] = []
-        if self.kind == SELF_ID:
+        if self.kind in FULL_KINDS:
             candidates = sorted(root.rglob("*"))
         else:
             candidates = [root / f for f in TOP_FILES]
@@ -97,8 +101,8 @@ class Source:
                     index["/".join(parts[: i - 1])]["children"].append(node)
                     index[key] = node
             index["/".join(parts[:-1])]["children"].append({"name": parts[-1], "path": rel, "type": "file"})
-        # Empty folders still show for the archeion source (e.g. docs/notes/).
-        if self.kind == SELF_ID and root.is_dir():
+        # Empty folders still show for this repo's own sources (e.g. docs/notes/).
+        if self.kind in FULL_KINDS and root.is_dir():
             for d in sorted(root.rglob("*")):
                 rel = d.relative_to(root).as_posix()
                 if not d.is_dir() or d.is_symlink() or any(x.startswith(".") for x in rel.split("/")):
@@ -129,12 +133,14 @@ class Source:
         root = self.root.resolve()
         if not root.is_dir():
             return [], []
-        if self.kind == SELF_ID:
+        if self.kind in FULL_KINDS:
             return [], [root]
         deep = [root / self.docs_dir] if self.docs_dir and (root / self.docs_dir).is_dir() else []
         return [root], deep
 
     def roadmap_path(self) -> str | None:
+        if self.kind == REGISTRY_ID:
+            return None
         if self.kind == SELF_ID:
             return "roadmap/roadmap.md" if (self.root / "roadmap/roadmap.md").is_file() else None
         for rel in ROADMAP_CANDIDATES:
@@ -149,8 +155,9 @@ class Source:
 class SourceManager:
     """The registry plus the sources built from it; reloaded when registry pages change."""
 
-    def __init__(self, docs_root: Path, repo_root: Path, workspace_root: Path) -> None:
+    def __init__(self, docs_root: Path, registry_root: Path, repo_root: Path, workspace_root: Path) -> None:
         self.docs_root = docs_root
+        self.registry_root = registry_root
         self.repo_root = repo_root
         self.workspace_root = workspace_root
         self._lock = threading.Lock()
@@ -161,8 +168,11 @@ class SourceManager:
         self.reload()
 
     def reload(self) -> None:
-        reg = load_registry(self.docs_root, self.repo_root, self.workspace_root)
-        sources = {SELF_ID: Source(SELF_ID, "Archeion", self.docs_root, SELF_ID)}
+        reg = load_registry(self.registry_root, self.repo_root, self.workspace_root)
+        sources = {
+            SELF_ID: Source(SELF_ID, "Archeion", self.docs_root, SELF_ID),
+            REGISTRY_ID: Source(REGISTRY_ID, "Registry (private)", self.registry_root, REGISTRY_ID),
+        }
         for p in reg.projects.values():
             if p.dir is not None:
                 sources[p.id] = Source(p.id, p.title, p.dir, "project", p.docs_dir, p)
@@ -203,8 +213,12 @@ class SourceManager:
     def unregistered(self) -> list[dict]:
         return unregistered(self.registry, self.repo_root, self.workspace_root)
 
-    def is_registry_page(self, rel: str) -> bool:
-        return rel.startswith(("system/projects/", "system/groups/")) and rel.endswith(MARKDOWN_EXT)
+    def is_registry_page(self, source_id: str, rel: str) -> bool:
+        return (
+            source_id == REGISTRY_ID
+            and rel.startswith(("projects/", "groups/"))
+            and rel.endswith(MARKDOWN_EXT)
+        )
 
 
 def read_text(path: Path) -> str:

@@ -29,6 +29,10 @@ foreach ($port in @($backendPort, $frontendPort)) {
     }
 }
 
+if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot 'registry'))) {
+    Write-Host "Note: there's no registry\ folder yet, so no projects will show. Run setup.bat to create it." -ForegroundColor Yellow
+}
+
 if ($problems.Count -gt 0) {
     Write-Host "Archeion can't start yet:" -ForegroundColor Yellow
     $problems | ForEach-Object { Write-Host "  - $_" }

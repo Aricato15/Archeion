@@ -1,7 +1,7 @@
 import { Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core'
 import { IconCornerDownRight } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import { SELF, type FeedbackItem } from '../api/types'
+import { REGISTRY, SELF, type FeedbackItem } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
 import { projectUrl } from '../docs/links'
 import { timeAgo } from '../lib/format'
@@ -17,6 +17,13 @@ export function StatusBadge({ item }: { item: Pick<FeedbackItem, 'status'> }) {
 
 /** Which project an item targets (archeion items carry no badge). */
 export function ProjectBadge({ id }: { id: string }) {
+  if (id === REGISTRY) {
+    return (
+      <Badge variant="dot" size="sm" color="grape">
+        registry
+      </Badge>
+    )
+  }
   return (
     <Badge variant="dot" size="sm" color="grape" component={Link} to={projectUrl(id)} style={{ cursor: 'pointer' }}>
       {id}

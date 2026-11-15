@@ -110,8 +110,7 @@ async def watch_sources(sources: SourceManager, bus: EventBus, stop: asyncio.Eve
         async def handle(changes: set[tuple[Change, str]]) -> None:
             events = doc_change_events(sources, changes)
             registry_touched = any(
-                e.data["source"] == "archeion" and any(sources.is_registry_page(p) for p in e.data["paths"])
-                for e in events
+                any(sources.is_registry_page(e.data["source"], p) for p in e.data["paths"]) for e in events
             )
             for event in events:
                 bus.publish(event)

@@ -9,7 +9,7 @@ import pytest
 
 def test_sources_and_registry_endpoints(authed):
     ids = {s["id"] for s in authed.get("/api/sources").json()}
-    assert ids == {"archeion", "alpha", "beta", "sub1"}
+    assert ids == {"archeion", "registry", "alpha", "beta", "sub1"}
     reg = authed.get("/api/registry").json()
     assert {p["id"] for p in reg["projects"]} == {"alpha", "beta", "sub1"}
     assert "dir" not in reg["projects"][0]  # no machine paths leave the backend
@@ -96,6 +96,12 @@ def test_project_without_git_is_never_dirty(authed):
 
 
 def test_registry_frontmatter_is_returned(authed):
-    body = authed.get("/api/docs/file", params={"path": "system/projects/alpha.md"}).json()
+    body = authed.get("/api/docs/file", params={"source": "registry", "path": "projects/alpha.md"}).json()
     assert body["frontmatter"]["depends_on"] == ["beta"]
+    # gitignored by design: private, never "uncommitted changes"
+    assert body["private"] is True and body["dirty"] is False
+    assert (
+        authed.get("/api/docs/history", params={"source": "registry", "path": "projects/alpha.md"}).json()
+        == []
+    )
     assert authed.get("/api/docs/file", params={"path": "README.md"}).json()["frontmatter"] is None

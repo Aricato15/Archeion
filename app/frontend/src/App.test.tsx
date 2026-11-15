@@ -35,12 +35,12 @@ const item = {
   claimed_at: '2026-11-15T03:01:00+00:00',
   answered_at: '2026-11-15T03:05:00+00:00',
 }
-const projectItem = { ...item, id: 8, source: 'example-gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
+const projectItem = { ...item, id: 8, source: 'gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
 
 const project = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
   title: id,
-  page: `system/projects/${id}.md`,
+  page: `projects/${id}.md`,
   path: `../${id}`,
   parent: null,
   group: null,
@@ -59,24 +59,24 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
 
 const registry = {
   projects: [
-    project('example-gateway', { group: 'example-system', ports: [20060], depends_on: ['cdc'], kind: 'service' }),
-    project('cdc', { children: ['example-collector'], used_by: ['example-gateway'] }),
-    project('example-collector', { parent: 'cdc', path: '../cdc/collectors/example-collector' }),
+    project('gateway', { group: 'shop', ports: [20060], depends_on: ['datasvc'], kind: 'service' }),
+    project('datasvc', { children: ['collector-a'], used_by: ['gateway'] }),
+    project('collector-a', { parent: 'datasvc', path: '../datasvc/collectors/collector-a' }),
   ],
-  groups: [{ id: 'example-system', title: 'example-system', page: 'system/groups/example-system.md', summary: 'The example-system apps.', projects: ['example-gateway'] }],
-  warnings: [{ page: 'system/projects/example-collector.md', message: "depends_on 'ghost' isn't a registered project" }],
+  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: 'The shop apps.', projects: ['gateway'] }],
+  warnings: [{ page: 'projects/collector-a.md', message: "depends_on 'ghost' isn't a registered project" }],
   unregistered: [{ name: 'newproj', path: '../newproj', parent: null }],
 }
 
 const files: Record<string, unknown> = {
   'archeion:README.md': {
-    content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md) and [example-gateway](../../example-gateway/docs/api.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
+    content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md) and [gateway](../../gateway/docs/api.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
     dirty: true,
   },
-  'archeion:system/projects/example-gateway.md': { content: '---\nname: example-gateway\n---\n# example-gateway\n\nThe gateway notes.\n', dirty: false },
-  'archeion:system/groups/example-system.md': { content: '# example-system\n\nThe example-system apps.\n', dirty: false },
-  'example-gateway:README.md': { content: '# example-gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
-  'example-gateway:docs/api.md': { content: '# example-gateway API\n\nRoutes.\n', dirty: false },
+  'registry:projects/gateway.md': { content: '---\nname: gateway\n---\n# Gateway\n\nThe gateway notes.\n', dirty: false },
+  'registry:groups/shop.md': { content: '# Shop\n\nThe shop apps.\n', dirty: false },
+  'gateway:README.md': { content: '# Gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
+  'gateway:docs/api.md': { content: '# Gateway API\n\nRoutes.\n', dirty: false },
 }
 
 function mockApi(loggedIn: boolean) {
@@ -86,7 +86,8 @@ function mockApi(loggedIn: boolean) {
     '/api/registry': registry,
     '/api/sources': [
       { id: 'archeion', title: 'Archeion', kind: 'archeion' },
-      { id: 'example-gateway', title: 'example-gateway', kind: 'project' },
+      { id: 'registry', title: 'Registry (private)', kind: 'registry' },
+      { id: 'gateway', title: 'gateway', kind: 'project' },
     ],
     '/api/docs/tree': {
       name: 'docs',
@@ -97,7 +98,7 @@ function mockApi(loggedIn: boolean) {
         { name: 'README.md', path: 'README.md', type: 'file' },
       ],
     },
-    '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { example-gateway: 1 } },
+    '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { gateway: 1 } },
     '/api/feedback/7': { item, thread: [item] },
     '/api/roadmap': {
       cross: {
@@ -110,8 +111,8 @@ function mockApi(loggedIn: boolean) {
         plans: [{ path: 'roadmap/plan.md', title: 'The plan', date: '2026-11-15' }],
       },
       projects: [
-        { project: 'example-gateway', title: 'example-gateway', roadmap: { path: 'docs/roadmap.md', updated: null, now: [{ text: 'Ship routes', links: [] }], next: [], later: [], structured: true, plans: [] } },
-        { project: 'cdc', title: 'cdc', roadmap: null },
+        { project: 'gateway', title: 'gateway', roadmap: { path: 'docs/roadmap.md', updated: null, now: [{ text: 'Ship routes', links: [] }], next: [], later: [], structured: true, plans: [] } },
+        { project: 'datasvc', title: 'datasvc', roadmap: null },
       ],
     },
   }
@@ -200,16 +201,16 @@ describe('app', () => {
     expect(screen.getByText('On this page')).toBeTruthy()
     expect(screen.getByText('roadmap', { selector: 'a' }).getAttribute('href')).toBe('/docs/roadmap/roadmap.md')
     // once the registry is in, a link from archeion into a project's docs opens it in the viewer
-    expect((await screen.findByText('example-gateway', { selector: 'a' })).getAttribute('href')).toBe('/p/example-gateway/docs/api.md')
-    expect(screen.getByText('example-system')).toBeTruthy() // group in the sidebar
+    expect((await screen.findByText('gateway', { selector: 'a' })).getAttribute('href')).toBe('/p/gateway/docs/api.md')
+    expect(screen.getByText('Shop')).toBeTruthy() // group in the sidebar
   })
 
   it('renders a project doc read-only, with links resolved inside the project', async () => {
     mockApi(true)
-    renderAt('/p/example-gateway/README.md')
-    expect(await screen.findByRole('heading', { name: 'example-gateway readme' })).toBeTruthy()
+    renderAt('/p/gateway/README.md')
+    expect(await screen.findByRole('heading', { name: 'Gateway readme' })).toBeTruthy()
     expect(screen.getByText('read-only')).toBeTruthy()
-    expect((await screen.findByText('api', { selector: 'a' })).getAttribute('href')).toBe('/p/example-gateway/docs/api.md')
+    expect((await screen.findByText('api', { selector: 'a' })).getAttribute('href')).toBe('/p/gateway/docs/api.md')
   })
 
   it('renders the projects overview with warnings, unregistered folders and groups', async () => {
@@ -218,21 +219,21 @@ describe('app', () => {
     expect(await screen.findByText('Registry problems')).toBeTruthy()
     expect(screen.getByText('1 unregistered folder(s)')).toBeTruthy()
     expect(screen.getByText('Standalone')).toBeTruthy()
-    expect(screen.getAllByText('About example-gateway.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('About gateway.').length).toBeGreaterThan(0)
   })
 
   it('renders a project page with facts, notes and sub-projects', async () => {
     mockApi(true)
-    renderAt('/projects/cdc')
+    renderAt('/projects/datasvc')
     expect(await screen.findByText('Sub-projects')).toBeTruthy()
     expect(screen.getByText('Used by')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Prompt for cdc' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Prompt for datasvc' })).toBeTruthy()
   })
 
   it('renders a group page', async () => {
     mockApi(true)
-    renderAt('/groups/example-system')
-    expect(await screen.findByRole('heading', { name: 'example-system', level: 2 })).toBeTruthy()
+    renderAt('/groups/shop')
+    expect(await screen.findByRole('heading', { name: 'Shop', level: 2 })).toBeTruthy()
   })
 
   it('renders the cross-project and per-project roadmaps', async () => {

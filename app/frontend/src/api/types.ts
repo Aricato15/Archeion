@@ -1,6 +1,9 @@
-/** "archeion" (this repo's docs/) or a registered project's id. */
+/** "archeion" (this repo's docs/), "registry" (the private registry folder) or a project's id. */
 export type SourceId = string
 export const SELF = 'archeion'
+export const REGISTRY = 'registry'
+/** Sources that are folders of this repo rather than registered projects. */
+export const isOwnSource = (id: SourceId) => id === SELF || id === REGISTRY
 
 export type TreeNode = {
   name: string
@@ -16,6 +19,8 @@ export type DocFile = {
   sha: string
   modified_at: string
   dirty: boolean
+  /** gitignored by design (the registry): no history, never "uncommitted" */
+  private?: boolean
   frontmatter: Record<string, unknown> | null
 }
 
@@ -55,7 +60,7 @@ export type Diagram = {
 }
 export type SearchHit = { source: SourceId; path: string; line: number; snippet: string }
 
-export type Source = { id: SourceId; title: string; kind: 'archeion' | 'project' }
+export type Source = { id: SourceId; title: string; kind: 'archeion' | 'registry' | 'project' }
 
 export type ProjectStatus = 'active' | 'paused' | 'archived' | 'planned'
 

@@ -34,6 +34,12 @@
           "allow_parent": true,
           "default": "..",
           "description": "The folder holding all your projects, relative to the repo root. Registered project paths must stay inside it, and projects scan looks for new ones there."
+        },
+        {
+          "name": "ARCHEION_REGISTRY_DIR",
+          "type": "relpath",
+          "default": "registry",
+          "description": "Your private project registry, relative to the repo root. It must stay gitignored. setup.bat creates it from registry.example/."
         }
       ]
     },

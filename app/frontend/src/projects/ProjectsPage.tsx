@@ -3,7 +3,7 @@ import { IconAlertTriangle, IconFolderPlus } from '@tabler/icons-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useRegistry } from '../api/queries'
-import type { Project, Registry } from '../api/types'
+import { REGISTRY, type Project, type Registry } from '../api/types'
 import { docUrl } from '../docs/links'
 import { ProjectCard } from './ProjectCard'
 import { RegistryMap } from './RegistryMap'
@@ -17,8 +17,8 @@ export function RegistryWarnings({ registry }: { registry: Registry }) {
       <List size="sm">
         {registry.warnings.map((w, i) => (
           <List.Item key={i}>
-            <Anchor component={Link} to={docUrl('archeion', w.page)} size="sm">
-              {w.page}
+            <Anchor component={Link} to={docUrl(REGISTRY, w.page)} size="sm">
+              registry/{w.page}
             </Anchor>
             : {w.message}
           </List.Item>
@@ -78,9 +78,9 @@ export function ProjectsPage() {
       <Group justify="space-between" align="baseline">
         <Title order={2}>Projects</Title>
         <Text size="sm" c="dimmed">
-          {reg.projects.length} registered · {reg.groups.length} group(s) · pages in{' '}
-          <Anchor component={Link} to={docUrl('archeion', 'system/projects/README.md')} size="sm">
-            docs/system/projects/
+          {reg.projects.length} registered · {reg.groups.length} group(s) · pages in the private{' '}
+          <Anchor component={Link} to={docUrl(REGISTRY, 'projects/README.md')} size="sm">
+            registry/projects/
           </Anchor>
         </Text>
       </Group>

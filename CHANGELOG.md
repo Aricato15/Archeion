@@ -12,7 +12,8 @@ All notable changes to Archeion are recorded here. The format follows
 Many projects, some related and some not, some with sub-projects ([ADR 0006](docs/decisions/0006-multi-project-registry.md)).
 
 ### Added
-- **Project registry:** a page per project or sub-project in `docs/system/projects/`, with YAML frontmatter (`path`, `parent`, `group`, `status`, `kind`, `ports`, `depends_on`, `docs_dir`, `verified`), and a page per group in `docs/system/groups/`. The backend checks it and reports problems instead of failing. It's seeded with the workspace's four projects and example-data's three collectors.
+- **Project registry:** a page per project or sub-project in `registry/projects/`, with YAML frontmatter (`path`, `parent`, `group`, `status`, `kind`, `ports`, `depends_on`, `docs_dir`, `verified`), and a page per group in `registry/groups/`. The backend checks it and reports problems instead of failing.
+- **Private registry folder** ([ADR 0007](docs/decisions/0007-keep-project-information-out-of-the-repo.md)): `registry/` is gitignored, and only the empty template `registry.example/` is committed. `setup.bat` creates `registry/` from the template, and the viewer shows it as the private "registry" source. The commit hook blocks files under `registry/` and the names of registered projects and workspace folders in committed text. `ARCHEION_REGISTRY_DIR` moves the folder.
 - **Generated maps:** Mermaid diagrams drawn from the registry, one overall, one per group and one per project, so they can't drift.
 - **Read-only project sources:** each registered project's README, CLAUDE.md, CHANGELOG, ROADMAP and docs folder are shown live, with history and diffs from its own git repo. Links between docs follow into other projects. Every docs route takes `source`.
 - **Projects UI:** a projects overview (with warnings and unregistered folders), group pages, project pages (facts, map, sub-projects, notes, README, CLAUDE.md, docs and feedback), a project tree in the sidebar, and `/p/<project>/...` doc views.
@@ -26,7 +27,7 @@ Many projects, some related and some not, some with sub-projects ([ADR 0006](doc
 ### Changed
 - `GET /api/roadmap` returns `{cross, projects}`, and diagram entries carry `source` and `code`.
 - Archeion's `/inbox` and its SessionStart hook only handle Archeion's own items.
-- `docs/interactions/map.md` describes the generated maps instead of holding a hand-drawn one.
+- The system overview, project pages and interaction notes moved from `docs/` into the private registry folder. The hand-drawn interaction map is replaced by the generated maps.
 - `setup.bat` regenerates `.env.example` from the schema instead of copying it to `.env`. Without a `.env`, the defaults apply.
 
 ## [0.1.0] - 2026-11-15

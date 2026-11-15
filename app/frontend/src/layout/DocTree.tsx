@@ -52,6 +52,8 @@ export function DocTree({ tree, source = SELF, onNavigate }: { tree: TreeNode; s
   const { pathname } = useLocation()
   let current = ''
   const prefix = source === SELF ? '/docs/' : `/p/${encodeURIComponent(source)}/`
+  // templates (_template.md) are hidden: they're for copying, not reading
+  const children = (tree.children ?? []).filter((c) => !c.name.startsWith('_'))
   if (pathname.startsWith(prefix)) {
     try {
       current = decodeURIComponent(pathname.slice(prefix.length))
@@ -61,7 +63,7 @@ export function DocTree({ tree, source = SELF, onNavigate }: { tree: TreeNode; s
   }
   return (
     <>
-      {(tree.children ?? []).map((c) => (
+      {children.map((c) => (
         <TreeItem key={c.path} node={c} source={source} current={current} onNavigate={onNavigate} />
       ))}
     </>

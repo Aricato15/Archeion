@@ -22,8 +22,37 @@ $patterns = @(
 )
 # Emails that are fine to commit.
 $emailOk = '@(example\.(com|org|net)|users\.noreply\.github\.com|anthropic\.com)$'
-# Files that must never be committed, whatever they contain.
-$blockedFile = '(^|/)\.env$|(^|/)\.env\.(?!example$)[^/]+$|\.(db|sqlite3?)$|\.db-(wal|shm)$|\.(pem|key|pfx)$|(^|/)settings\.local\.json$|(^|/)CLAUDE\.local\.md$'
+# Files that must never be committed, whatever they contain. registry/ is the private
+# project registry (ADR 0007); only the template in registry.example/ is committed.
+$blockedFile = '^registry/|(^|/)\.env$|(^|/)\.env\.(?!example$)[^/]+$|\.(db|sqlite3?)$|\.db-(wal|shm)$|\.(pem|key|pfx)$|(^|/)settings\.local\.json$|(^|/)CLAUDE\.local\.md$'
+
+# Project names must not leak into committed text (ADR 0007). The list is built here, at
+# commit time, from the private registry and the workspace's project folders, so the
+# names themselves are never written into the repo.
+$names = New-Object System.Collections.Generic.HashSet[string]([StringComparer]::OrdinalIgnoreCase)
+$self = Split-Path -Leaf (Get-Location)
+$registry = Join-Path (Get-Location) 'registry'
+if (Test-Path -LiteralPath $registry) {
+    foreach ($f in Get-ChildItem -LiteralPath $registry -Recurse -Filter *.md -File) {
+        if ($f.Name -like '_*' -or $f.Name -eq 'README.md') { continue }
+        if ($f.Directory.Name -in @('projects', 'groups')) { [void]$names.Add($f.BaseName) }
+        foreach ($line in (Get-Content -LiteralPath $f.FullName -TotalCount 30 -Encoding UTF8)) {
+            if ($line -match '^(name|title):\s*(.+?)\s*$') { [void]$names.Add($Matches[2].Trim('"', "'")) }
+            elseif ($line -match '^path:\s*(.+?)\s*$') { [void]$names.Add((Split-Path -Leaf $Matches[1])) }
+        }
+    }
+}
+$workspace = Split-Path -Parent (Get-Location)
+foreach ($d in Get-ChildItem -LiteralPath $workspace -Directory -ErrorAction SilentlyContinue) {
+    if ($d.Name -notlike '_*' -and $d.Name -ne $self -and (Test-Path -LiteralPath (Join-Path $d.FullName 'CLAUDE.md'))) {
+        [void]$names.Add($d.Name)
+    }
+}
+$names.RemoveWhere([Predicate[string]] { param($n) $n.Length -lt 3 -or $n -in @($self, 'registry', 'example') }) | Out-Null
+if ($names.Count -gt 0) {
+    $alternation = ($names | Sort-Object Length -Descending | ForEach-Object { [regex]::Escape($_) }) -join '|'
+    $patterns += @{ Kind = 'project name'; Re = "(?i)(?<![A-Za-z0-9])($alternation)(?![A-Za-z0-9])" }
+}
 
 $findings = New-Object System.Collections.Generic.List[string]
 
@@ -61,9 +90,10 @@ if ($All) {
 }
 
 if ($findings.Count -gt 0) {
-    [Console]::Error.WriteLine("BLOCKED: sensitive content found (secrets, absolute paths or personal info):")
+    [Console]::Error.WriteLine("BLOCKED: sensitive content found (secrets, absolute paths, personal info or project names):")
     $findings | ForEach-Object { [Console]::Error.WriteLine($_) }
     [Console]::Error.WriteLine("Move it to a gitignored .env, use a relative path, or remove it.")
+    [Console]::Error.WriteLine("Project details belong in the private registry/ folder, not in committed files.")
     [Console]::Error.WriteLine("For a harmless example, put 'sensitive-ok' on that line.")
     exit 1
 }

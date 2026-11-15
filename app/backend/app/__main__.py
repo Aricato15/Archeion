@@ -20,7 +20,7 @@ from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import docs_fs
 from .services import feedback as fb
-from .services.registry import stub_page
+from .services.registry import REGISTRY_ID, SELF_ID, stub_page
 from .services.sources import SourceManager, SourceNotFound
 
 EXIT_NO_PASSWORD = 3
@@ -94,27 +94,35 @@ def _print_json(data: object) -> None:
 
 
 def _sources(settings: Settings) -> SourceManager:
-    return SourceManager(settings.docs_root, settings.repo_root, settings.workspace_dir)
+    return SourceManager(
+        settings.docs_root, settings.registry_root, settings.repo_root, settings.workspace_dir
+    )
 
 
-def _target(settings: Settings, args: argparse.Namespace) -> str | None:
-    """The source to filter on: --project X, --here (the caller's folder), or None for all."""
+# Archeion's own session handles both of its sources: docs/ and the private registry.
+OWN_SOURCES = [SELF_ID, REGISTRY_ID]
+
+
+def _target(settings: Settings, args: argparse.Namespace) -> list[str] | None:
+    """The sources to filter on: --project X, --here (the caller's folder), or None for all."""
     if getattr(args, "project", None):
         project = args.project
-        if project != "archeion" and project not in _sources(settings).registry.projects:
+        if project in OWN_SOURCES:
+            return OWN_SOURCES
+        if project not in _sources(settings).registry.projects:
             raise ValueError(f"'{project}' isn't a registered project (see: projects list)")
-        return project
+        return [project]
     if getattr(args, "here", False):
         # The wrapper scripts cd into app/backend; they pass the caller's folder along.
         here = Path(os.environ.get("ARCHEION_CALLER_DIR") or os.getcwd()).resolve()
         if here.is_relative_to(settings.repo_root.resolve()):
-            return "archeion"
+            return OWN_SOURCES
         project = _sources(settings).registry.project_for_dir(here)
         if project is None:
             raise ValueError(
                 f"{here.name} isn't inside a registered project; register it first (projects scan)"
             )
-        return project.id
+        return [project.id]
     return None
 
 
@@ -144,9 +152,10 @@ def cmd_inbox_list(settings: Settings, args: argparse.Namespace) -> int:
     if args.json:
         _print_json(items)
     elif not items:
-        print(f"No {args.status} feedback items" + (f" for {source}." if source else "."))
+        label = "archeion" if source == OWN_SOURCES else (source[0] if source else None)
+        print(f"No {args.status} feedback items" + (f" for {label}." if label else "."))
         if source:
-            others = {k: v for k, v in elsewhere.items() if k != source}
+            others = {k: v for k, v in elsewhere.items() if k not in source}
             if others:
                 print("Waiting elsewhere: " + ", ".join(f"{k} ({v})" for k, v in sorted(others.items())))
     else:
@@ -270,7 +279,7 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
         for p in sorted(loose, key=lambda x: x.id):
             show(p.id, 1)
     for w in reg.warnings:
-        print(f"warning: docs/{w['page']}: {w['message']}", file=sys.stderr)
+        print(f"warning: registry/{w['page']}: {w['message']}", file=sys.stderr)
     missing = manager.unregistered()
     if missing:
         print(f"\n{len(missing)} folder(s) in the workspace aren't registered. Run: projects scan")
@@ -285,7 +294,7 @@ def cmd_projects_scan(settings: Settings, args: argparse.Namespace) -> int:
     if not missing:
         print("Every project in the workspace is registered.")
         return 0
-    target_dir = settings.docs_root / "system" / "projects"
+    target_dir = settings.registry_root / "projects"
     today = date.today().isoformat()
     for item in missing:
         page = target_dir / f"{item['name']}.md"

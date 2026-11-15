@@ -99,7 +99,7 @@ def list_items(
     status: str | None = None,
     doc_path: str | None = None,
     kind: str | None = None,
-    source: str | None = None,
+    source: str | list[str] | None = None,
     limit: int = 500,
 ) -> list[dict]:
     sql = "SELECT * FROM feedback WHERE 1=1"
@@ -111,8 +111,9 @@ def list_items(
         sql += " AND doc_path = ?"
         args.append(doc_path)
     if source:
-        sql += " AND source = ?"
-        args.append(source)
+        wanted = [source] if isinstance(source, str) else source
+        sql += f" AND source IN ({','.join('?' * len(wanted))})"
+        args.extend(wanted)
     if kind:
         sql += " AND kind = ?"
         args.append(kind)
@@ -121,13 +122,14 @@ def list_items(
     return [_row(r) for r in conn.execute(sql, args).fetchall()]
 
 
-def summary(conn: sqlite3.Connection, source: str | None = None) -> dict[str, int]:
+def summary(conn: sqlite3.Connection, source: str | list[str] | None = None) -> dict[str, int]:
     counts = dict.fromkeys(STATUSES, 0)
     sql = "SELECT status, count(*) AS n FROM feedback"
     args: list[Any] = []
     if source:
-        sql += " WHERE source = ?"
-        args.append(source)
+        wanted = [source] if isinstance(source, str) else source
+        sql += f" WHERE source IN ({','.join('?' * len(wanted))})"
+        args.extend(wanted)
     for r in conn.execute(sql + " GROUP BY status", args):
         counts[r["status"]] = r["n"]
     return counts
