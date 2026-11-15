@@ -11,7 +11,10 @@ import type {
   FeedbackStatus,
   FeedbackSummary,
   NewFeedback,
+  Project,
   Registry,
+  RootSurvey,
+  RootsSettings,
   Roadmaps,
   SearchHit,
   Source,
@@ -68,6 +71,33 @@ export function useVersion() {
 
 export const useRegistry = () => useQuery({ queryKey: ['registry'], queryFn: () => api<Registry>('/registry') })
 export const useSources = () => useQuery({ queryKey: ['sources'], queryFn: () => api<Source[]>('/sources') })
+
+// Keyed under 'registry', so registry.changed refreshes them too (useEvents).
+export const useRootsSettings = () =>
+  useQuery({ queryKey: ['registry', 'settings-roots'], queryFn: () => api<RootsSettings>('/settings/roots') })
+
+export const useRootSurvey = () =>
+  useQuery({ queryKey: ['registry', 'survey'], queryFn: () => api<RootSurvey[]>('/registry/roots') })
+
+function useRegistryMutation<V, R>(fn: (vars: V) => Promise<R>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      for (const key of ['registry', 'sources', 'tree', 'roadmap', 'diagrams']) qc.invalidateQueries({ queryKey: [key] })
+    },
+  })
+}
+
+export const useSaveRoots = () =>
+  useRegistryMutation((roots: { name: string; folder: string }[]) =>
+    api<RootsSettings>('/settings/roots', { method: 'PUT', json: { roots } }),
+  )
+
+export const useRegisterProject = () =>
+  useRegistryMutation((item: { root: string | null; path: string; name: string }) =>
+    api<{ page: string; project: Project | null }>('/registry/projects', { method: 'POST', json: item }),
+  )
 
 // --- docs ------------------------------------------------------------------------------
 // Every doc query is keyed by [kind, source, path, ...] so live updates can target them.

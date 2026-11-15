@@ -95,6 +95,34 @@ export type Registry = {
   unregistered: { name: string; path: string; root: string | null; parent: string | null }[]
 }
 
+/** A root Archeion may read projects from (ADR 0008), with the projects registered in it. */
+export type RootEntry = { name: string; folder: string; projects: string[] }
+
+export type RootsSettings = {
+  workspace: RootEntry
+  roots: RootEntry[]
+  /** Entries of ARCHEION_ROOTS that were refused; saving drops them. */
+  errors: string[]
+  editable: boolean
+  locked_reason: string | null
+}
+
+/** A folder found in a root, or a registered project living there (ADR 0010). */
+export type RootItem = {
+  /** The project it's registered as, or the name suggested for registering it. */
+  name: string
+  path: string | null
+  root: string | null
+  /** Where it is inside the root. */
+  folder: string
+  parent_folder: string | null
+  /** The registered project it would be a sub-project of. */
+  parent: string | null
+  registered: string | null
+}
+
+export type RootSurvey = { name: string; folder: string | null; granted: boolean; items: RootItem[] }
+
 /** Where a project's folder is, as the registry says it: `root:path`, or just `path`. */
 export function locationOf(item: { path: string | null; root: string | null }): string | null {
   if (!item.path) return null

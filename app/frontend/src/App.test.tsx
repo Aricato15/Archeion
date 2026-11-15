@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from './auth/LoginPage'
@@ -11,6 +11,7 @@ import { FeedbackPage } from './feedback/FeedbackPage'
 import { ThreadPage } from './feedback/ThreadPage'
 import { Shell } from './layout/Shell'
 import { RoadmapPage } from './pages/RoadmapPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { GroupPage } from './projects/GroupPage'
 import { ProjectPage } from './projects/ProjectPage'
 import { ProjectsPage } from './projects/ProjectsPage'
@@ -108,6 +109,27 @@ function mockApi(loggedIn: boolean) {
         { name: 'README.md', path: 'README.md', type: 'file' },
       ],
     },
+    '/api/settings/roots': {
+      workspace: { name: 'workspace', folder: '/work', projects: ['gateway', 'datasvc', 'collector-a'] },
+      roots: [{ name: 'lab', folder: '/lab', projects: ['vault'] }],
+      errors: ["root name 'Bad' must be 2-32 characters"],
+      editable: true,
+      locked_reason: null,
+    },
+    '/api/registry/roots': [
+      {
+        name: 'workspace',
+        folder: '/work',
+        granted: true,
+        items: [
+          { name: 'gateway', path: '../gateway', root: null, folder: 'gateway', parent_folder: null, parent: null, registered: 'gateway' },
+          { name: 'newproj', path: '../newproj', root: null, folder: 'newproj', parent_folder: null, parent: null, registered: null },
+          { name: 'coll-b', path: '../datasvc/collectors/coll-b', root: null, folder: 'datasvc/collectors/coll-b', parent_folder: 'datasvc', parent: 'datasvc', registered: null },
+        ],
+      },
+      { name: 'gone', folder: null, granted: false, items: [{ name: 'far', path: 'far', root: 'gone', folder: 'far', parent_folder: null, parent: null, registered: 'far' }] },
+    ],
+    '/api/registry/projects': { page: 'projects/newproj.md', project: null },
     '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { gateway: 1 } },
     '/api/feedback/7': { item, thread: [item] },
     '/api/roadmap': {
@@ -173,6 +195,7 @@ function renderAt(url: string) {
               { path: 'roadmap', element: <RoadmapPage /> },
               { path: 'feedback', element: <FeedbackPage /> },
               { path: 'feedback/:id', element: <ThreadPage /> },
+              { path: 'settings', element: <SettingsPage /> },
             ],
           },
         ],
@@ -229,7 +252,8 @@ describe('app', () => {
     expect(await screen.findByText('Registry problems')).toBeTruthy()
     expect(screen.getByText('2 unregistered folder(s)')).toBeTruthy()
     expect(screen.getByText(/\.\.\/newproj, lab:other/)).toBeTruthy()
-    expect(screen.getByText('Settings')).toBeTruthy()
+    expect(screen.getByText(/root name 'Bad' must be/)).toBeTruthy() // the .env warning, shown as Settings
+    expect(screen.getAllByRole('link', { name: 'Settings' }).length).toBe(2) // the nav and the hint
     expect(screen.getByText('Standalone')).toBeTruthy()
     expect(screen.getAllByText('About gateway.').length).toBeGreaterThan(0)
   })
@@ -271,6 +295,24 @@ describe('app', () => {
     expect(await screen.findByText('Tighten the intro.')).toBeTruthy()
     expect(screen.getByText('Document the routes.')).toBeTruthy()
     expect(screen.getByText('from gateway')).toBeTruthy()
+  })
+
+  it('lists roots and their projects, and registers a folder', async () => {
+    mockApi(true)
+    renderAt('/settings')
+    expect(await screen.findByText('/lab')).toBeTruthy()
+    expect(screen.getByText('Entries in .env that were refused')).toBeTruthy()
+    expect(await screen.findByText('sub-project of datasvc')).toBeTruthy()
+    expect(screen.getByText('not granted on this machine')).toBeTruthy()
+    expect(screen.getByText('2 not registered')).toBeTruthy()
+    expect(screen.getAllByText('registered').length).toBe(2)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Register' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Create page' }))
+    expect(await screen.findByText(/Registered newproj/)).toBeTruthy()
+    const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+    const post = calls.find(([url, init]) => url === '/api/registry/projects' && init?.method === 'POST')
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ root: null, path: '../newproj', name: 'newproj' })
   })
 
   it('renders a thread with Claude’s reply', async () => {

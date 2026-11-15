@@ -11,6 +11,7 @@ import { ProjectsPage } from './projects/ProjectsPage'
 import { DiagramsPage } from './pages/DiagramsPage'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SearchRoute } from './pages/SearchPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: 'roadmap', element: <RoadmapPage /> },
           { path: 'diagrams', element: <DiagramsPage /> },
           { path: 'search', element: <SearchRoute /> },
+          { path: 'settings', element: <SettingsPage /> },
           { path: 'feedback', element: <FeedbackPage /> },
           { path: 'feedback/:id', element: <ThreadPage /> },
         ],

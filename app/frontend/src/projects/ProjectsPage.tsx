@@ -43,7 +43,11 @@ export function Unregistered({ registry }: { registry: Registry }) {
         {registry.unregistered.map((u) => locationOf(u)).join(', ')}.
       </Text>
       <Text size="sm" mt="xs">
-        Create stub pages from the repo root (it never overwrites a page; add <Code>--only &lt;name&gt;</Code> to pick
+        Register them on the{' '}
+        <Anchor component={Link} to="/settings" size="sm">
+          Settings
+        </Anchor>{' '}
+        page, or create stub pages from the repo root (it never overwrites a page; add <Code>--only &lt;name&gt;</Code> to pick
         some, or <Code>--root &lt;name&gt;</Code> for one root), then fill in <Code>group</Code> and{' '}
         <Code>depends_on</Code>:
       </Text>

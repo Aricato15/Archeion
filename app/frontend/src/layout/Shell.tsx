@@ -25,6 +25,7 @@ import {
   IconMoon,
   IconRoad,
   IconSearch,
+  IconSettings,
   IconSun,
 } from '@tabler/icons-react'
 import { useMemo, useRef, useState } from 'react'
@@ -42,6 +43,7 @@ const NAV = [
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad },
   { to: '/diagrams', label: 'Diagrams', icon: IconChartDots3 },
   { to: '/feedback', label: 'Feedback', icon: IconMessages },
+  { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
 export function Shell() {

@@ -55,6 +55,7 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 - `app/backend/app/`: `main.py` (app factory, Origin guard, error mapping, routers behind the session dependency), `config.py`, `db.py` (pragmas, `BEGIN IMMEDIATE`, migrations by `PRAGMA user_version`), `security.py` (scrypt, sessions, rate limit), `paths.py` (the one doc-path check every route uses), `routers/`, `services/` (`docs_fs`, `git`, `events`, `feedback`), `__main__.py` (CLI).
 - `app/frontend/src/`: `api/` (fetch client, typed queries), `auth/`, `layout/` (shell, doc tree, feedback badge), `docs/` (Markdown, Mermaid, comment anchors, history and diffs), `feedback/`, `pages/` (roadmap, diagrams, search), `events/` (SSE → query invalidation).
 - `app/backend/app/services/registry.py` (registry pages, checks, discovery), `roots.py` (the named roots from `ARCHEION_ROOTS`, ADR 0008) and `sources.py` (doc sources: `archeion` plus one read-only source per registered project, with its file allowlist). Every docs route takes `source` (default `archeion`).
+- `app/backend/app/routers/manage.py` (ADR 0010): the Settings page's API. The backend's only file writes: the `ARCHEION_ROOTS` line of `.env` (`roots.py: write_env_roots`, keeps `.env.bak`) and new pages in `registry/projects/` (`registry.py: register`, create-only, only for folders discovery found). Never a project's files, never an existing page.
 - `app/frontend/src/projects/`: projects overview, group and project pages, and `map.ts`, which generates the Mermaid maps from the registry. `docs/links.ts` resolves links across sources.
 - Live updates: watchfiles (project roots without recursion, docs folders with recursion, restarted when the registry changes) and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
 - `.claude-plugin/marketplace.json` + `plugins/archeion/` (ADR 0009): the plugin for sessions in registered projects (`/archeion:inbox`, `context`, `ports`, `report`, a SessionStart hook), installed by the user at user scope. `plugins/archeion/scripts/archeion.ps1` finds Archeion and checks its minimum version (`$MinArcheion`). It has its own SemVer and changelog. Never copy its skills into projects.
@@ -65,7 +66,7 @@ Don't edit sibling projects from this repo. When a sibling project's facts are n
 ## Conventions
 - One fact lives in one place; link to it rather than copying it.
 - Each registry page records `verified:` (the date its frontmatter was last checked against the real project). Facts that belong to a project (endpoints, commands, internals) stay in that project's own docs, which the viewer shows live. Link to them, don't copy them.
-- New projects: `scripts/archeion.ps1 projects scan` (dry run), then `--write` for stub pages. `projects list` shows the tree and problems.
+- New projects: the viewer's Settings page (roots and a Register button per folder), or `scripts/archeion.ps1 projects scan` (dry run), then `--write` for stub pages. `projects list` shows the tree and problems.
 - Use the workspace port ranges and database rules (`../CLAUDE.md`) as the baseline when describing or planning services.
 - Roadmap items use absolute dates, never "next week".
 - When starting a session, check for open feedback from the frontend (see ADR 0002) before other work: `inbox list --project archeion`.

@@ -105,17 +105,19 @@ flowchart LR
   A["Put the project next to archeion/<br/>with a CLAUDE.md"] --> B["projects scan<br/>(dry run: lists candidates)"]
   B --> C["projects scan --write<br/>(creates stub pages, never overwrites)"]
   C --> D["Fill in the page's frontmatter:<br/>group, depends_on, ports, status, verified"]
+  B2["Viewer: Settings → Register"] --> D
   D --> E["projects list<br/>(tree and problems)"]
   E --> F["Viewer: the project's docs,<br/>maps and inbox"]
 ```
 
 - **What the scan finds:** each direct child folder of a root that has a `CLAUDE.md` and doesn't start with `_` or `.`, plus its sub-projects: a folder two levels down with a manifest (like `collectors/<name>/pyproject.toml`).
+- **From the viewer:** the **Settings** page lists every root's projects, says which are registered, and has a **Register** button for the rest ([ADR 0010](docs/decisions/0010-manage-roots-and-registration-in-the-viewer.md)). It creates the same stub page as `projects scan --write` and never changes the project.
 - **Only some of them:** `projects scan --write --only <name> [<name> ...]` registers just the folders you name. `--root <name>` scans one root.
 - **Anything else:** copy `registry/projects/_template.md` to `<name>.md` and write the page by hand. Its `path` must be relative and stay inside its root.
 - **Feedback for the project:** items written for it in the viewer wait until a Claude session in that project picks them up with `/archeion:inbox`, from the [Archeion plugin](#archeion-plugin-for-your-projects).
 
 ### Projects in other folders
-A project doesn't have to move next to Archeion. Grant Archeion the folder it's in as a **named root**, in `.env` through `configure.bat` ([ADR 0008](docs/decisions/0008-named-project-roots.md)):
+A project doesn't have to move next to Archeion. Grant Archeion the folder it's in as a **named root**, on the viewer's **Settings** page or with `configure.bat`. Both write it to `.env` ([ADR 0008](docs/decisions/0008-named-project-roots.md), [ADR 0010](docs/decisions/0010-manage-roots-and-registration-in-the-viewer.md)):
 
 ```
 ARCHEION_ROOTS=private=<the folder that holds the project>;lab=<another folder>
@@ -139,8 +141,9 @@ flowchart LR
 
 - **Granting is the permission.** Archeion reads only inside the workspace root and the granted roots. Take a root out of `.env` and its projects show a "root isn't configured" warning, and their docs are gone until you grant it again.
 - **The registry stays portable.** A page says `root: private` and a `path` relative to that root, never a drive path. On another machine, map `private` to wherever that folder lives there.
-- **Register:** `projects scan --root private`, then `--write` (with `--only <name>` to pick some).
-- **Rules for a root:** a name of 2 to 32 characters (lowercase letters, digits, `-`; `workspace` is reserved), and an existing folder that isn't a whole drive, your whole home folder or inside Archeion. `configure.bat` checks these, and the viewer lists anything wrong as a "Settings" problem.
+- **Applied at once from the viewer.** A root added or removed on the Settings page takes effect without a restart. One changed with `configure.bat` needs a restart. If `ARCHEION_ROOTS` is set in the environment Archeion starts with, it overrides `.env`, and the Settings page shows the roots read-only.
+- **Register:** the Register button on the Settings page, or `projects scan --root private`, then `--write` (with `--only <name>` to pick some).
+- **Rules for a root:** a name of 2 to 32 characters (lowercase letters, digits, `-`; `workspace` is reserved), and an existing folder that isn't a whole drive, your whole home folder or inside Archeion. `configure.bat` and the Settings page check these, and the viewer lists anything wrong as a "Settings" problem.
 
 ## Archeion plugin for your projects
 Archeion ships a Claude Code plugin from this repo ([`plugins/archeion/`](plugins/archeion/README.md), [ADR 0009](docs/decisions/0009-archeion-plugin-for-project-sessions.md)), so a Claude session in any registered project can use Archeion. You install it into your **user-level** Claude Code setup, not into each project: this repo is a plugin marketplace, which you add once at user scope, and the plugin's skills are then available in every project on the machine. Nothing is copied into your projects.

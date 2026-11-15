@@ -19,7 +19,7 @@ verified: 2026-11-15                          # when the frontmatter was last ch
 ---
 ```
 
-- **New projects:** `scripts/archeion.ps1 projects scan` lists the folders in your roots that have no page yet, and `--write` creates stub pages here (it never overwrites one). `--only <name>` picks some, `--root <name>` scans one root.
-- **Projects outside the workspace:** grant their folder in `ARCHEION_ROOTS` (`configure.bat`) and set `root:` on the page. `path` is then relative to that folder ([ADR 0008](../../docs/decisions/0008-named-project-roots.md)). `projects list` shows the tree and any problems, which the viewer's Projects page also shows.
+- **New projects:** the viewer's Settings page lists every root's projects and registers the ones you pick. Or `scripts/archeion.ps1 projects scan` lists the folders in your roots that have no page yet, and `--write` creates stub pages here (it never overwrites one). `--only <name>` picks some, `--root <name>` scans one root.
+- **Projects outside the workspace:** grant their folder on the viewer's Settings page or in `ARCHEION_ROOTS` (`configure.bat`) and set `root:` on the page. `path` is then relative to that folder ([ADR 0008](../../docs/decisions/0008-named-project-roots.md)). `projects list` shows the tree and any problems, which the viewer's Projects page also shows.
 - **Keep facts in their home:** a project's own facts (endpoints, commands, internal design) stay in its own repo. The viewer shows its README, CLAUDE.md and docs folder live, read-only.
 - **Starting point:** copy `_template.md` to `<name>.md` for a page written by hand.
