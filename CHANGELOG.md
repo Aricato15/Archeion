@@ -7,6 +7,8 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-15
+
 ### Added
 - **A Settings page in the viewer** ([ADR 0010](docs/decisions/0010-manage-roots-and-registration-in-the-viewer.md)): add and remove named roots, applied without a restart and saved to `ARCHEION_ROOTS` in `.env` (the previous file is kept as `.env.bak`). Before a root that registered projects use is removed, the page says which projects.
 - The same page lists the projects in each root, shows which are registered, and registers the others with a stub page in `registry/projects/`. It never overwrites a page and never touches the project.
@@ -18,8 +20,7 @@ All notable changes to Archeion are recorded here. The format follows
 - **No root is granted by default** ([ADR 0012](docs/decisions/0012-no-root-granted-by-default.md)). `ARCHEION_WORKSPACE_ROOT` is now empty by default, so a fresh start reads no projects until you add a root on the Settings page. When it's set, it still works as the root named `workspace`, and the Settings page can remove it. The CLI says when no root is granted.
 - `start.bat` starts without an admin password, and says to create it in the viewer.
 - Stub pages, from the viewer or `projects scan --write`, no longer set `verified`: nobody has checked them yet.
-- `configure.bat` writes roots with forward slashes, so a folder in quotes (one with a space) can't be read back with `
-` or `	` turned into escapes.
+- `configure.bat` writes roots with forward slashes, so a folder in quotes (one with a space) can't be read back with `\n` or `\t` turned into escapes.
 
 ### Removed
 - `set_admin_password.bat`. The first password is created in the viewer; to change or reset it, run `scripts/archeion.ps1 password set`.
