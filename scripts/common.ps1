@@ -56,6 +56,8 @@ function Invoke-Backend {
     # Runs `python -m app <args>` from app/backend with the venv's python.
     # Its output flows through; read $LASTEXITCODE afterwards for the exit code.
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$CliArgs)
+    # inbox --here needs the folder the caller ran in, not app/backend.
+    $env:ARCHEION_CALLER_DIR = (Get-Location).ProviderPath
     Push-Location $BackendDir
     try {
         & $BackendPython -m app @CliArgs

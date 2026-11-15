@@ -26,6 +26,18 @@
       ]
     },
     {
+      "title": "Projects",
+      "settings": [
+        {
+          "name": "ARCHEION_WORKSPACE_ROOT",
+          "type": "relpath",
+          "allow_parent": true,
+          "default": "..",
+          "description": "The folder holding all your projects, relative to the repo root. Registered project paths must stay inside it, and projects scan looks for new ones there."
+        }
+      ]
+    },
+    {
       "title": "Frontend",
       "settings": [
         {

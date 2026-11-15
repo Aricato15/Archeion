@@ -48,7 +48,7 @@ function Test-Value($s, [string]$value) {
         }
         'relpath' {
             if ($value -match '^[A-Za-z]:' -or $value -match '^[\\/]') { return 'must be relative to the repo root (no drive letter, no leading slash)' }
-            if (($value -replace '\\', '/').Split('/') -contains '..') { return "must stay inside the repo (no '..')" }
+            if (-not $s.allow_parent -and ($value -replace '\\', '/').Split('/') -contains '..') { return "must stay inside the repo (no '..')" }
         }
         'string' {
             if ($value -match '#') { return "can't contain '#'" }
