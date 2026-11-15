@@ -2,10 +2,11 @@ import { Button, Drawer, Group, Loader, SegmentedControl, Stack, Text, UnstyledB
 import { IconMessagePlus } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useFeedbackList } from '../api/queries'
-import type { Anchor } from '../api/types'
+import type { Anchor, SourceId } from '../api/types'
 import { FeedbackCard } from './FeedbackCard'
 
 type Props = {
+  source: SourceId
   path: string
   opened: boolean
   onClose: () => void
@@ -13,9 +14,9 @@ type Props = {
   onNew: () => void
 }
 
-export function DocFeedbackPanel({ path, opened, onClose, onLocate, onNew }: Props) {
+export function DocFeedbackPanel({ source, path, opened, onClose, onLocate, onNew }: Props) {
   const [filter, setFilter] = useState<'active' | 'all'>('active')
-  const list = useFeedbackList({ doc_path: path }, opened)
+  const list = useFeedbackList({ source, doc_path: path }, opened)
   const items = (list.data ?? []).filter((i) => filter === 'all' || i.status !== 'resolved')
 
   return (

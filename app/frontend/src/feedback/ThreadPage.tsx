@@ -17,11 +17,11 @@ import { IconArrowBackUp, IconCheck, IconCornerDownRight, IconPencil, IconTrash 
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useDeleteFeedback, useFeedbackItem, usePatchFeedback } from '../api/queries'
-import type { FeedbackItem, FeedbackStatus } from '../api/types'
+import { SELF, type FeedbackItem, type FeedbackStatus } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
 import { MarkdownView } from '../docs/MarkdownView'
 import { formatDate } from '../lib/format'
-import { StatusBadge } from './FeedbackCard'
+import { ProjectBadge, StatusBadge } from './FeedbackCard'
 import { FeedbackForm, type FeedbackDraft } from './FeedbackForm'
 import { KIND_LABEL, docLink } from './labels'
 
@@ -47,6 +47,7 @@ function ItemView({ item, current }: { item: FeedbackItem; current: boolean }) {
               {KIND_LABEL[item.kind]}
             </Badge>
             <StatusBadge item={item} />
+            {item.source !== SELF && <ProjectBadge id={item.source} />}
           </Group>
           <Text size="xs" c="dimmed">
             {formatDate(item.created_at)}
@@ -89,14 +90,14 @@ function ItemView({ item, current }: { item: FeedbackItem; current: boolean }) {
             </Group>
           </Stack>
         ) : (
-          <MarkdownView content={item.body} docPath={item.doc_path ?? 'README.md'} compact />
+          <MarkdownView content={item.body} docPath={item.doc_path ?? 'README.md'} source={item.source} compact />
         )}
         {item.reply && (
           <Paper withBorder p="sm" radius="md" bg="var(--mantine-color-green-light)">
             <Text size="xs" fw={700} c="green" mb={4}>
               Claude replied {item.answered_at ? formatDate(item.answered_at) : ''}
             </Text>
-            <MarkdownView content={item.reply} docPath={item.doc_path ?? 'README.md'} compact />
+            <MarkdownView content={item.reply} docPath={item.doc_path ?? 'README.md'} source={item.source} compact />
           </Paper>
         )}
         {item.status === 'in_progress' && (
@@ -176,7 +177,7 @@ export function ThreadPage() {
         w="fit-content"
         leftSection={<IconCornerDownRight size={16} />}
         onClick={() =>
-          setDraft({ kind: last.kind, docPath: last.doc_path, anchor: last.anchor, parentId: last.id })
+          setDraft({ kind: last.kind, source: last.source, docPath: last.doc_path, anchor: last.anchor, parentId: last.id })
         }
       >
         Follow up

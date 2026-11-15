@@ -3,15 +3,18 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router'
 
-type DocsChanged = { kind: 'added' | 'modified' | 'deleted'; paths: string[] }
+type DocsChanged = { source: string; kind: 'added' | 'modified' | 'deleted'; paths: string[] }
 
-function currentDoc(pathname: string): string | null {
-  if (!pathname.startsWith('/docs/')) return null
+/** The [source, path] of the doc being viewed, if any. */
+function currentDoc(pathname: string): [string, string] | null {
   try {
-    return decodeURIComponent(pathname.slice('/docs/'.length))
+    if (pathname.startsWith('/docs/')) return ['archeion', decodeURIComponent(pathname.slice('/docs/'.length))]
+    const m = pathname.match(/^\/p\/([^/]+)\/(.+)$/)
+    if (m) return [decodeURIComponent(m[1]), decodeURIComponent(m[2])]
   } catch {
-    return null
+    // malformed URL: no current doc
   }
+  return null
 }
 
 /**
@@ -43,17 +46,18 @@ export function useEvents() {
 
       source.addEventListener('docs.changed', (e) => {
         const data = JSON.parse((e as MessageEvent).data) as DocsChanged
-        if (data.kind !== 'modified') qc.invalidateQueries({ queryKey: ['tree'] })
+        const source = data.source ?? 'archeion'
+        if (data.kind !== 'modified') qc.invalidateQueries({ queryKey: ['tree', source] })
         for (const p of data.paths) {
-          qc.invalidateQueries({ queryKey: ['doc', p] })
-          qc.invalidateQueries({ queryKey: ['history', p] })
-          qc.invalidateQueries({ queryKey: ['diff', p] })
+          qc.invalidateQueries({ queryKey: ['doc', source, p] })
+          qc.invalidateQueries({ queryKey: ['history', source, p] })
+          qc.invalidateQueries({ queryKey: ['diff', source, p] })
         }
         for (const key of ['roadmap', 'diagrams', 'search']) qc.invalidateQueries({ queryKey: [key] })
         const open = currentDoc(pathRef.current)
-        if (open && data.paths.includes(open)) {
+        if (open && open[0] === source && data.paths.includes(open[1])) {
           notifications.show({
-            id: `doc-changed-${open}`,
+            id: `doc-changed-${source}-${open[1]}`,
             color: data.kind === 'deleted' ? 'orange' : 'blue',
             message: data.kind === 'deleted' ? 'This doc was deleted.' : 'This doc was just updated.',
             autoClose: 2500,
@@ -62,6 +66,11 @@ export function useEvents() {
       })
 
       source.addEventListener('feedback.changed', () => qc.invalidateQueries({ queryKey: ['feedback'] }))
+
+      // A registry page changed: projects, their sources and the maps may all differ now.
+      source.addEventListener('registry.changed', () => {
+        for (const key of ['registry', 'sources', 'tree', 'roadmap', 'diagrams']) qc.invalidateQueries({ queryKey: [key] })
+      })
 
       source.addEventListener('session.expired', () => {
         source?.close()

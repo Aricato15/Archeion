@@ -1,10 +1,10 @@
-import { Anchor, Card, Highlight, Loader, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Anchor, Badge, Card, Group, Highlight, Loader, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import { useSearch } from '../api/queries'
-import type { SearchHit } from '../api/types'
+import { SELF, type SearchHit } from '../api/types'
 import { docUrl } from '../docs/links'
 
 export function SearchPage() {
@@ -19,7 +19,7 @@ export function SearchPage() {
 
   const grouped = useMemo(() => {
     const map = new Map<string, SearchHit[]>()
-    for (const hit of results.data ?? []) map.set(hit.path, [...(map.get(hit.path) ?? []), hit])
+    for (const hit of results.data ?? []) map.set(`${hit.source}:${hit.path}`, [...(map.get(`${hit.source}:${hit.path}`) ?? []), hit])
     return [...map.entries()]
   }, [results.data])
 
@@ -28,7 +28,7 @@ export function SearchPage() {
       <Title order={2}>Search</Title>
       <TextInput
         leftSection={<IconSearch size={16} />}
-        placeholder="Search all docs (at least 2 characters)"
+        placeholder="Search Archeion and every project's docs (at least 2 characters)"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
         autoFocus
@@ -40,14 +40,23 @@ export function SearchPage() {
           Showing the first 200 matches. Narrow the search to see more.
         </Text>
       )}
-      {grouped.map(([path, hits]) => (
-        <Card key={path} withBorder padding="sm" radius="md">
-          <Anchor component={Link} to={docUrl(path)} fw={600} mb={4}>
-            {path}
-          </Anchor>
+      {grouped.map(([key, hits]) => {
+        const { source, path } = hits[0]
+        return (
+        <Card key={key} withBorder padding="sm" radius="md">
+          <Group gap="xs" mb={4}>
+            {source !== SELF && (
+              <Badge variant="dot" color="grape" size="sm">
+                {source}
+              </Badge>
+            )}
+            <Anchor component={Link} to={docUrl(source, path)} fw={600}>
+              {path}
+            </Anchor>
+          </Group>
           <Stack gap={2}>
             {hits.map((h) => (
-              <Anchor key={h.line} component={Link} to={`${docUrl(path)}?line=${h.line}`} c="inherit" underline="never">
+              <Anchor key={h.line} component={Link} to={`${docUrl(source, path)}?line=${h.line}`} c="inherit" underline="never">
                 <Text size="sm" ff="monospace">
                   <Text span c="dimmed" size="xs" mr="xs">
                     {h.line}
@@ -60,7 +69,8 @@ export function SearchPage() {
             ))}
           </Stack>
         </Card>
-      ))}
+        )
+      })}
     </Stack>
   )
 }

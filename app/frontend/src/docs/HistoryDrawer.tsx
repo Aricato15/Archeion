@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Drawer, Group, Loader, Modal, NavLink, ScrollArea
 import { IconEye } from '@tabler/icons-react'
 import { useState } from 'react'
 import { useDiff, useDocAt, useHistory } from '../api/queries'
+import type { SourceId } from '../api/types'
 import { formatDate } from '../lib/format'
 import { DiffView } from './DiffView'
 import { MarkdownView } from './MarkdownView'
@@ -9,6 +10,7 @@ import { MarkdownView } from './MarkdownView'
 export const WORKTREE = 'WORKTREE'
 
 type Props = {
+  source: SourceId
   path: string
   dirty: boolean
   opened: boolean
@@ -16,14 +18,14 @@ type Props = {
   initialRev?: string | null
 }
 
-export function HistoryDrawer({ path, dirty, opened, onClose, initialRev }: Props) {
-  const history = useHistory(path, opened)
+export function HistoryDrawer({ source, path, dirty, opened, onClose, initialRev }: Props) {
+  const history = useHistory(source, path, opened)
   const [picked, setPicked] = useState<string | null>(null)
   const [viewRev, setViewRev] = useState<string | null>(null)
   const commits = history.data ?? []
   const rev = picked ?? initialRev ?? (dirty ? WORKTREE : (commits[0]?.rev ?? null))
-  const diff = useDiff(path, opened ? rev : null)
-  const at = useDocAt(path, viewRev)
+  const diff = useDiff(source, path, opened ? rev : null)
+  const at = useDocAt(source, path, viewRev)
 
   return (
     <>
@@ -81,7 +83,7 @@ export function HistoryDrawer({ path, dirty, opened, onClose, initialRev }: Prop
       >
         {at.isPending && <Loader size="sm" />}
         {at.isError && <Alert color="red">{at.error.message}</Alert>}
-        {at.data && <MarkdownView content={at.data.content} docPath={path} />}
+        {at.data && <MarkdownView content={at.data.content} docPath={path} source={source} />}
       </Modal>
     </>
   )

@@ -5,10 +5,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import { Link } from 'react-router'
 import rehypeSlug from 'rehype-slug'
+import remarkFrontmatter from 'remark-frontmatter'
 import remarkGfm from 'remark-gfm'
-import type { Anchor as FeedbackAnchor } from '../api/types'
+import { SELF, type Anchor as FeedbackAnchor, type SourceId } from '../api/types'
 import { anchorForBlock, anchorForSelection, blockForLine, blockOf } from './anchors'
-import { imageSrc, resolveLink } from './links'
+import { imageSrc, resolveLink, useLinkContext, type LinkContext } from './links'
 import { MermaidBlock } from './MermaidBlock'
 import { rehypeLines } from './rehypeLines'
 
@@ -18,6 +19,8 @@ export type Flash = { line: number; key: number }
 type Props = {
   content: string
   docPath: string
+  /** Which source the doc belongs to (default: archeion). Relative links resolve from it. */
+  source?: SourceId
   compact?: boolean
   /** When set, blocks and selections get a "comment" button. */
   onComment?: (anchor: FeedbackAnchor) => void
@@ -31,12 +34,13 @@ function hastText(node: ElementContent | HastElement): string {
   return ''
 }
 
-function buildComponents(docPath: string): Components {
+function buildComponents(ctx: LinkContext, source: SourceId, docPath: string): Components {
   return {
     a({ href = '', children, node: _node, ...rest }) {
-      const link = resolveLink(docPath, href)
+      const link = resolveLink(ctx, source, docPath, href)
       switch (link.kind) {
         case 'doc':
+        case 'project':
           return (
             <Anchor component={Link} to={link.to}>
               {children}
@@ -53,7 +57,7 @@ function buildComponents(docPath: string): Components {
           )
         case 'outside':
           return (
-            <Tooltip label={`${href} is outside docs/, so the viewer doesn't serve it`}>
+            <Tooltip label={`${href} isn't in a registered project's docs, so the viewer doesn't serve it`}>
               <Text component="span" inherit td="underline dotted">
                 {children}
               </Text>
@@ -62,7 +66,7 @@ function buildComponents(docPath: string): Components {
       }
     },
     img({ src, alt }) {
-      const resolved = typeof src === 'string' ? imageSrc(docPath, src) : null
+      const resolved = typeof src === 'string' ? imageSrc(ctx, source, docPath, src) : null
       if (!resolved) return <span>[{alt || 'image'}]</span>
       return <img src={resolved} alt={alt ?? ''} style={{ maxWidth: '100%' }} />
     },
@@ -76,7 +80,8 @@ function buildComponents(docPath: string): Components {
   }
 }
 
-export function MarkdownView({ content, docPath, compact, onComment, onHeadings, flash }: Props) {
+export function MarkdownView({ content, docPath, source = SELF, compact, onComment, onHeadings, flash }: Props) {
+  const linkCtx = useLinkContext()
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<{ top: number; block: HTMLElement } | null>(null)
@@ -170,9 +175,9 @@ export function MarkdownView({ content, docPath, compact, onComment, onHeadings,
       )}
       <Typography ref={contentRef}>
         <Markdown
-          remarkPlugins={[remarkGfm]}
+          remarkPlugins={[remarkGfm, remarkFrontmatter]}
           rehypePlugins={[rehypeSlug, rehypeLines]}
-          components={buildComponents(docPath)}
+          components={buildComponents(linkCtx, source, docPath)}
         >
           {content}
         </Markdown>

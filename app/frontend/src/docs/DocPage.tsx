@@ -15,26 +15,34 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { IconHistory, IconMessage, IconMessagePlus } from '@tabler/icons-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { IconExternalLink, IconHistory, IconMessage, IconMessagePlus } from '@tabler/icons-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
-import { useDoc, useFeedbackList } from '../api/queries'
-import type { Anchor as FeedbackAnchor } from '../api/types'
+import { useDoc, useFeedbackList, useRegistry } from '../api/queries'
+import { SELF, type Anchor as FeedbackAnchor } from '../api/types'
 import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { DocFeedbackPanel } from '../feedback/DocFeedbackPanel'
 import { formatDate } from '../lib/format'
 import { HistoryDrawer, WORKTREE } from './HistoryDrawer'
-import { docUrl } from './links'
+import { projectUrl } from './links'
 import { MarkdownView, type Flash, type Heading } from './MarkdownView'
 
+/** A doc from any source: /docs/* for archeion, /p/:source/* for a registered project. */
 export function DocPage() {
-  const path = useParams()['*'] ?? ''
+  const params = useParams()
+  const source = params.source ?? SELF
+  const path = params['*'] ?? ''
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
-  const doc = useDoc(path)
-  const feedback = useFeedbackList({ doc_path: path }, path.endsWith('.md'))
+  const doc = useDoc(source, path)
+  const registry = useRegistry()
+  const feedback = useFeedbackList({ source, doc_path: path }, path.endsWith('.md'))
+  // A registry page in archeion links to the project page it describes, and the other way round.
+  const describes =
+    source === SELF ? registry.data?.projects.find((p) => p.page === path) : undefined
+  const project = source !== SELF ? registry.data?.projects.find((p) => p.id === source) : undefined
   const [historyOpen, history] = useDisclosure(false)
   const [historyRev, setHistoryRev] = useState<string | null>(null)
   const [panelOpen, panel] = useDisclosure(false)
@@ -56,10 +64,7 @@ export function DocPage() {
     window.requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView())
   }, [doc.data, location.hash])
 
-  const onComment = useCallback(
-    (anchor: FeedbackAnchor) => setDraft({ kind: 'comment', docPath: path, anchor }),
-    [path],
-  )
+  const onComment = (anchor: FeedbackAnchor) => setDraft({ kind: 'comment', source, docPath: path, anchor })
   const onLocate = (anchor: FeedbackAnchor) => {
     panel.close()
     if (anchor.lines) setFlash({ line: anchor.lines[0], key: Date.now() })
@@ -70,6 +75,7 @@ export function DocPage() {
   }
 
   const crumbs = useMemo(() => path.split('/'), [path])
+  const root = source === SELF ? 'docs' : (project?.title ?? source)
 
   if (!path.endsWith('.md')) {
     return <Text c="dimmed">Pick a doc from the sidebar.</Text>
@@ -78,7 +84,9 @@ export function DocPage() {
   if (doc.isError) {
     return (
       <Alert color={isNotFound(doc.error) ? 'yellow' : 'red'} title={isNotFound(doc.error) ? 'Doc not found' : 'Error'}>
-        {isNotFound(doc.error) ? `There's no docs/${path}. It may have been moved or deleted.` : doc.error.message}
+        {isNotFound(doc.error)
+          ? `There's no ${source === SELF ? 'docs/' : `${source}: `}${path}, or it isn't served. It may have been moved or deleted.`
+          : doc.error.message}
       </Alert>
     )
   }
@@ -89,9 +97,15 @@ export function DocPage() {
       <Stack gap="xs" style={{ flex: 1, minWidth: 0, maxWidth: 960 }}>
         <Group justify="space-between" wrap="wrap" gap="xs">
           <Breadcrumbs separatorMargin={4}>
-            <Text size="sm" c="dimmed">
-              docs
-            </Text>
+            {source === SELF ? (
+              <Text size="sm" c="dimmed">
+                {root}
+              </Text>
+            ) : (
+              <Anchor component={Link} to={projectUrl(source)} size="sm">
+                {root}
+              </Anchor>
+            )}
             {crumbs.map((c, i) => (
               <Text key={i} size="sm" c={i === crumbs.length - 1 ? undefined : 'dimmed'} fw={i === crumbs.length - 1 ? 600 : undefined}>
                 {c}
@@ -99,6 +113,22 @@ export function DocPage() {
             ))}
           </Breadcrumbs>
           <Group gap="xs">
+            {describes && (
+              <Button
+                size="xs"
+                variant="light"
+                component={Link}
+                to={projectUrl(describes.id)}
+                leftSection={<IconExternalLink size={14} />}
+              >
+                Project page
+              </Button>
+            )}
+            {source !== SELF && (
+              <Tooltip label="This project's own file, shown read-only. Comments go to its inbox.">
+                <Badge variant="outline">read-only</Badge>
+              </Tooltip>
+            )}
             {data.dirty && (
               <Tooltip label="This doc differs from the last commit. Click to see the diff.">
                 <Badge
@@ -121,7 +151,7 @@ export function DocPage() {
               size="xs"
               variant="default"
               leftSection={<IconMessagePlus size={14} />}
-              onClick={() => setDraft({ kind: 'review', docPath: path })}
+              onClick={() => setDraft({ kind: 'review', source, docPath: path })}
             >
               Review
             </Button>
@@ -146,6 +176,7 @@ export function DocPage() {
         <MarkdownView
           content={data.content}
           docPath={path}
+          source={source}
           onComment={onComment}
           onHeadings={setHeadings}
           flash={flash}
@@ -175,7 +206,8 @@ export function DocPage() {
       )}
 
       <HistoryDrawer
-        key={`${path}:${historyRev ?? ''}`}
+        key={`${source}:${path}:${historyRev ?? ''}`}
+        source={source}
         path={path}
         dirty={data.dirty}
         opened={historyOpen}
@@ -183,13 +215,14 @@ export function DocPage() {
         initialRev={historyRev}
       />
       <DocFeedbackPanel
+        source={source}
         path={path}
         opened={panelOpen}
         onClose={panel.close}
         onLocate={onLocate}
         onNew={() => {
           panel.close()
-          setDraft({ kind: 'review', docPath: path })
+          setDraft({ kind: 'review', source, docPath: path })
         }}
       />
       <FeedbackForm draft={draft} onClose={() => setDraft(null)} />
@@ -197,10 +230,3 @@ export function DocPage() {
   )
 }
 
-export function DocLink({ path, line, children }: { path: string; line?: number; children?: React.ReactNode }) {
-  return (
-    <Anchor component={Link} to={line ? `${docUrl(path)}?line=${line}` : docUrl(path)}>
-      {children ?? path}
-    </Anchor>
-  )
-}

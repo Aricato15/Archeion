@@ -1,8 +1,9 @@
 import { Anchor, Badge, Card, Group, Stack, Text } from '@mantine/core'
 import { IconCornerDownRight } from '@tabler/icons-react'
 import { Link } from 'react-router'
-import type { FeedbackItem } from '../api/types'
+import { SELF, type FeedbackItem } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
+import { projectUrl } from '../docs/links'
 import { timeAgo } from '../lib/format'
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, docLink } from './labels'
 
@@ -10,6 +11,15 @@ export function StatusBadge({ item }: { item: Pick<FeedbackItem, 'status'> }) {
   return (
     <Badge color={STATUS_COLOR[item.status]} variant="light" size="sm">
       {STATUS_LABEL[item.status]}
+    </Badge>
+  )
+}
+
+/** Which project an item targets (archeion items carry no badge). */
+export function ProjectBadge({ id }: { id: string }) {
+  return (
+    <Badge variant="dot" size="sm" color="grape" component={Link} to={projectUrl(id)} style={{ cursor: 'pointer' }}>
+      {id}
     </Badge>
   )
 }
@@ -29,6 +39,7 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackItem; sho
               {KIND_LABEL[item.kind]}
             </Badge>
             <StatusBadge item={item} />
+            {item.source !== SELF && <ProjectBadge id={item.source} />}
             {item.parent_id && (
               <Group gap={2}>
                 <IconCornerDownRight size={14} />

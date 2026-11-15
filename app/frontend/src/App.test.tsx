@@ -11,6 +11,9 @@ import { FeedbackPage } from './feedback/FeedbackPage'
 import { ThreadPage } from './feedback/ThreadPage'
 import { Shell } from './layout/Shell'
 import { RoadmapPage } from './pages/RoadmapPage'
+import { GroupPage } from './projects/GroupPage'
+import { ProjectPage } from './projects/ProjectPage'
+import { ProjectsPage } from './projects/ProjectsPage'
 
 vi.mock('mermaid', () => ({
   default: { initialize: vi.fn(), parse: vi.fn(async () => true), render: vi.fn(async () => ({ svg: '<svg/>' })) },
@@ -19,6 +22,7 @@ vi.mock('mermaid', () => ({
 const item = {
   id: 7,
   kind: 'comment',
+  source: 'archeion',
   doc_path: 'README.md',
   anchor: { heading: 'Docs', lines: [1, 1], quote: 'Docs' },
   body: 'Tighten the intro.',
@@ -31,11 +35,59 @@ const item = {
   claimed_at: '2026-11-15T03:01:00+00:00',
   answered_at: '2026-11-15T03:05:00+00:00',
 }
+const projectItem = { ...item, id: 8, source: 'example-gateway', doc_path: 'docs/api.md', body: 'Document the routes.' }
+
+const project = (id: string, extra: Record<string, unknown> = {}) => ({
+  id,
+  title: id,
+  page: `system/projects/${id}.md`,
+  path: `../${id}`,
+  parent: null,
+  group: null,
+  status: 'active',
+  kind: null,
+  ports: [],
+  depends_on: [],
+  docs_dir: 'docs',
+  verified: '2026-11-15',
+  summary: `About ${id}.`,
+  available: true,
+  children: [],
+  used_by: [],
+  ...extra,
+})
+
+const registry = {
+  projects: [
+    project('example-gateway', { group: 'example-system', ports: [20060], depends_on: ['cdc'], kind: 'service' }),
+    project('cdc', { children: ['example-collector'], used_by: ['example-gateway'] }),
+    project('example-collector', { parent: 'cdc', path: '../cdc/collectors/example-collector' }),
+  ],
+  groups: [{ id: 'example-system', title: 'example-system', page: 'system/groups/example-system.md', summary: 'The example-system apps.', projects: ['example-gateway'] }],
+  warnings: [{ page: 'system/projects/example-collector.md', message: "depends_on 'ghost' isn't a registered project" }],
+  unregistered: [{ name: 'newproj', path: '../newproj', parent: null }],
+}
+
+const files: Record<string, unknown> = {
+  'archeion:README.md': {
+    content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md) and [example-gateway](../../example-gateway/docs/api.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
+    dirty: true,
+  },
+  'archeion:system/projects/example-gateway.md': { content: '---\nname: example-gateway\n---\n# example-gateway\n\nThe gateway notes.\n', dirty: false },
+  'archeion:system/groups/example-system.md': { content: '# example-system\n\nThe example-system apps.\n', dirty: false },
+  'example-gateway:README.md': { content: '# example-gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
+  'example-gateway:docs/api.md': { content: '# example-gateway API\n\nRoutes.\n', dirty: false },
+}
 
 function mockApi(loggedIn: boolean) {
   const routes: Record<string, unknown> = {
     '/api/auth/session': loggedIn ? { expires_at: '2026-11-22T00:00:00+00:00' } : null,
-    '/api/version': { version: '0.1.0' },
+    '/api/version': { version: '0.2.0' },
+    '/api/registry': registry,
+    '/api/sources': [
+      { id: 'archeion', title: 'Archeion', kind: 'archeion' },
+      { id: 'example-gateway', title: 'example-gateway', kind: 'project' },
+    ],
     '/api/docs/tree': {
       name: 'docs',
       path: '',
@@ -45,30 +97,38 @@ function mockApi(loggedIn: boolean) {
         { name: 'README.md', path: 'README.md', type: 'file' },
       ],
     },
-    '/api/docs/file': {
-      path: 'README.md',
-      content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
-      sha: 'x',
-      modified_at: '2026-11-15T03:00:00+00:00',
-      dirty: true,
-    },
-    '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0 },
+    '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { example-gateway: 1 } },
     '/api/feedback/7': { item, thread: [item] },
-    '/api/feedback': [item],
     '/api/roadmap': {
-      path: 'roadmap/roadmap.md',
-      updated: '2026-11-15',
-      now: [{ text: 'Build the viewer, see [plan](plan.md).', links: [] }],
-      next: [],
-      later: [],
-      plans: [{ path: 'roadmap/plan.md', title: 'The plan', date: '2026-11-15' }],
+      cross: {
+        path: 'roadmap/roadmap.md',
+        updated: '2026-11-15',
+        now: [{ text: 'Build the viewer, see [plan](plan.md).', links: [] }],
+        next: [],
+        later: [],
+        structured: true,
+        plans: [{ path: 'roadmap/plan.md', title: 'The plan', date: '2026-11-15' }],
+      },
+      projects: [
+        { project: 'example-gateway', title: 'example-gateway', roadmap: { path: 'docs/roadmap.md', updated: null, now: [{ text: 'Ship routes', links: [] }], next: [], later: [], structured: true, plans: [] } },
+        { project: 'cdc', title: 'cdc', roadmap: null },
+      ],
     },
   }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
-      const path = input.split('?')[0]
-      const body = routes[path]
+      const url = new URL(input, 'http://test')
+      let body: unknown = routes[url.pathname]
+      if (url.pathname === '/api/docs/file') {
+        const key = `${url.searchParams.get('source') ?? 'archeion'}:${url.searchParams.get('path')}`
+        const f = files[key] as { content: string; dirty: boolean } | undefined
+        body = f && { source: key.split(':')[0], path: url.searchParams.get('path'), sha: 'x', modified_at: '2026-11-15T03:00:00+00:00', frontmatter: null, ...f }
+      }
+      if (url.pathname === '/api/feedback') {
+        const source = url.searchParams.get('source')
+        body = [item, projectItem].filter((i) => !source || i.source === source)
+      }
       if (body === undefined) return new Response('{"detail":"not mocked"}', { status: 404 })
       if (body === null) return new Response('{"detail":"not logged in"}', { status: 401 })
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -95,6 +155,10 @@ function renderAt(url: string) {
             element: <Shell />,
             children: [
               { path: 'docs/*', element: <DocPage /> },
+              { path: 'p/:source/*', element: <DocPage /> },
+              { path: 'projects', element: <ProjectsPage /> },
+              { path: 'projects/:id', element: <ProjectPage /> },
+              { path: 'groups/:id', element: <GroupPage /> },
               { path: 'roadmap', element: <RoadmapPage /> },
               { path: 'feedback', element: <FeedbackPage /> },
               { path: 'feedback/:id', element: <ThreadPage /> },
@@ -127,7 +191,7 @@ describe('app', () => {
     expect(screen.queryByText('Roadmap')).toBeNull()
   })
 
-  it('renders a doc with the shell, tree, badges and diagram', async () => {
+  it('renders a doc with the shell, project tree, badges and cross-project links', async () => {
     mockApi(true)
     renderAt('/docs/README.md')
     expect(await screen.findByRole('heading', { name: 'Docs' })).toBeTruthy()
@@ -135,18 +199,55 @@ describe('app', () => {
     expect(await screen.findByText('1 answered')).toBeTruthy()
     expect(screen.getByText('On this page')).toBeTruthy()
     expect(screen.getByText('roadmap', { selector: 'a' }).getAttribute('href')).toBe('/docs/roadmap/roadmap.md')
+    // once the registry is in, a link from archeion into a project's docs opens it in the viewer
+    expect((await screen.findByText('example-gateway', { selector: 'a' })).getAttribute('href')).toBe('/p/example-gateway/docs/api.md')
+    expect(screen.getByText('example-system')).toBeTruthy() // group in the sidebar
   })
 
-  it('renders the roadmap, feedback list and a thread', async () => {
+  it('renders a project doc read-only, with links resolved inside the project', async () => {
+    mockApi(true)
+    renderAt('/p/example-gateway/README.md')
+    expect(await screen.findByRole('heading', { name: 'example-gateway readme' })).toBeTruthy()
+    expect(screen.getByText('read-only')).toBeTruthy()
+    expect((await screen.findByText('api', { selector: 'a' })).getAttribute('href')).toBe('/p/example-gateway/docs/api.md')
+  })
+
+  it('renders the projects overview with warnings, unregistered folders and groups', async () => {
+    mockApi(true)
+    renderAt('/projects')
+    expect(await screen.findByText('Registry problems')).toBeTruthy()
+    expect(screen.getByText('1 unregistered folder(s)')).toBeTruthy()
+    expect(screen.getByText('Standalone')).toBeTruthy()
+    expect(screen.getAllByText('About example-gateway.').length).toBeGreaterThan(0)
+  })
+
+  it('renders a project page with facts, notes and sub-projects', async () => {
+    mockApi(true)
+    renderAt('/projects/cdc')
+    expect(await screen.findByText('Sub-projects')).toBeTruthy()
+    expect(screen.getByText('Used by')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Prompt for cdc' })).toBeTruthy()
+  })
+
+  it('renders a group page', async () => {
+    mockApi(true)
+    renderAt('/groups/example-system')
+    expect(await screen.findByRole('heading', { name: 'example-system', level: 2 })).toBeTruthy()
+  })
+
+  it('renders the cross-project and per-project roadmaps', async () => {
     mockApi(true)
     renderAt('/roadmap')
     expect(await screen.findByText('The plan')).toBeTruthy()
+    expect(screen.getByText('Ship routes')).toBeTruthy()
+    expect(screen.getByText(/No roadmap of their own/)).toBeTruthy()
   })
 
-  it('renders the feedback list', async () => {
+  it('renders the feedback list with project badges', async () => {
     mockApi(true)
     renderAt('/feedback')
     expect(await screen.findByText('Tighten the intro.')).toBeTruthy()
+    expect(screen.getByText('Document the routes.')).toBeTruthy()
   })
 
   it('renders a thread with Claude’s reply', async () => {

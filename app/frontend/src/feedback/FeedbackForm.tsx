@@ -1,18 +1,20 @@
 import { Blockquote, Button, Group, Modal, SegmentedControl, Select, Stack, Text, Textarea } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { useMemo, useState } from 'react'
-import { useCreateFeedback, useTree } from '../api/queries'
-import type { Anchor, FeedbackItem, FeedbackKind } from '../api/types'
+import { useCreateFeedback, useSources, useTree } from '../api/queries'
+import { SELF, type Anchor, type FeedbackItem, type FeedbackKind, type SourceId } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
 import { flattenFiles } from '../lib/format'
 import { KIND_HELP, KIND_LABEL } from './labels'
 
 export type FeedbackDraft = {
   kind?: FeedbackKind
+  /** The project the item targets; archeion when unset. */
+  source?: SourceId | null
   docPath?: string | null
   anchor?: Anchor | null
   parentId?: number | null
-  /** Let the user pick the doc (for a new prompt from the feedback page). */
+  /** Let the user pick the project and doc (for a new prompt from a list page). */
   pickDoc?: boolean
 }
 
@@ -38,30 +40,34 @@ export function FeedbackForm({ draft, onClose, onCreated }: Props) {
 
 function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft }) {
   const create = useCreateFeedback()
-  const tree = useTree()
+  const sources = useSources()
   const [kind, setKind] = useState<FeedbackKind>(
     draft.kind ?? (draft.anchor ? 'comment' : draft.docPath ? 'review' : 'prompt'),
   )
+  const [source, setSource] = useState<SourceId>(draft.source ?? SELF)
   const [docPath, setDocPath] = useState<string | null>(draft.docPath ?? null)
   const [body, setBody] = useState('')
+  const tree = useTree(source, Boolean(draft.pickDoc))
 
   const docs = useMemo(
     () => (tree.data ? flattenFiles(tree.data).filter((p) => p.endsWith('.md')) : []),
     [tree.data],
   )
   // The anchor only applies while the doc it came from is still selected.
-  const anchor = docPath === (draft.docPath ?? null) ? (draft.anchor ?? null) : null
+  const sameDoc = source === (draft.source ?? SELF) && docPath === (draft.docPath ?? null)
+  const anchor = sameDoc ? (draft.anchor ?? null) : null
 
   const submit = () => {
     if (!body.trim()) return
     create.mutate(
-      { kind, body: body.trim(), doc_path: docPath, anchor, parent_id: draft.parentId ?? null },
+      { kind, body: body.trim(), source, doc_path: docPath, anchor, parent_id: draft.parentId ?? null },
       {
         onSuccess: (item) => {
+          const where = item.source === SELF ? 'Archeion' : item.source
           notifications.show({
             color: 'green',
             title: 'Sent to Claude',
-            message: `Feedback #${item.id} is in the inbox. Run /inbox in Claude Code to work on it.`,
+            message: `Feedback #${item.id} is in ${where}'s inbox. Run /inbox in a Claude Code session there.`,
           })
           onCreated?.(item)
           onClose()
@@ -83,19 +89,39 @@ function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft 
         </Text>
       </div>
       {draft.pickDoc ? (
-        <Select
-          label="Doc (optional)"
-          placeholder="Not about a specific doc"
-          data={docs}
-          value={docPath}
-          onChange={setDocPath}
-          searchable
-          clearable
-        />
+        <Group grow align="flex-start">
+          <Select
+            label="For"
+            description="The project whose Claude session picks this up"
+            data={(sources.data ?? [{ id: SELF, title: 'Archeion', kind: SELF }]).map((s) => ({
+              value: s.id,
+              label: s.id === SELF ? 'Archeion (cross-project)' : s.title,
+            }))}
+            value={source}
+            onChange={(v) => {
+              setSource(v ?? SELF)
+              setDocPath(null)
+            }}
+            allowDeselect={false}
+            searchable
+          />
+          <Select
+            label="Doc (optional)"
+            description=" "
+            placeholder="Not about a specific doc"
+            data={docs}
+            value={docPath}
+            onChange={setDocPath}
+            searchable
+            clearable
+          />
+        </Group>
       ) : (
-        docPath && (
+        (docPath || source !== SELF) && (
           <Text size="sm">
-            <b>{docPath}</b> · {describeAnchor(anchor)}
+            {source !== SELF && <b>{source}: </b>}
+            {docPath && <b>{docPath}</b>}
+            {docPath && ` · ${describeAnchor(anchor)}`}
           </Text>
         )
       )}

@@ -1,8 +1,9 @@
-import { Alert, Anchor, Card, Group, List, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
-import { Link } from 'react-router'
-import { useRoadmap } from '../api/queries'
-import type { RoadmapItem } from '../api/types'
-import { docUrl } from '../docs/links'
+import { Alert, Anchor, Card, Group, List, Loader, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import { useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router'
+import { useRegistry, useRoadmap } from '../api/queries'
+import { SELF, type RoadmapDoc, type RoadmapItem, type SourceId } from '../api/types'
+import { docUrl, projectUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 
 const COLUMNS = [
@@ -11,10 +12,11 @@ const COLUMNS = [
   { key: 'later', title: 'Later', color: 'gray' },
 ] as const
 
-function Column({ title, color, items, docPath }: { title: string; color: string; items: RoadmapItem[]; docPath: string }) {
+function Column(props: { title: string; color: string; items: RoadmapItem[]; source: SourceId; docPath: string }) {
+  const { title, color, items, source, docPath } = props
   return (
     <Card withBorder radius="md" padding="md" style={{ borderTop: `3px solid var(--mantine-color-${color}-6)` }}>
-      <Title order={4} mb="sm">
+      <Title order={5} mb="sm">
         {title}
       </Title>
       {items.length === 0 ? (
@@ -25,7 +27,7 @@ function Column({ title, color, items, docPath }: { title: string; color: string
         <Stack gap="sm">
           {items.map((item, i) => (
             <Card key={i} withBorder padding="xs" radius="sm">
-              <MarkdownView content={item.text} docPath={docPath} compact />
+              <MarkdownView content={item.text} docPath={docPath} source={source} compact />
             </Card>
           ))}
         </Stack>
@@ -34,48 +36,140 @@ function Column({ title, color, items, docPath }: { title: string; color: string
   )
 }
 
+function Board({ roadmap, source }: { roadmap: RoadmapDoc; source: SourceId }) {
+  if (!roadmap.structured) {
+    return (
+      <Text size="sm" c="dimmed">
+        <Anchor component={Link} to={docUrl(source, roadmap.path)} size="sm">
+          {roadmap.path}
+        </Anchor>{' '}
+        has no Now / Next / Later sections, so there's nothing to lay out. Open it to read it.
+      </Text>
+    )
+  }
+  return (
+    <SimpleGrid cols={{ base: 1, md: 3 }}>
+      {COLUMNS.map((c) => (
+        <Column key={c.key} title={c.title} color={c.color} items={roadmap[c.key]} source={source} docPath={roadmap.path} />
+      ))}
+    </SimpleGrid>
+  )
+}
+
+/** The cross-project roadmap, then each project's own (filterable by group or project). */
 export function RoadmapPage() {
   const roadmap = useRoadmap()
+  const registry = useRegistry()
+  const [params, setParams] = useSearchParams()
+  const filter = params.get('show') ?? 'all'
+  const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
+
   if (roadmap.isPending) return <Loader />
   if (roadmap.isError) return <Alert color="red">{roadmap.error.message}</Alert>
-  const data = roadmap.data
+  const { cross } = roadmap.data
+  const groupOf = (id: string) => registry.data?.groups.find((g) => g.projects.includes(id))?.id ?? null
+  const shown = roadmap.data.projects.filter((p) => {
+    if (filter === 'all') return true
+    if (filter === 'cross') return false
+    if (filter.startsWith('group:')) return groupOf(p.project) === filter.slice(6)
+    return p.project === filter
+  })
+  const withRoadmap = shown.filter((p) => p.roadmap)
+  const without = shown.filter((p) => !p.roadmap)
+
+  const options = [
+    { value: 'all', label: 'Everything' },
+    { value: 'cross', label: 'Cross-project only' },
+    ...(registry.data?.groups ?? []).map((g) => ({ value: `group:${g.id}`, label: `Group: ${g.title}` })),
+    ...roadmap.data.projects.map((p) => ({ value: p.project, label: p.title })),
+  ]
+
   return (
     <Stack>
       <Group justify="space-between" align="baseline">
         <Title order={2}>Roadmap</Title>
-        <Text size="sm" c="dimmed">
-          {data.updated && `Last updated ${data.updated} · `}
-          <Anchor component={Link} to={docUrl(data.path)} size="sm">
-            Open {data.path}
-          </Anchor>
-        </Text>
+        <Select
+          w={260}
+          data={options}
+          value={filter}
+          onChange={(v) => setParams(v && v !== 'all' ? { show: v } : {}, { replace: true })}
+          allowDeselect={false}
+          searchable
+        />
       </Group>
-      <SimpleGrid cols={{ base: 1, md: 3 }}>
-        {COLUMNS.map((c) => (
-          <Column key={c.key} title={c.title} color={c.color} items={data[c.key]} docPath={data.path} />
-        ))}
-      </SimpleGrid>
-      <Title order={3} mt="md">
-        Plans
-      </Title>
-      {data.plans.length === 0 ? (
-        <Text c="dimmed">No dated plans in docs/roadmap/ yet.</Text>
-      ) : (
-        <List>
-          {data.plans.map((p) => (
-            <List.Item key={p.path}>
-              <Anchor component={Link} to={docUrl(p.path)}>
+
+      {(filter === 'all' || filter === 'cross') && (
+        <Stack gap="xs">
+          <Group justify="space-between" align="baseline">
+            <Title order={3}>Cross-project</Title>
+            {cross && (
+              <Text size="sm" c="dimmed">
+                {cross.updated && `Last updated ${cross.updated} · `}
+                <Anchor component={Link} to={docUrl(SELF, cross.path)} size="sm">
+                  Open {cross.path}
+                </Anchor>
+              </Text>
+            )}
+          </Group>
+          {cross ? <Board roadmap={cross} source={SELF} /> : <Text c="dimmed">No docs/roadmap/roadmap.md yet.</Text>}
+          {cross && cross.plans.length > 0 && (
+            <>
+              <Title order={5} mt="sm">
+                Plans
+              </Title>
+              <List size="sm">
+                {cross.plans.map((p) => (
+                  <List.Item key={p.path}>
+                    <Anchor component={Link} to={docUrl(SELF, p.path)} size="sm">
+                      {p.title}
+                    </Anchor>
+                    {p.date && (
+                      <Text span c="dimmed" size="sm">
+                        {' '}
+                        · {p.date}
+                      </Text>
+                    )}
+                  </List.Item>
+                ))}
+              </List>
+            </>
+          )}
+        </Stack>
+      )}
+
+      {withRoadmap.map((p) => (
+        <Stack key={p.project} gap="xs">
+          <Group justify="space-between" align="baseline">
+            <Title order={3}>
+              <Anchor component={Link} to={projectUrl(p.project)} inherit>
                 {p.title}
               </Anchor>
-              {p.date && (
-                <Text span c="dimmed" size="sm">
-                  {' '}
-                  · {p.date}
-                </Text>
-              )}
-            </List.Item>
+            </Title>
+            <Text size="sm" c="dimmed">
+              {p.roadmap?.updated && `Last updated ${p.roadmap.updated} · `}
+              {projects.get(p.project)?.parent && `part of ${projects.get(p.project)?.parent} · `}
+              <Anchor component={Link} to={docUrl(p.project, p.roadmap!.path)} size="sm">
+                Open {p.roadmap!.path}
+              </Anchor>
+            </Text>
+          </Group>
+          <Board roadmap={p.roadmap!} source={p.project} />
+        </Stack>
+      ))}
+
+      {without.length > 0 && filter !== 'cross' && (
+        <Text size="sm" c="dimmed">
+          No roadmap of their own (docs/roadmap/roadmap.md, docs/roadmap.md or ROADMAP.md):{' '}
+          {without.map((p, i) => (
+            <span key={p.project}>
+              {i > 0 && ', '}
+              <Anchor component={Link} to={projectUrl(p.project)} size="sm">
+                {p.title}
+              </Anchor>
+            </span>
           ))}
-        </List>
+          .
+        </Text>
       )}
     </Stack>
   )

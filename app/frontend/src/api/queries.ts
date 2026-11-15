@@ -11,8 +11,11 @@ import type {
   FeedbackStatus,
   FeedbackSummary,
   NewFeedback,
-  Roadmap,
+  Registry,
+  Roadmaps,
   SearchHit,
+  Source,
+  SourceId,
   TreeNode,
 } from './types'
 
@@ -61,56 +64,72 @@ export function useVersion() {
   })
 }
 
+// --- registry and sources ----------------------------------------------------------------
+
+export const useRegistry = () => useQuery({ queryKey: ['registry'], queryFn: () => api<Registry>('/registry') })
+export const useSources = () => useQuery({ queryKey: ['sources'], queryFn: () => api<Source[]>('/sources') })
+
 // --- docs ------------------------------------------------------------------------------
+// Every doc query is keyed by [kind, source, path, ...] so live updates can target them.
 
-export const useTree = () => useQuery({ queryKey: ['tree'], queryFn: () => api<TreeNode>('/docs/tree') })
-
-export const useDoc = (path: string) =>
+export const useTree = (source: SourceId, enabled = true) =>
   useQuery({
-    queryKey: ['doc', path],
-    queryFn: () => api<DocFile>(`/docs/file${qs({ path })}`),
-    enabled: path.endsWith('.md'),
-    retry: false,
-  })
-
-export const useHistory = (path: string, enabled = true) =>
-  useQuery({
-    queryKey: ['history', path],
-    queryFn: () => api<Commit[]>(`/docs/history${qs({ path })}`),
+    queryKey: ['tree', source],
+    queryFn: () => api<TreeNode>(`/docs/tree${qs({ source })}`),
     enabled,
   })
 
-export const useDiff = (path: string, rev: string | null) =>
+export const useDoc = (source: SourceId, path: string, enabled = true) =>
   useQuery({
-    queryKey: ['diff', path, rev],
-    queryFn: () => api<DiffResult>(`/docs/diff${qs({ path, rev })}`),
+    queryKey: ['doc', source, path],
+    queryFn: () => api<DocFile>(`/docs/file${qs({ source, path })}`),
+    enabled: enabled && path.endsWith('.md'),
+    retry: false,
+  })
+
+export const useHistory = (source: SourceId, path: string, enabled = true) =>
+  useQuery({
+    queryKey: ['history', source, path],
+    queryFn: () => api<Commit[]>(`/docs/history${qs({ source, path })}`),
+    enabled,
+  })
+
+export const useDiff = (source: SourceId, path: string, rev: string | null) =>
+  useQuery({
+    queryKey: ['diff', source, path, rev],
+    queryFn: () => api<DiffResult>(`/docs/diff${qs({ source, path, rev })}`),
     enabled: rev !== null,
   })
 
-export const useDocAt = (path: string, rev: string | null) =>
+export const useDocAt = (source: SourceId, path: string, rev: string | null) =>
   useQuery({
-    queryKey: ['at', path, rev],
-    queryFn: () => api<DocAt>(`/docs/at${qs({ path, rev })}`),
+    queryKey: ['at', source, path, rev],
+    queryFn: () => api<DocAt>(`/docs/at${qs({ source, path, rev })}`),
     enabled: rev !== null,
     staleTime: Infinity,
   })
 
-export const useRoadmap = () => useQuery({ queryKey: ['roadmap'], queryFn: () => api<Roadmap>('/roadmap') })
+export const useRoadmap = () => useQuery({ queryKey: ['roadmap'], queryFn: () => api<Roadmaps>('/roadmap') })
 
-export const useDiagrams = () =>
-  useQuery({ queryKey: ['diagrams'], queryFn: () => api<Diagram[]>('/diagrams') })
+export const useDiagrams = (source?: SourceId) =>
+  useQuery({ queryKey: ['diagrams', source ?? 'all'], queryFn: () => api<Diagram[]>(`/diagrams${qs({ source })}`) })
 
-export const useSearch = (q: string) =>
+export const useSearch = (q: string, source?: SourceId) =>
   useQuery({
-    queryKey: ['search', q],
-    queryFn: () => api<SearchHit[]>(`/search${qs({ q })}`),
+    queryKey: ['search', q, source ?? 'all'],
+    queryFn: () => api<SearchHit[]>(`/search${qs({ q, source })}`),
     enabled: q.trim().length >= 2,
     placeholderData: keepPreviousData,
   })
 
 // --- feedback --------------------------------------------------------------------------
 
-export type FeedbackFilters = { status?: FeedbackStatus; kind?: FeedbackKind; doc_path?: string }
+export type FeedbackFilters = {
+  status?: FeedbackStatus
+  kind?: FeedbackKind
+  source?: SourceId
+  doc_path?: string
+}
 
 export const useFeedbackList = (filters: FeedbackFilters, enabled = true) =>
   useQuery({

@@ -18,6 +18,7 @@ import {
 import { useDisclosure, useHotkeys } from '@mantine/hooks'
 import {
   IconBooks,
+  IconBox,
   IconChartDots3,
   IconLogout,
   IconMessages,
@@ -26,14 +27,18 @@ import {
   IconSearch,
   IconSun,
 } from '@tabler/icons-react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { useLogout, useTree, useVersion } from '../api/queries'
+import { useLogout, useRegistry, useTree, useVersion } from '../api/queries'
+import { SELF } from '../api/types'
+import { DEFAULT_LINKS, LinkContextValue, type LinkContext } from '../docs/links'
 import { useEvents } from '../events/useEvents'
 import { DocTree } from './DocTree'
 import { FeedbackBadge } from './FeedbackBadge'
+import { ProjectTree } from './ProjectTree'
 
 const NAV = [
+  { to: '/projects', label: 'Projects', icon: IconBox },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad },
   { to: '/diagrams', label: 'Diagrams', icon: IconChartDots3 },
   { to: '/feedback', label: 'Feedback', icon: IconMessages },
@@ -44,7 +49,14 @@ export function Shell() {
   const location = useLocation()
   const navigate = useNavigate()
   const logout = useLogout()
-  const tree = useTree()
+  const tree = useTree(SELF)
+  const registry = useRegistry()
+  // Where every source lives, so links between docs of different projects resolve (links.ts).
+  const links = useMemo<LinkContext>(() => {
+    const bases = { ...DEFAULT_LINKS.bases }
+    for (const p of registry.data?.projects ?? []) if (p.path && p.available) bases[p.id] = p.path
+    return { bases }
+  }, [registry.data])
   const version = useVersion()
   const { setColorScheme } = useMantineColorScheme()
   const scheme = useComputedColorScheme('light')
@@ -126,19 +138,27 @@ export function Shell() {
             to={item.to}
             label={item.label}
             leftSection={<item.icon size={18} />}
-            active={location.pathname.startsWith(item.to)}
+            active={location.pathname.startsWith(item.to) || (item.to === '/projects' && location.pathname.startsWith('/groups'))}
             onClick={close}
           />
         ))}
-        <Divider my="xs" label="docs/" labelPosition="left" />
         <AppShell.Section grow component={ScrollArea}>
+          {registry.data && registry.data.projects.length > 0 && (
+            <>
+              <Divider my="xs" label="projects" labelPosition="left" />
+              <ProjectTree registry={registry.data} onNavigate={close} />
+            </>
+          )}
+          <Divider my="xs" label="archeion docs/" labelPosition="left" />
           {tree.isPending && <Loader size="sm" m="sm" />}
           {tree.data && <DocTree tree={tree.data} onNavigate={close} />}
         </AppShell.Section>
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <Outlet />
+        <LinkContextValue.Provider value={links}>
+          <Outlet />
+        </LinkContextValue.Provider>
       </AppShell.Main>
     </AppShell>
   )

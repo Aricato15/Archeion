@@ -31,5 +31,6 @@ export const STATUS_COLOR: Record<FeedbackStatus, string> = {
 export function docLink(item: FeedbackItem): string | null {
   if (!item.doc_path) return null
   const line = item.anchor?.lines?.[0]
-  return line ? `${docUrl(item.doc_path)}?line=${line}` : docUrl(item.doc_path)
+  const url = docUrl(item.source, item.doc_path)
+  return line ? `${url}?line=${line}` : url
 }
