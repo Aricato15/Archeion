@@ -1,7 +1,8 @@
-"""Health, login and session routes. Health and login are the only public endpoints."""
+"""Health, first-run setup, login and session routes: the only public endpoints."""
 
 from __future__ import annotations
 
+import ipaddress
 import sqlite3
 import time
 
@@ -9,17 +10,59 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_conn, get_state, require_session
-from ..security import COOKIE_NAME, Session, create_session, delete_session, get_pw_hash, verify_pw
+from ..security import (
+    COOKIE_NAME,
+    MIN_PW_LEN,
+    Session,
+    create_session,
+    delete_session,
+    get_pw_hash,
+    pw_is_set,
+    set_first_pw,
+    verify_pw,
+)
 
 public = APIRouter(prefix="/api")
 protected = APIRouter()
 
 # The only routes reachable without a session. tests/test_auth_required.py enforces this.
-PUBLIC_ROUTES = {("GET", "/api/health"), ("POST", "/api/auth/login")}
+PUBLIC_ROUTES = {
+    ("GET", "/api/health"),
+    ("POST", "/api/auth/login"),
+    ("GET", "/api/auth/setup"),
+    ("POST", "/api/auth/setup"),
+}
 
 
 class LoginBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
+
+
+class SetupBody(BaseModel):
+    password: str = Field(min_length=1, max_length=1024)
+
+
+def _local_only(host: str) -> bool:
+    """Whether the backend listens on this machine only. First-run setup is offered only
+    then: on another interface, anyone who reached it first could claim the account."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _start_session(state: AppState, conn: sqlite3.Connection, response: Response) -> None:
+    raw, _ = create_session(conn, state.settings.session_idle_hours, state.settings.session_max_days)
+    response.set_cookie(
+        COOKIE_NAME,
+        raw,
+        max_age=int(state.settings.session_max_days * 86400),
+        path="/",
+        httponly=True,
+        samesite="strict",
+    )
 
 
 @public.get("/health")
@@ -53,15 +96,37 @@ def login(
         time.sleep(state.settings.login_fail_delay_seconds)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "wrong password")
     state.limiter.reset(key)
-    raw, session = create_session(conn, state.settings.session_idle_hours, state.settings.session_max_days)
-    response.set_cookie(
-        COOKIE_NAME,
-        raw,
-        max_age=int(state.settings.session_max_days * 86400),
-        path="/",
-        httponly=True,
-        samesite="strict",
-    )
+    _start_session(state, conn, response)
+
+
+@public.get("/auth/setup")
+def setup_status(state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)) -> dict:
+    """Whether the admin password still has to be created (a fresh start, ADR 0011)."""
+    needed = not pw_is_set(conn)
+    return {
+        "needed": needed,
+        "allowed": needed and _local_only(state.settings.host),
+        "min_length": MIN_PW_LEN,
+    }
+
+
+@public.post("/auth/setup", status_code=status.HTTP_204_NO_CONTENT)
+def setup(
+    body: SetupBody,
+    response: Response,
+    state: AppState = Depends(get_state),
+    conn: sqlite3.Connection = Depends(get_conn),
+) -> None:
+    """Create the first admin password and log in. Refused once a password exists: changing
+    it stays with the CLI (password set), which logs out every session."""
+    if not _local_only(state.settings.host):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Archeion listens beyond this machine, so set the password with the CLI: password set",
+        )
+    if not set_first_pw(conn, body.password):
+        raise HTTPException(status.HTTP_409_CONFLICT, "an admin password is already set; log in instead")
+    _start_session(state, conn, response)
 
 
 @protected.post("/api/auth/logout", status_code=status.HTTP_204_NO_CONTENT)

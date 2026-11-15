@@ -11,11 +11,16 @@ All notable changes to Archeion are recorded here. The format follows
 - **A Settings page in the viewer** ([ADR 0010](docs/decisions/0010-manage-roots-and-registration-in-the-viewer.md)): add and remove named roots, applied without a restart and saved to `ARCHEION_ROOTS` in `.env` (the previous file is kept as `.env.bak`). Before a root that registered projects use is removed, the page says which projects.
 - The same page lists the projects in each root, shows which are registered, and registers the others with a stub page in `registry/projects/`. It never overwrites a page and never touches the project.
 - API: `GET`/`PUT /api/settings/roots`, `GET /api/registry/roots`, `POST /api/registry/projects`.
+- **First-run setup in the viewer** ([ADR 0011](docs/decisions/0011-create-the-admin-password-in-the-viewer.md)): on a fresh start the login page asks you to create the admin password, then logs you in. It works only while no password exists, and only when the backend listens on this machine. `GET`/`POST /api/auth/setup`.
 
 ### Changed
+- `start.bat` starts without an admin password, and says to create it in the viewer.
 - Stub pages, from the viewer or `projects scan --write`, no longer set `verified`: nobody has checked them yet.
 - `configure.bat` writes roots with forward slashes, so a folder in quotes (one with a space) can't be read back with `
 ` or `	` turned into escapes.
+
+### Removed
+- `set_admin_password.bat`. The first password is created in the viewer; to change or reset it, run `scripts/archeion.ps1 password set`.
 
 ### Fixed
 - Registry pages saved with a UTF-8 byte-order mark (as PowerShell 5.1 and older Notepad save them) lost their frontmatter without a warning, so the project's path and root were ignored. The mark is now skipped.

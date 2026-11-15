@@ -47,5 +47,5 @@ if ($hooks -ne '.githooks') {
 }
 
 Write-Host ""
-Write-Host "Setup done. Next: set_admin_password.bat (once), then start.bat."
+Write-Host "Setup done. Next: start.bat, then create the admin password in the viewer."
 exit 0

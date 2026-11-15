@@ -48,6 +48,25 @@ export function useLogin() {
   })
 }
 
+/** Whether the admin password still has to be created: a fresh start (ADR 0011). */
+export const useSetupStatus = () =>
+  useQuery({
+    queryKey: ['setup'],
+    queryFn: () => api<{ needed: boolean; allowed: boolean; min_length: number }>('/auth/setup'),
+    retry: false,
+  })
+
+export function useSetup() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (secret: string) => api<void>('/auth/setup', { method: 'POST', json: { password: secret } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['setup'] })
+      qc.invalidateQueries({ queryKey: ['session'] })
+    },
+  })
+}
+
 export function useLogout() {
   const qc = useQueryClient()
   return useMutation({

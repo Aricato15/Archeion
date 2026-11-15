@@ -147,3 +147,57 @@ def test_cli_password_set(settings, db, monkeypatch):
     mismatch = iter([value, value + "x"])
     monkeypatch.setattr("getpass.getpass", lambda prompt="": next(mismatch))
     assert main(["password", "set"], settings) == 1
+
+
+# --- first-run setup in the viewer (ADR 0011) ---------------------------------------------
+
+
+def test_setup_creates_the_first_password_and_logs_in(client, db):
+    assert client.get("/api/auth/setup").json() == {"needed": True, "allowed": True, "min_length": 12}
+    assert client.get("/api/auth/session").status_code == 401
+    value = make_pw()
+    assert client.post("/api/auth/setup", json={"password": value}).status_code == 204
+    assert client.get("/api/auth/session").status_code == 200  # logged in by the setup
+    assert client.get("/api/auth/setup").json()["needed"] is False
+
+    # Once set, setup can't change it: that stays with the CLI.
+    r = client.post("/api/auth/setup", json={"password": make_pw()})
+    assert r.status_code == 409
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={"password": value}).status_code == 204
+
+
+def test_setup_refuses_a_short_password(client, db):
+    r = client.post("/api/auth/setup", json={"password": "short"})
+    assert r.status_code == 400 and "at least 12" in r.json()["detail"]
+    assert client.get("/api/auth/setup").json()["needed"] is True
+
+
+def test_setup_needs_the_app_origin(client, db):
+    r = client.post(
+        "/api/auth/setup", json={"password": make_pw()}, headers={"Origin": "http://evil.example"}
+    )
+    assert r.status_code == 403
+    assert client.get("/api/auth/setup").json()["needed"] is True
+
+
+def test_setup_only_when_listening_locally(settings, db):
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+    from tests.conftest import ORIGIN
+
+    wide = Settings(**{**settings.model_dump(), "host": "0.0.0.0", "_env_file": None})
+    client = TestClient(create_app(wide), headers={"Origin": ORIGIN})
+    assert client.get("/api/auth/setup").json() == {"needed": True, "allowed": False, "min_length": 12}
+    r = client.post("/api/auth/setup", json={"password": make_pw()})
+    assert r.status_code == 403 and "password set" in r.json()["detail"]
+
+
+def test_set_first_pw_only_once(db):
+    from app.security import set_first_pw
+
+    with db.conn() as conn:
+        assert set_first_pw(conn, make_pw()) is True
+        assert set_first_pw(conn, make_pw()) is False

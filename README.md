@@ -69,10 +69,11 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 
 1. `setup.bat` installs everything inside the project (`app/backend/venv`, `app/frontend/node_modules`) and creates your private `registry/` from `registry.example/`.
 2. Optional: `configure.bat` changes ports and other settings. It writes `.env`.
-3. `set_admin_password.bat` sets the admin password. Only a salted scrypt hash is stored.
-4. Register your projects: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages. See [Registering a project](#registering-a-project).
-5. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/` and log in.
-6. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
+3. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/`. The first time, it asks you to create the admin password, and logs you in with it ([ADR 0011](docs/decisions/0011-create-the-admin-password-in-the-viewer.md)). Only a salted scrypt hash is stored.
+4. Register your projects on the **Settings** page, or with `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages. See [Registering a project](#registering-a-project).
+5. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
+
+To change or reset the admin password, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 password set` from the repo root. It logs out every session.
 
 On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
 

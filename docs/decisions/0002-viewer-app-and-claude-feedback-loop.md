@@ -2,6 +2,7 @@
 
 - Status: Accepted (2026-11-15). Option A is built first. Option B is still proposed and needs its own go-ahead.
 - Date: 2026-11-15
+- Amended by: [ADR 0011](0011-create-the-admin-password-in-the-viewer.md) (the first password is created in the viewer; `set_admin_password.bat` is gone and `start.bat` always starts)
 - Implementation plan: [2026-11-15-viewer-app-plan](../roadmap/2026-11-15-viewer-app-plan.md)
 
 ## Context

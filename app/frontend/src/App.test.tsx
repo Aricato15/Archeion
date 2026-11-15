@@ -90,10 +90,11 @@ const files: Record<string, unknown> = {
   'gateway:docs/api.md': { content: '# Gateway API\n\nRoutes.\n', dirty: false },
 }
 
-function mockApi(loggedIn: boolean) {
+function mockApi(loggedIn: boolean, firstRun = false) {
   const routes: Record<string, unknown> = {
     '/api/auth/session': loggedIn ? { expires_at: '2026-11-22T00:00:00+00:00' } : null,
     '/api/version': { version: '0.2.0' },
+    '/api/auth/setup': { needed: firstRun, allowed: true, min_length: 12 },
     '/api/registry': registry,
     '/api/sources': [
       { id: 'archeion', title: 'Archeion', kind: 'archeion' },
@@ -223,6 +224,19 @@ describe('app', () => {
     renderAt('/docs/README.md')
     expect(await screen.findByLabelText('Admin password')).toBeTruthy()
     expect(screen.queryByText('Roadmap')).toBeNull()
+  })
+
+  it('asks for a new admin password on a fresh start', async () => {
+    mockApi(false, true)
+    renderAt('/docs/README.md')
+    const first = await screen.findByLabelText('New admin password')
+    expect(screen.queryByLabelText('Admin password')).toBeNull()
+    fireEvent.change(first, { target: { value: 'short' } })
+    expect(screen.getByText('Use at least 12 characters')).toBeTruthy()
+    fireEvent.change(first, { target: { value: 'long-enough-secret' } })
+    fireEvent.change(screen.getByLabelText('Repeat it'), { target: { value: 'long-enough-secret!' } })
+    expect(screen.getByText("The two entries don't match")).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Create password and log in' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('renders a doc with the shell, project tree, badges and cross-project links', async () => {

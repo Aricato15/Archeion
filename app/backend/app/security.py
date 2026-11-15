@@ -86,6 +86,20 @@ def set_pw(conn: sqlite3.Connection, pw: str) -> None:
         conn.execute("DELETE FROM sessions")
 
 
+def set_first_pw(conn: sqlite3.Connection, pw: str) -> bool:
+    """Store the first admin credential, only if none exists yet (ADR 0011). False when one
+    already does, so two first-run requests can't both set it."""
+    if len(pw) < MIN_PW_LEN:
+        raise ValueError(f"the password must be at least {MIN_PW_LEN} characters")
+    hashed = hash_pw(pw)
+    with write_tx(conn):
+        cur = conn.execute(
+            "INSERT INTO admin (id, pw_hash, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO NOTHING",
+            (hashed, iso(utcnow())),
+        )
+        return cur.rowcount == 1
+
+
 # --- sessions ---------------------------------------------------------------------------
 
 

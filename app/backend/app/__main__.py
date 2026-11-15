@@ -74,7 +74,7 @@ def cmd_password_status(settings: Settings, _: argparse.Namespace) -> int:
         if pw_is_set(conn):
             print("An admin password is set.")
             return 0
-    print("No admin password is set. Run set_admin_password.bat.")
+    print("No admin password is set. Create it in the viewer, or with: password set")
     return EXIT_NO_PASSWORD
 
 

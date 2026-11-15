@@ -13,10 +13,12 @@ if (-not (Test-Path -LiteralPath $BackendPython)) {
 if (-not (Test-Path -LiteralPath (Join-Path $FrontendDir 'node_modules'))) {
     $problems.Add("The frontend dependencies are missing (app\frontend\node_modules). Run setup.bat.")
 }
+# No password yet is fine: the viewer asks for one on a fresh start (ADR 0011).
+$firstRun = $false
 if ($problems.Count -eq 0) {
     Invoke-Backend password status | Out-Null
     if ($LASTEXITCODE -eq 3) {
-        $problems.Add("No admin password is set. Run set_admin_password.bat first.")
+        $firstRun = $true
     } elseif ($LASTEXITCODE -ne 0) {
         $problems.Add("The backend couldn't check the admin password (exit code $LASTEXITCODE).")
     }
@@ -48,5 +50,8 @@ $version = (Get-Content -LiteralPath (Join-Path $RepoRoot 'VERSION') -Raw).Trim(
 Write-Host "Archeion $version is starting in two windows."
 Write-Host "  Open:     http://127.0.0.1:$frontendPort/"
 Write-Host "  API:      http://127.0.0.1:$backendPort/api/health"
+if ($firstRun) {
+    Write-Host "  First start: open the viewer and create the admin password there." -ForegroundColor Cyan
+}
 Write-Host "Stop both with stop.bat."
 exit 0
