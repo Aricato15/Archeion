@@ -1,6 +1,6 @@
 ---
 name: inbox
-description: Work through the feedback (prompts, reviews, comments) left in the Archeion viewer. Claims each open item, does what it asks in this repo's docs, and posts a reply that shows up in the browser. Use when the user says "/inbox", "check the inbox", "check feedback", or a session starts with open feedback items.
+description: Work through the feedback (prompts, reviews, comments) left in the Archeion viewer for Archeion itself (its docs, the registry, cross-project questions). Claims each open item, does what it asks in this repo, and posts a reply that shows up in the browser. Use when the user says "/inbox", "check the inbox", "check feedback", or a session starts with open feedback items.
 allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*)
 ---
 
@@ -16,18 +16,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox <
 
 | Command | What it does |
 |---|---|
-| `list` (`--status all\|open\|in_progress\|answered\|resolved`, `--json`) | items, oldest first (default: open) |
+| `list --project archeion` (`--status all\|open\|in_progress\|answered\|resolved`, `--json`) | this repo's items, oldest first (default: open). It also says which projects have items waiting. |
 | `show <id>` (`--json`) | the request, its thread, the quoted text and the doc excerpt it points at |
 | `claim <id>` | open → in_progress. Do this before working, so the browser shows it's being handled. |
 | `reply <id> --file <path>` | in_progress → answered. The file is UTF-8 Markdown and is shown in the browser. |
 | `release <id>` | in_progress → open, when you can't or shouldn't finish it |
-| `count` | the number of open items |
+| `count --project archeion` | the number of open items for this repo |
 
 If the command says the backend environment is missing, tell the user to run `setup.bat` and stop.
 
 ## Steps
 
-1. Run `inbox list`. If nothing is open, say so and stop.
+1. Run `inbox list --project archeion`. If nothing is open, say so and stop. Items for other projects belong to
+   their own sessions (each project's `/inbox`, see `integrations/workspace-core/`): mention how many are waiting,
+   but don't work on them from here, since this repo never edits sibling projects.
 2. Go through the items **oldest first**, one at a time:
    1. `inbox claim <id>`. If it fails because the item is no longer open, skip it.
    2. `inbox show <id>`. Read the request, the thread (earlier replies give context for a follow-up) and the
