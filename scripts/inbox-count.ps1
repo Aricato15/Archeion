@@ -11,6 +11,6 @@ try {
 $n = 0
 if ([int]::TryParse(("$out").Trim(), [ref]$n) -and $n -gt 0) {
     $noun = if ($n -eq 1) { 'item' } else { 'items' }
-    Write-Output "Archeion: $n open feedback $noun from the viewer. Run /inbox to work through them."
+    Write-Output "Archeion: $n open feedback $noun (from the viewer or a project session). Run /inbox to work through them."
 }
 exit 0
