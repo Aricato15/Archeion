@@ -13,6 +13,15 @@ def test_frontmatter():
     assert meta == {"name": "x", "ports": [1, 2]} and body == "# X\n" and err is None
     assert split_frontmatter("# No frontmatter\n") == ({}, "# No frontmatter\n", None)
     assert split_frontmatter("---\n: [bad\n---\nbody")[2].startswith("invalid frontmatter")
+    # Saved with a byte-order mark (PowerShell 5.1's Set-Content -Encoding utf8 does this).
+    assert split_frontmatter("﻿---\r\nname: x\r\n---\r\n# X\r\n")[0] == {"name": "x"}
+
+
+def test_page_saved_with_a_bom_keeps_its_path(settings):
+    page = settings.registry_root / "projects" / "beta.md"
+    page.write_bytes(b"\xef\xbb\xbf" + page.read_bytes())
+    beta = _load(settings).projects["beta"]
+    assert beta.path == "../beta" and beta.available
 
 
 def test_registry_structure(settings):

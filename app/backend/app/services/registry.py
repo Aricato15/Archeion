@@ -43,7 +43,10 @@ RESERVED_IDS = {SELF_ID, REGISTRY_ID}
 
 
 def split_frontmatter(text: str) -> tuple[dict, str, str | None]:
-    """(frontmatter, body, error). The body keeps its text; the frontmatter is parsed YAML."""
+    """(frontmatter, body, error). The body keeps its text; the frontmatter is parsed YAML.
+    A leading byte-order mark is ignored: Windows tools (PowerShell 5.1, older Notepad)
+    write one, and the page would otherwise lose its frontmatter without a warning."""
+    text = text.removeprefix("﻿")
     m = FRONTMATTER_RE.match(text)
     if not m:
         return {}, text, None
