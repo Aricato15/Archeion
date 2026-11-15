@@ -10,6 +10,7 @@ _Last updated: 2026-11-15_
 - Done on 2026-11-15: the viewer app, phases 0–4 ([the plan](2026-11-15-viewer-app-plan.md)), and in 0.2.0 the multi-project registry with read-only project sources, per-project feedback and the private registry folder ([ADR 0006](../decisions/0006-multi-project-registry.md), [ADR 0007](../decisions/0007-keep-project-information-out-of-the-repo.md)).
 
 ## Next
+- Interactive project maps: draw the registry maps with React Flow and elkjs, with click-through, hover highlighting and folding groups ([ADR 0015](../decisions/0015-interactive-registry-maps.md), proposed on 2026-11-15). Accept the ADR first, after the checks it lists.
 - Run the viewer checks in the [end-to-end notes](../notes/2026-11-15-named-roots-and-plugin-e2e.md) on `main`. The branch was merged on 2026-11-15 before they were run, so fix anything they find in PATCH releases.
 - A `study` skill, run in Archeion's terminal session: reads a registered project read-only, fills in its registry page's frontmatter with the evidence for each field, and sets `verified`. Later, a `brainstorm` skill for new, empty projects. The terminal stays the main way to work with Claude; the viewer shows the results.
 - Keep the registry pages' `verified` dates current, and add a group page whenever related projects form a new system.
