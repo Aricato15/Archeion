@@ -1,4 +1,4 @@
-"""Command line: python -m app <serve | password ... | inbox ...> (run from app/backend/).
+"""Command line: python -m app <serve | password | inbox | projects | study ...> (run from app/backend/).
 
 The inbox commands are how an interactive Claude Code session (/inbox) reads and answers
 feedback. They work on the backend's own database on this machine, so no API token exists.
@@ -17,8 +17,9 @@ from .config import Settings, read_version
 from .db import Database
 from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
-from .services import docs_fs
+from .services import docs_fs, git, study_scan
 from .services import feedback as fb
+from .services import studies as st
 from .services.registry import (
     REGISTRY_ID,
     SELF_ID,
@@ -609,6 +610,157 @@ def cmd_projects_ports(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# --- study (ADR 0019) -------------------------------------------------------------------
+
+
+def _study_project(manager: SourceManager, name: str) -> Project:
+    reg = manager.registry
+    if name not in reg.projects:
+        raise ValueError(f"'{name}' isn't a registered project (see: projects list)")
+    p = reg.projects[name]
+    if p.dir is None:
+        raise ValueError(
+            f"{name}'s folder isn't available on this machine (see: projects show --project {name})"
+        )
+    return p
+
+
+def _git_state(folder: Path) -> tuple[str | None, bool | None]:
+    try:
+        return git.head(folder), git.is_worktree_dirty(folder)
+    except git.GitError:
+        return None, None
+
+
+def cmd_study_scan(settings: Settings, args: argparse.Namespace) -> int:
+    """A read-only inventory of the project's code, to ground a study in."""
+    p = _study_project(_sources(settings), args.project)
+    commit, dirty = _git_state(p.dir)
+    inv = study_scan.scan(p.dir, p.id, commit, dirty)
+    data = inv.public()
+    if args.out:
+        Path(args.out).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    if args.json:
+        _print_json(data)
+    else:
+        print(study_scan.text_report(inv))
+        if args.out:
+            print(f"\nThe full inventory is in {args.out}.")
+    return 0
+
+
+def _study_counts(study: st.Study) -> str:
+    m = study.meta
+    return (
+        f"{m.project} at {m.commit[:10]} ({m.date.isoformat()}): {len(study.components)} components,"
+        f" {len(study.relations)} relations, {len(study.interfaces.exposes)} exposed,"
+        f" {len(study.interfaces.calls)} outgoing calls, {len(study.entities)} entities,"
+        f" {len(study.flows)} flows, {len(study.activities)} activities, {len(study.states)} state"
+        f" machines, {len(study.findings)} findings"
+    )
+
+
+def cmd_study_validate(settings: Settings, args: argparse.Namespace) -> int:
+    study = st.parse_text(_read_text_arg(args.file))
+    print(_study_counts(study))
+    print("Valid.")
+    return 0
+
+
+def cmd_study_save(settings: Settings, args: argparse.Namespace) -> int:
+    """Validate a study and store it as a new snapshot; the only way one is written."""
+    manager = _sources(settings)
+    p = _study_project(manager, args.project)
+    study = st.parse_text(_read_text_arg(args.file))
+    if study.meta.project != p.id:
+        raise ValueError(f"the study is for '{study.meta.project}', not '{p.id}'")
+    notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
+    snap, pruned = st.save(settings.registry_root, study, notes=notes, keep=settings.study_keep)
+    print(_study_counts(study))
+    print(f"Saved snapshot {snap.id}: registry/{st.STUDIES_DIR}/{p.id}/{snap.id}/")
+    if pruned:
+        print(f"Pruned {len(pruned)} older snapshot(s) (keeping {settings.study_keep}): {', '.join(pruned)}")
+    return 0
+
+
+def _commits_since(p: Project, commit: str | None) -> int | None:
+    if not commit or p.dir is None:
+        return None
+    try:
+        return git.commits_since(p.dir, commit)
+    except git.GitError:
+        return None
+
+
+def cmd_study_list(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    reg = manager.registry
+    if args.project and args.project not in reg.projects:
+        raise ValueError(f"'{args.project}' isn't a registered project (see: projects list)")
+    if args.project:
+        rows = [st.summary(s) for s in st.snapshots(settings.registry_root, args.project)]
+    else:
+        rows = [st.summary(s) for s in st.latest_by_project(settings.registry_root).values()]
+    for row in rows:
+        p = reg.projects.get(row["project"])
+        row["commits_since"] = _commits_since(p, row["commit"]) if p else None
+    if args.json:
+        _print_json(rows)
+        return 0
+    if not rows:
+        print("No studies yet." + ("" if args.project else " Run /study <project> in Archeion's session."))
+        return 0
+    for row in rows:
+        since = row["commits_since"]
+        age = "" if since is None else (" (current)" if since == 0 else f" ({since} commits since)")
+        bad = "" if row["valid"] else "  INVALID: " + "; ".join(row["problems"])[:200]
+        print(f"{row['project']:<24} {row['id']}{age}{bad}")
+    return 0
+
+
+def cmd_study_show(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    if args.project not in manager.registry.projects:
+        raise ValueError(f"'{args.project}' isn't a registered project (see: projects list)")
+    snap = st.get_snapshot(settings.registry_root, args.project, args.snapshot)
+    model, problems = st.load(snap)
+    if args.json:
+        _print_json({"id": snap.id, "model": model, "notes": st.load_notes(snap), "problems": problems})
+        return 0
+    row = st.summary(snap)
+    since = _commits_since(manager.registry.projects[args.project], row["commit"])
+    head = f"{snap.project} {snap.id}: commit {(row['commit'] or '?')[:10]}"
+    print(head + ("" if since is None else f", {since} commits since"))
+    if row["summary"]:
+        print(f"  {row['summary']}")
+    print("  " + ", ".join(f"{k} {v}" for k, v in row["counts"].items()))
+    for prob in problems:
+        print(f"  problem: {prob}")
+    print(f"  files: registry/{st.STUDIES_DIR}/{snap.project}/{snap.id}/")
+    return 0
+
+
+def cmd_study_changes(settings: Settings, args: argparse.Namespace) -> int:
+    """What changed in the project since its latest snapshot: the files a refresh rereads."""
+    manager = _sources(settings)
+    p = _study_project(manager, args.project)
+    snap = st.get_snapshot(settings.registry_root, p.id, "latest")
+    commit = st.summary(snap)["commit"]
+    try:
+        files = git.changed_files(p.dir, commit) if commit else None
+    except git.GitError:
+        files = None
+    if files is None:
+        raise ValueError(f"can't compare with {snap.id}'s commit; study the whole project instead")
+    if args.json:
+        _print_json({"snapshot": snap.id, "commit": commit, "files": files})
+        return 0
+    print(f"{len(files)} file(s) changed since {snap.id} (commit {commit[:10]}):")
+    for f in files:
+        print(f"  {f}")
+    return 0
+
+
 def cmd_version(settings: Settings, _: argparse.Namespace) -> int:
     print(read_version(settings.repo_root))
     return 0
@@ -697,6 +849,36 @@ def build_parser() -> argparse.ArgumentParser:
     ports.add_argument("--json", action="store_true")
     ports.set_defaults(func=cmd_projects_ports)
 
+    study = sub.add_parser("study", help="code studies of registered projects (ADR 0019)").add_subparsers(
+        dest="action", required=True
+    )
+    ss = study.add_parser("scan", help="a read-only inventory of a project's code")
+    ss.add_argument("project")
+    ss.add_argument("--json", action="store_true")
+    ss.add_argument("--out", help="also write the full inventory (JSON) to this file")
+    ss.set_defaults(func=cmd_study_scan)
+    sv = study.add_parser("validate", help="check a study model (study.json) without saving it")
+    sv.add_argument("--file", required=True, help="the model, or - for stdin")
+    sv.set_defaults(func=cmd_study_validate)
+    sa = study.add_parser("save", help="validate a study and store it as a new snapshot")
+    sa.add_argument("project")
+    sa.add_argument("--file", required=True, help="the model (study.json), or - for stdin")
+    sa.add_argument("--notes", help="the narrative (Markdown) to keep with it")
+    sa.set_defaults(func=cmd_study_save)
+    sl = study.add_parser("list", help="a project's snapshots, or every project's latest")
+    sl.add_argument("project", nargs="?")
+    sl.add_argument("--json", action="store_true")
+    sl.set_defaults(func=cmd_study_list)
+    sh = study.add_parser("show", help="one snapshot: counts, problems and where it is")
+    sh.add_argument("project")
+    sh.add_argument("snapshot", nargs="?", default="latest")
+    sh.add_argument("--json", action="store_true")
+    sh.set_defaults(func=cmd_study_show)
+    sc = study.add_parser("changes", help="files changed since the latest snapshot (for --refresh)")
+    sc.add_argument("project")
+    sc.add_argument("--json", action="store_true")
+    sc.set_defaults(func=cmd_study_changes)
+
     sub.add_parser("version", help="Archeion's version").set_defaults(func=cmd_version)
     return parser
 
@@ -716,6 +898,9 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
         return args.func(settings or Settings(), args)
     except SourceNotFound as exc:
         print(f"No project named '{exc.args[0]}'.", file=sys.stderr)
+        return 1
+    except st.StudyNotFound as exc:
+        print(f"No study snapshot '{exc.args[0]}'. See: study list", file=sys.stderr)
         return 1
     except fb.FeedbackNotFound as exc:
         print(f"No feedback item #{exc.args[0]}.", file=sys.stderr)

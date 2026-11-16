@@ -56,6 +56,38 @@ def head(cwd: Path) -> str | None:
     return proc.stdout.strip() or None
 
 
+def is_worktree_dirty(cwd: Path) -> bool | None:
+    """Whether the folder has uncommitted changes (None when it isn't in a git repository)."""
+    proc = _git(cwd, "status", "--porcelain", "--untracked-files=no", "--", ".", check=False)
+    if proc.returncode != 0:
+        return None
+    return bool(proc.stdout.strip())
+
+
+def commits_since(cwd: Path, rev: str) -> int | None:
+    """How many commits HEAD is ahead of `rev`, counting only those touching this folder.
+    None when that can't be told (no repository, or `rev` isn't known here)."""
+    if not valid_rev(rev):
+        return None
+    proc = _git(cwd, "rev-list", "--count", f"{rev}..HEAD", "--", ".", check=False)
+    if proc.returncode != 0:
+        return None
+    try:
+        return int(proc.stdout.strip())
+    except ValueError:
+        return None
+
+
+def changed_files(cwd: Path, rev: str) -> list[str] | None:
+    """Files in this folder changed between `rev` and the working tree, relative to it."""
+    if not valid_rev(rev):
+        return None
+    proc = _git(cwd, "diff", "--name-only", "--relative", rev, "--", ".", check=False)
+    if proc.returncode != 0:
+        return None
+    return sorted(line for line in proc.stdout.splitlines() if line.strip())
+
+
 @dataclass(frozen=True)
 class Commit:
     rev: str

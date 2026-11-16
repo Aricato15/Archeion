@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     roots: str = ""
     # The private registry folder (gitignored; setup.bat creates it from registry.example/).
     registry_dir: str = "registry"
+    # Code study snapshots kept per project in registry/studies/ (ADR 0019).
+    study_keep: int = 10
 
     # Not meant for .env: tests point these at a temporary repo.
     repo_root: Path = REPO_ROOT

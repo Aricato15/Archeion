@@ -80,6 +80,21 @@ def doc_change_events(sources: SourceManager, changes: set[tuple[Change, str]]) 
     ]
 
 
+def study_change_events(sources: SourceManager, changes: set[tuple[Change, str]]) -> list[Event]:
+    """One studies.changed event naming the projects whose snapshots changed (ADR 0019).
+    study.json isn't a doc, so doc_change_events never reports it."""
+    root = (sources.registry_root / "studies").resolve()
+    projects: set[str] = set()
+    for _, raw in changes:
+        try:
+            rel = Path(raw).resolve().relative_to(root)
+        except ValueError:
+            continue
+        if rel.parts and not rel.parts[0].startswith("."):
+            projects.add(rel.parts[0])
+    return [Event("studies.changed", {"projects": sorted(projects)})] if projects else []
+
+
 async def watch_sources(sources: SourceManager, bus: EventBus, stop: asyncio.Event) -> None:
     """Watch every source's docs; restart when the registry (and so the source list) changes.
 
@@ -112,7 +127,7 @@ async def watch_sources(sources: SourceManager, bus: EventBus, stop: asyncio.Eve
             registry_touched = any(
                 any(sources.is_registry_page(e.data["source"], p) for p in e.data["paths"]) for e in events
             )
-            for event in events:
+            for event in [*events, *study_change_events(sources, changes)]:
                 bus.publish(event)
             if registry_touched:
                 await asyncio.to_thread(sources.reload)

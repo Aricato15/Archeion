@@ -47,6 +47,13 @@
           "type": "relpath",
           "default": "registry",
           "description": "Your private project registry, relative to the repo root. It must stay gitignored. setup.bat creates it from registry.example/."
+        },
+        {
+          "name": "ARCHEION_STUDY_KEEP",
+          "type": "int",
+          "default": "10",
+          "min": 1,
+          "description": "How many code study snapshots to keep per project in registry/studies/ (ADR 0019). Saving a new study prunes the oldest beyond this."
         }
       ]
     },
