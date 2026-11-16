@@ -15,6 +15,8 @@ export type FeedbackDraft = {
   anchor?: Anchor | null
   /** Let the user pick the project and doc (for a new prompt from a list page). */
   pickDoc?: boolean
+  /** Text to start from, which the user can edit (e.g. "Study <project>"). */
+  body?: string
 }
 
 type Props = {
@@ -45,7 +47,7 @@ function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft 
   )
   const [source, setSource] = useState<SourceId>(draft.source ?? SELF)
   const [docPath, setDocPath] = useState<string | null>(draft.docPath ?? null)
-  const [body, setBody] = useState('')
+  const [body, setBody] = useState(draft.body ?? '')
   const tree = useTree(source, Boolean(draft.pickDoc))
 
   const docs = useMemo(

@@ -72,6 +72,9 @@ export function useEvents() {
         for (const key of ['registry', 'sources', 'tree', 'roadmap', 'diagrams']) qc.invalidateQueries({ queryKey: [key] })
       })
 
+      // A study snapshot was saved or pruned (ADR 0019).
+      source.addEventListener('studies.changed', () => qc.invalidateQueries({ queryKey: ['studies'] }))
+
       source.addEventListener('session.expired', () => {
         source?.close()
         qc.setQueryData(['session'], null)

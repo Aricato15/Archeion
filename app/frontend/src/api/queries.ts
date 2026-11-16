@@ -24,6 +24,7 @@ import type {
   SourceId,
   TreeNode,
 } from './types'
+import type { SnapshotFull, SnapshotRow, StudyDiff, SystemLinks } from './study'
 
 // --- session ---------------------------------------------------------------------------
 
@@ -258,3 +259,33 @@ export const useReopenFeedback = () =>
 
 export const useDeleteFeedback = () =>
   useFeedbackMutation((id: number) => api<void>(`/feedback/${id}`, { method: 'DELETE' }))
+
+// --- code studies (ADR 0019) -----------------------------------------------------------------
+
+// Keyed under 'studies', so studies.changed refreshes them all (useEvents).
+export const useStudyIndex = () => useQuery({ queryKey: ['studies'], queryFn: () => api<SnapshotRow[]>('/studies') })
+
+export const useSnapshots = (project: string, enabled = true) =>
+  useQuery({
+    queryKey: ['studies', project],
+    queryFn: () => api<SnapshotRow[]>(`/studies/${encodeURIComponent(project)}`),
+    enabled,
+  })
+
+export const useSnapshot = (project: string, snapshot: string | null) =>
+  useQuery({
+    queryKey: ['studies', project, 'snapshot', snapshot],
+    queryFn: () => api<SnapshotFull>(`/studies/${encodeURIComponent(project)}/${encodeURIComponent(snapshot ?? '')}`),
+    enabled: Boolean(snapshot),
+    placeholderData: keepPreviousData,
+  })
+
+export const useStudyDiff = (project: string, from: string | null, to: string | null) =>
+  useQuery({
+    queryKey: ['studies', project, 'diff', from, to],
+    queryFn: () => api<StudyDiff>(`/studies/${encodeURIComponent(project)}/diff${qs({ from, to })}`),
+    enabled: Boolean(from && to),
+  })
+
+export const useSystemLinks = () =>
+  useQuery({ queryKey: ['studies', 'system-links'], queryFn: () => api<SystemLinks>('/system/links') })
