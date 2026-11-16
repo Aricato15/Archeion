@@ -52,6 +52,11 @@ If the command says the backend environment is missing, tell the user to run `se
         an answer.
       - **review:** feedback on the doc as a whole.
       - **prompt:** a task. It may touch several docs, or none.
+      - **A request to study a project** ("study X", "map out how X works", "refresh X's study"): follow
+        the `study` skill (`.claude/skills/study/SKILL.md`, ADR 0019) for the item's project. Its plan
+        is your reply: send it and stop there, unless the request said `--yes` or this message approves
+        a plan you sent earlier in the thread. Then carry out the study and reply with its summary.
+        A study is read-only on the project, so `inbox_edits` doesn't restrict it.
       If the request is ambiguous, risky, or reaches outside the target project, don't guess. Reply with
       your question or concern instead. The user answers in the same thread.
    4. Write the reply to a temporary file in your scratchpad directory and send it with
