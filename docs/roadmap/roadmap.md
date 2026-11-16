@@ -3,6 +3,7 @@
 _Last updated: 2026-11-17_
 
 ## Now
+- Done on 2026-11-17, unreleased: designing and planning a registered project from Archeion ([ADR 0022](../decisions/0022-design-and-plan-a-project.md), [the plan](2026-11-17-design-and-plan-plan.md)). A **Design** tab and `/design <project>` work a project's brief, architecture, plan and decisions out with the rest of the system in view; you approve a revision; **Hand off** delivers it as a package that the project's session turns into its own docs with `/archeion:consume-design` (plugin 0.3.0). Next: try it on a real project, and fix what that finds.
 - Done on 2026-11-16, in 1.0.0: code studies ([ADR 0019](../decisions/0019-code-studies.md), [the plan](2026-11-16-code-studies-plan.md)). `/study <project>` saves dated snapshots of a project's code that the project page's **Study** tab draws as component maps and sequence, ER, activity and state diagrams. Studies started from the viewer are conversations, answered by on-demand Claude ([ADR 0020](../decisions/0020-study-conversations-and-on-demand-claude.md)). The maps are interactive (React Flow and ELK, [ADR 0015](../decisions/0015-interactive-registry-maps.md), accepted on 2026-11-16), and every diagram zooms and pans. Claude jobs can be watched in a window or run headless, up to 2 at a time ([ADR 0021](../decisions/0021-claude-jobs-windows-headless-and-limits.md)).
 - Next for studies: run a first real `/study` from the viewer and check a map with every registered project (ADR 0015's last check). Fix what they find in PATCH releases.
 - Use the viewer day to day and fix what gets in the way (PATCH releases).
@@ -13,7 +14,6 @@ _Last updated: 2026-11-17_
 
 ## Next
 - Run the viewer checks in the [end-to-end notes](../notes/2026-11-15-named-roots-and-plugin-e2e.md) on `main`. The branch was merged on 2026-11-15 before they were run, so fix anything they find in PATCH releases.
-- Design and plan a registered project from Archeion, then hand it back to the project to build: a **Design** tab, a `/design` skill and `/archeion:consume-design` ([ADR 0022](../decisions/0022-design-and-plan-a-project.md), proposed on 2026-11-17; [the plan](2026-11-17-design-and-plan-plan.md)). It replaces the planned `brainstorm` skill and `/archeion:bootstrap`. Needs the ADR accepted first.
 - Keep the registry pages' `verified` dates current, and add a group page whenever related projects form a new system.
 
 ## Later

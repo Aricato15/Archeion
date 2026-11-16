@@ -21,6 +21,7 @@ Start it at Archeion's root, not a subfolder: the session-start hook that announ
 |---|---|
 | `/inbox` | Works through the feedback left for Archeion and for every registered project. For a project's item it reads that project's `CLAUDE.md`, edits its files when its inbox edits are allowed, runs its tests, and leaves the changes uncommitted there |
 | `/study <project>` | Reads one registered project's code, read-only, and saves what it learns as a dated snapshot: components, libraries, calls, web calls, tables, flows, logic and states, each with the code it came from. Shows its plan first (skip with `--yes`). `--refresh` rereads only what changed since the last snapshot. The project page's **Study** tab draws it ([ADR 0019](../decisions/0019-code-studies.md)) |
+| `/design <project>` | Designs and plans a registered project with the rest of the system in view (its own `CLAUDE.md`, the neighbours and what their studies say they expose, ports in use, the workspace rules), and keeps the brief, architecture, plan, decisions and model as a living design. It checks its own setup first and fixes what it can after asking. You move the stages and approve; it never does. From the viewer, **Ask Claude to design** on the project page's **Design** tab starts the same thing as a conversation ([ADR 0022](../decisions/0022-design-and-plan-a-project.md)) |
 | On-demand Claude | Not a command: **Settings → On-demand Claude** has the backend start Claude whenever a new message waits ([ADR 0020](../decisions/0020-study-conversations-and-on-demand-claude.md)). By default it's a window running `cmd /c claude "/inbox"` you can watch, closed when its turn ends; with **Headless** (Settings → Claude jobs) it opens nothing and logs every step. **Max Claude instances** (1 or 2) counts it and the inbox terminal below ([ADR 0021](../decisions/0021-claude-jobs-windows-headless-and-limits.md)) |
 | `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking. The viewer can run this for you: **Settings → Inbox terminal** starts, stops and restarts it in its own window, and the header badge shows whether it's running |
 | `/workspace-core:commit` | Reviews the staged changes, proposes a Conventional Commits message, and asks before committing |
@@ -34,6 +35,7 @@ Or just ask in plain words: "register the new project in my workspace", "check t
 | `/archeion:inbox` | Works through the feedback left for this project. A follow-up you type in the chat goes into that item's thread, as if you'd replied in the viewer |
 | `/archeion:context` | Where this project sits: its group, what it depends on, what uses it, its ports |
 | `/archeion:ports` | The ports every project uses, before you pick a new one |
+| `/archeion:consume-design` | Turns a design package that Archeion delivered into `.archeion/designs/` into this project's docs: the design, its decisions as ADRs, the plan in the roadmap and additions to `CLAUDE.md`. It shows what it will write and asks first, never commits, and does nothing at all when there's no package ([ADR 0022](../decisions/0022-design-and-plan-a-project.md)) |
 | `/archeion:report` | Tells Archeion about a change the registry needs (a port, a dependency, a rename). A report on something already reported, or an answer to Archeion's reply, carries on that thread |
 
 A project session never edits Archeion's registry. It reports, and Archeion's session makes the change.
@@ -53,6 +55,12 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
 | `projects inbox-edits <name> on\|off\|auto` | Allow or forbid Archeion's `/inbox` editing a project's files (auto: allowed, or as its project for a module) |
 | `projects ports` | Every recorded port, with clashes marked |
+| `design preflight <name> [--for design\|handoff]` | What stands in the way of a design step, each problem with its fix |
+| `design context <name>` | The project, its neighbours, ports in use, groups and the workspace rules, in one read-only bundle |
+| `design init\|show\|list\|validate\|save\|stage\|discard` | Start a design, read it, check and save a work folder as its working copy, move its stage (`brief`, `architecture`, `plan`). `--slug` picks one of a project's designs |
+| `design approve <name> [--yes]` | Shows the revision it would freeze and the registry lines it would change; with `--yes`, does it |
+| `design handoff <name>` / `design package <name>` | Ask the inbox to deliver a revision / copy it into the project's `.archeion/designs/<slug>/` (needs inbox edits allowed) |
+| `design consumed <name> --revision <n>` | Record that the project consumed a revision (what `/archeion:consume-design` calls) |
 | `study scan <name>` | A read-only inventory of a project's code (Python and TS/JS): manifests, entry points, import graph, routes, outgoing HTTP calls, SQL tables, env var names, ports |
 | `study list [<name>]` | Study snapshots, and how many commits behind the project each is |
 | `study show <name> [<snapshot>]` | One snapshot's counts, problems and folder |

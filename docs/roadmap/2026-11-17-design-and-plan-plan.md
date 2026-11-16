@@ -1,6 +1,8 @@
 # Plan: design and plan a project
 
-_Written 2026-11-17. Implements [ADR 0022](../decisions/0022-design-and-plan-a-project.md), which is still **Proposed**: nothing here is built until it's accepted. Work happens on a branch `feat/design-and-plan`._
+_Status (2026-11-17): all four phases are built, with tests, on the branch `feat/design-and-plan`, unreleased. Still to do: the user's own checks in the viewer, including a first real design from the Design tab, and a first `/archeion:consume-design` in a project's session (the plugin needs the update flow from [the plugin README](../../plugins/archeion/README.md)). What was left out is under "Not built"._
+
+_Written 2026-11-17. Implements [ADR 0022](../decisions/0022-design-and-plan-a-project.md)._
 
 ```mermaid
 flowchart LR
@@ -9,48 +11,52 @@ flowchart LR
   P3 --> P4["Phase 4<br/>Cross-project checks,<br/>built vs designed"]
 ```
 
-Each phase ends with the tests and linters passing (`uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`), the root scripts still working, and the docs, the [CLI guide](../guides/claude-cli.md) and `CHANGELOG.md` updated. Work is committed in small Conventional Commits, and nothing that names a project reaches a commit.
+Each phase ended with the tests and linters passing (`uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`), the docs, the [CLI guide](../guides/claude-cli.md) and `CHANGELOG.md` updated, and nothing that names a project in a commit.
 
 ## On disk (`registry/designs/<project>/<slug>/`)
 
 | Path | Holds | Written by |
 |---|---|---|
-| `design.md` | frontmatter: `stage` (brief, architecture, plan, approved), `revision`, `updated`, `thread` | `design save` |
+| `design.md` | generated index: `stage` (brief, architecture, plan, approved, handed off), `revision`, `updated` | every write |
+| `info.json` | the state: stage, revision, thread, `changed_since_revision` | `design save`, `stage`, `approve`, `consumed` |
 | `brief.md`, `architecture.md`, `plan.md`, `questions.md` | the prose; Mermaid allowed | `design save` |
 | `decisions/NNNN-*.md` | decisions in ADR shape, for the project's own repository | `design save` |
-| `model.json` | the intended system in the study schema, plus ports, `depends_on`, group, kind | `design save` |
-| `draft/` | the same files, work in progress, one at a time | `design draft save` |
-| `revisions/<date>-r<N>/` | immutable copy made on approval, with the handoff thread's id | `design approve` |
+| `model.json` | the intended system in the study schema, plus `structure` (ports, `depends_on`, group, kind, status) | `design save` |
+| `revisions/<date>-r<N>/` | immutable copy made on approval; its `info.json` records the handoff (thread, requested, consumed) | `design approve`, `handoff`, `consumed` |
 
-In the project, a handoff leaves `.archeion/designs/<slug>/`: `brief.md`, `architecture.md`, `plan.md`, `decisions/`, `model.json` and `handoff.json` (only this project's design and direct interfaces), and after consuming only `receipt.md`.
+The working copy is the draft: it's what the Design tab shows until a revision is approved, and saving after an approval puts a design back at `plan` and marks it changed since its revision.
+
+In the project, a handoff leaves `.archeion/designs/<slug>/`: `brief.md`, `architecture.md`, `plan.md`, `questions.md`, `decisions/`, `model.json` and `handoff.json` (only this project's design and direct interfaces), and after consuming only `receipt.md`.
 
 ## Skills own the setup
-Every skill in this plan checks its own preconditions (ADR 0022 point 11) and fixes them after asking, or says what's missing and stops. The preflight is written once, as a `design preflight <project> [--for design|handoff]` command that returns a list of problems with the fix for each, and both the skill text and the viewer use it.
+Every skill checks its own preconditions (ADR 0022 point 11) and fixes them after asking, or says what's missing and stops. The check is written once, as `design preflight <project> [--for design|handoff]` (and `GET /api/designs/{project}/preflight`), which returns problems with a fix for each. The skill text and the Design tab both use it.
 
-## Phase 1: storage, CLI and skill
-1. **Model and storage** (`services/designs.py`): reuse the study schema (`services/studies.py`) for `model.json`, plus the design's structural block. Checks: references resolve, ports are in the workspace ranges and not taken by another page, `depends_on` names registered projects, slugs are safe path segments, prose has no absolute paths or secrets (the same check as study snippets).
-2. **Preflight** (`design preflight`): registered, folder reachable under a granted root, study present when there's code, `inbox_edits` (for handoff), stage allows the step.
-3. **Context** (`design context <project> [--json]`): the bundle in ADR 0022 point 5, read-only, built from `registry.py`, `sources.py`, `studies.py` and the project's `CLAUDE.md`. Anything missing is reported, not an error.
-4. **CLI** (`design`): `preflight`, `context`, `init <project> [--slug]`, `show [--json]`, `validate --dir <d>`, `save --dir <d>`, `draft save|show|discard`, `list`. The CLI guide gets a section.
-5. **Skill** `.claude/skills/design/SKILL.md`: resolve the project, run `design preflight` and fix or report, read `design context`, find the stage, ask only what's missing, write the files into a work folder, validate, `draft save`, and reply with what changed and what's open. `/inbox` sends design-task threads to it. It never moves the stage or approves on its own.
-6. `registry.example/designs/` gets a generic template.
+## Phase 1: storage, CLI and skill (done)
+1. `services/designs.py`: the model (the study schema without a commit, plus `structure`), the checks (references resolve, ports in the workspace ranges and not recorded for another project, `depends_on` registered, group exists, slugs safe, prose without absolute paths or secrets), the working copy, revisions, the package, preflight.
+2. CLI `design`: `preflight`, `context`, `init`, `list`, `show`, `validate`, `save`, `stage`, `approve`, `handoff`, `package`, `consumed`, `discard`.
+3. `.claude/skills/design/SKILL.md`, and `/inbox` routes design conversations and handoff deliveries to it.
+4. `registry.example/designs/` README.
 
-## Phase 2: the Design tab
-1. **Tab** on the project page: stage stepper, the prose rendered like any registry doc (so comment anchors and reviews work unchanged), model diagrams from `src/study/mermaid.ts` (moved to a shared place if both use it), questions, revision list.
-2. **Ask Claude to design**: starts the task thread, answered by on-demand Claude (ADR 0020). Draft shown as **Draft** with a diff against the last saved version.
-3. **Move stage and approve** (`PUT /api/designs/{project}/{slug}/stage`, `POST .../approve`): approving shows exactly which registry frontmatter lines will change, and writes them (`registry.py`: ports, `depends_on`, group, `status`; the same single-line writes as `set_type`). `design approve` is the CLI twin.
-4. Projects page: a badge with each project's design stage. SSE: `designs.changed`.
+## Phase 2: the Design tab (done)
+1. The project page's **Design** tab (`app/frontend/src/design/`): stage and draft badges, brief, architecture (the component map, a sequence diagram per flow, the data diagram and interfaces generated from the model, and what approval will record), plan, decisions, open questions, revisions, and a working copy / revision switch. Each document links to its registry doc page, where comments and reviews work as on any doc.
+2. **Ask Claude to design**: a thread for Archeion anchored to the task, with a slug for a second design.
+3. The user moves the stage (`PUT /api/designs/{project}/{slug}/stage`) and approves (`GET .../approval` shows the registry lines, `POST .../approve` freezes the revision and writes them).
+4. The Projects page's cards show a design's stage. SSE `designs.changed`.
 
-## Phase 3: handoff and the plugin
-1. **Handoff**: `design handoff <project>` and a button on an approved design. `design package <project> <slug> [--revision]` builds the package content (the project's own design and direct interfaces only). It creates the `handoff-design` thread, which `inbox show` prints with the revision's files and the target's `inbox_edits` state.
-2. **Archeion's `/inbox`** delivers it when allowed: a plain copy of the package into `.archeion/designs/<slug>/` of the project, no interpretation, and a reply listing the files. It never commits there.
-3. **Plugin skill `/archeion:consume-design [slug]`** (plugin minor version, new `$MinArcheion`, plugin changelog): looks for the package in `.archeion/designs/`; with none it says so and stops without changing anything, and it never fetches a design from Archeion. With one, it reads the project's `CLAUDE.md`, shows what it will write and asks, then writes the design, ADRs, `ROADMAP.md` and `CLAUDE.md` additions in the project's own conventions, runs its checks, never commits, clears the package and leaves `receipt.md`, replies on the handoff thread (the design becomes `handed off`) and offers to start phase 1. A later revision is consumed as a change against the receipt. The plugin's SessionStart line mentions a package waiting.
-4. **Deviations**: `/archeion:report --design` and `/archeion:inbox` can cite a revision; the report opens a thread on that design. The viewer lists open design threads on the Design tab.
+## Phase 3: handoff and the plugin (done)
+1. `design handoff` and the **Hand off** button create the `handoff-design` thread. `design package` is a plain copy into `.archeion/designs/<slug>/`, and refuses where `inbox_edits` is off.
+2. Plugin `/archeion:consume-design` (plugin 0.3.0): nothing without a package; otherwise reads it and the project's `CLAUDE.md`, shows what it will write and asks, writes the design, ADRs, roadmap and `CLAUDE.md` additions, runs the project's checks, never commits, leaves `receipt.md`, tells Archeion (`design consumed`, a report in the thread, resolves it). A later revision is a change against the receipt. The SessionStart hook mentions a waiting package.
+3. `/archeion:report` says what to include when a build departs from a handed-off design.
 
-## Phase 4: across projects
-1. **Impact list** on the Design tab: calls to endpoints no neighbour exposes, ports or contracts other projects use, `depends_on` that studies contradict. A button sends an item to the affected project's inbox.
-2. **Built vs designed**: after a `/study`, compare the study model with the approved `model.json` and show what's missing, extra or changed (the snapshot diff of ADR 0019, between two different sources).
-3. **System view**: planned projects with a design appear on the maps with their intended edges, drawn as planned (dashed), and turn solid once a study confirms them.
+## Phase 4: across projects (done)
+1. **Impact on others** (`GET .../impact`): calls to endpoints no neighbour exposes (or plans to), dropped endpoints others call, `depends_on` the model contradicts, ports taken since. Each item with something to tell can be sent to the neighbour's inbox.
+2. **Built vs designed** (`GET .../built`): the working copy against the latest study, by name, for components, endpoints, calls and tables.
+3. The registry maps draw a planned project's arrows dashed until a study confirms them.
+
+## Not built
+- A list of open design threads on the Design tab. A report about a design reaches Archeion's inbox like any other, and the design links to its own conversation.
+- A text diff of the working copy against its last saved version, or against a revision. The revision switch shows each side.
+- `design stage` and the stage control only handle the three working stages; `approved` and `handed off` are set by approving and by the project consuming.
 
 ## Out of scope
 - Archeion building the project. It designs, reviews and hands off, and the project's session builds.
