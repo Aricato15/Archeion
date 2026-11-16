@@ -8,7 +8,8 @@ Brings Archeion into every Claude Code session you run in a registered project (
 | `/archeion:context` | Shows this project's group, what it depends on, what depends on it, its ports and notes |
 | `/archeion:ports` | Lists the ports the registry records, and flags clashes, before you pick a new one |
 | `/archeion:report` | Sends a change (a port, a dependency, a wrong fact) to Archeion's own inbox. Project sessions never edit the registry. |
-| SessionStart hook | Says how many feedback items are waiting for this project. It stays silent when none are, outside registered projects and inside Archeion. |
+| `/archeion:consume-design` | Turns a design package that Archeion delivered into `.archeion/designs/` into this project's docs: the design, its decisions as ADRs, the plan in the roadmap and additions to `CLAUDE.md`. It does nothing when there's no package. |
+| SessionStart hook | Says how many feedback items are waiting for this project, and when a design package is waiting. It stays silent when neither is, outside registered projects and inside Archeion. |
 
 **Requires Archeion 0.4.0 or later.** The plugin stops with a clear message if Archeion is older.
 

@@ -4,6 +4,15 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-17
+
+### Added
+- `/archeion:consume-design`: turns a design package that Archeion delivered into `.archeion/designs/<slug>/` into the project's own docs (Archeion's ADR 0022). It reads the package and the project's `CLAUDE.md`, shows what it will write and asks, then writes the design doc, the decisions as ADRs with the next free numbers, the plan into `ROADMAP.md` and additions to `CLAUDE.md`. It runs the project's checks, never commits, leaves a `receipt.md`, and tells Archeion (`design consumed`, a report in the handoff thread, resolving it) when Archeion is there and recent enough. With no package it says so and does nothing at all. A later revision is consumed as a change against the receipt.
+- `/archeion:report` says what to include when a change goes against a design that was handed off: the design's slug and revision, what it said, what the project does now and why.
+- The SessionStart hook mentions a design package waiting in `.archeion/designs/`. It needs no Archeion to find it.
+
+No newer Archeion is required: only the reporting back to Archeion needs one with the `design` commands, and the skill skips it when it's missing.
+
 ## [0.2.0] - 2026-11-17
 
 ### Changed

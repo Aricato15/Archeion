@@ -43,4 +43,8 @@ Say both in your message to the user ("Sent to Archeion as item #12 in thread #9
    - If the follow-up is refused because Archeion hasn't answered the previous message yet, don't start a new thread. Tell the user: they can wait for the answer, or add to the waiting message by editing it in the viewer.
 5. Tell the user the item and thread numbers from that line. The answer appears in the viewer. When the user asks what Archeion said, run `inbox threads --from-here` (or `show <T> --json`, whose `latest_id` is the newest message), `inbox show` that newest message and sum it up. When they say it's settled, `inbox resolve <T>`.
 
+## When the build departs from a design
+
+If this project was handed a design (a `receipt.md` in `.archeion/designs/<slug>/` names its revision and the files it wrote), and the change in this session goes against it (a different endpoint, port, dependency or data shape than the design said, or a decision the design made that no longer holds), say so in the report: name the design (`<slug>`) and its revision, what the design said and what the project does now, and why. Archeion's session then updates the design or the registry. That's how the design stays true instead of silently going stale.
+
 If the command can't find Archeion, says it's too old, or says this folder isn't registered, tell the user. The messages say what to do. If it doesn't know `threads` or `--in`, Archeion is too old for conversations from a session: report as a new item, mention the earlier item number in the text, and tell the user to update Archeion. Reporting works from any folder; outside a registered project, the item just has no origin and `threads --from-here` doesn't apply.

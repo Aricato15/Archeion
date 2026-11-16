@@ -4,7 +4,16 @@
 $ErrorActionPreference = 'SilentlyContinue'
 $launcher = Join-Path $PSScriptRoot 'archeion.ps1'
 
-$where = & powershell -NoProfile -ExecutionPolicy Bypass -File $launcher --where 2>$null
+# A design package waiting to be consumed (Archeion ADR 0022): a handoff.json in .archeion/designs/<slug>/.
+# It needs no Archeion, so it's checked first, and it only ever matches a project that was handed a design.
+$packages = @(Get-ChildItem -LiteralPath (Join-Path (Get-Location).ProviderPath '.archeion\designs') -Directory |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'handoff.json') })
+if ($packages.Count -gt 0) {
+    $names = ($packages | ForEach-Object { $_.Name }) -join ', '
+    Write-Output "Archeion: a design package is waiting in .archeion/designs/ ($names). Run /archeion:consume-design to turn it into this project's docs."
+}
+
+$where =& powershell -NoProfile -ExecutionPolicy Bypass -File $launcher --where 2>$null
 if ($LASTEXITCODE -ne 0 -or "$where" -notmatch ' at (.+)$') { exit 0 }
 $archeionHome = $Matches[1].Trim().TrimEnd('\')
 $here = (Get-Location).ProviderPath.TrimEnd('\')
