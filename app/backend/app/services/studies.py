@@ -23,6 +23,8 @@ SCHEMA_VERSION = 1
 STUDIES_DIR = "studies"
 MODEL_FILE = "study.json"
 NOTES_FILE = "notes.md"
+INFO_FILE = "info.json"  # the thread a snapshot or draft belongs to (ADR 0020)
+DRAFT = "draft"
 MAX_MODEL_BYTES = 4 * 1024 * 1024
 MAX_SNIPPET_LINES = 30
 MAX_SNIPPET_CHARS = 3000
@@ -441,6 +443,18 @@ class Snapshot:
     def date(self) -> str:
         return self.id[:10]
 
+    @property
+    def is_draft(self) -> bool:
+        return self.id == DRAFT
+
+    def info(self) -> dict:
+        path = self.folder / INFO_FILE
+        try:
+            data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        return data if isinstance(data, dict) else {}
+
 
 def studies_root(registry_root: Path) -> Path:
     return registry_root / STUDIES_DIR
@@ -473,6 +487,11 @@ def _sort_key(s: Snapshot) -> tuple[str, float, int]:
 
 
 def get_snapshot(registry_root: Path, project: str, snapshot_id: str) -> Snapshot:
+    if snapshot_id == DRAFT:
+        draft = get_draft(registry_root, project)
+        if draft is None:
+            raise StudyNotFound(f"{project}/{DRAFT}")
+        return draft
     snaps = snapshots(registry_root, project)
     if snapshot_id == "latest":
         if not snaps:
@@ -520,7 +539,9 @@ def summary(snapshot: Snapshot) -> dict:
     return {
         "id": snapshot.id,
         "project": snapshot.project,
-        "date": snapshot.date,
+        "date": str(meta.get("date") or snapshot.date),
+        "draft": snapshot.is_draft,
+        "thread": snapshot.info().get("thread"),
         "commit": meta.get("commit"),
         "dirty": bool(meta.get("dirty")),
         "summary": meta.get("summary", ""),
@@ -537,6 +558,7 @@ def save(
     *,
     notes: str | None = None,
     keep: int = 10,
+    thread: int | None = None,
 ) -> tuple[Snapshot, list[str]]:
     """Write a new snapshot and prune the oldest beyond `keep`. Returns it and the pruned ids."""
     project = study.meta.project
@@ -557,6 +579,8 @@ def save(
     )
     if notes and notes.strip():
         (tmp / NOTES_FILE).write_text(notes.strip() + "\n", encoding="utf-8")
+    if thread is not None:
+        (tmp / INFO_FILE).write_text(json.dumps({"thread": thread}) + "\n", encoding="utf-8")
     tmp.rename(target)
     pruned: list[str] = []
     for old in snapshots(registry_root, project)[max(keep, 1) :]:
@@ -773,3 +797,64 @@ def search(latest: dict[str, tuple[str, dict]], q: str, limit: int = 100) -> lis
                     if len(out) >= limit:
                         return out
     return out
+
+
+# --- drafts (ADR 0020) --------------------------------------------------------------------
+
+
+def get_draft(registry_root: Path, project: str) -> Snapshot | None:
+    """The study in progress, carried between the rounds of its conversation."""
+    folder = _project_dir(registry_root, project) / DRAFT
+    if folder.is_dir() and not folder.is_symlink() and (folder / MODEL_FILE).is_file():
+        return Snapshot(project, DRAFT, folder)
+    return None
+
+
+def save_draft(
+    registry_root: Path, study: Study, *, notes: str | None = None, thread: int | None = None
+) -> Snapshot:
+    """Write (or replace) the project's draft. It's validated like a snapshot, so the viewer
+    can draw it. The thread is kept from the previous draft when it isn't given."""
+    project = study.meta.project
+    previous = get_draft(registry_root, project)
+    if thread is None and previous is not None:
+        thread = previous.info().get("thread")
+    folder = _project_dir(registry_root, project)
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".{DRAFT}.tmp"
+    if tmp.exists():
+        shutil.rmtree(tmp)
+    tmp.mkdir()
+    (tmp / MODEL_FILE).write_text(
+        json.dumps(dump(study), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    if notes and notes.strip():
+        (tmp / NOTES_FILE).write_text(notes.strip() + "\n", encoding="utf-8")
+    elif previous is not None and (previous.folder / NOTES_FILE).is_file():
+        shutil.copy2(previous.folder / NOTES_FILE, tmp / NOTES_FILE)
+    (tmp / INFO_FILE).write_text(json.dumps({"thread": thread}) + "\n", encoding="utf-8")
+    if previous is not None:
+        shutil.rmtree(previous.folder)
+    tmp.rename(folder / DRAFT)
+    return Snapshot(project, DRAFT, folder / DRAFT)
+
+
+def discard_draft(registry_root: Path, project: str) -> bool:
+    draft = get_draft(registry_root, project)
+    if draft is None:
+        return False
+    shutil.rmtree(draft.folder)
+    return True
+
+
+def promote_draft(registry_root: Path, project: str, *, keep: int = 10) -> tuple[Snapshot, list[str]]:
+    """Save the draft as a dated snapshot (it must still validate) and remove it."""
+    draft = get_draft(registry_root, project)
+    if draft is None:
+        raise StudyNotFound(f"{project}/{DRAFT}")
+    study = parse_text((draft.folder / MODEL_FILE).read_text(encoding="utf-8"))
+    snap, pruned = save(
+        registry_root, study, notes=load_notes(draft), keep=keep, thread=draft.info().get("thread")
+    )
+    shutil.rmtree(draft.folder)
+    return snap, pruned

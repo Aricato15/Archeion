@@ -55,11 +55,11 @@ If the command says the backend environment is missing, tell the user to run `se
       - **A question about a study element** (its anchor names a study, ADR 0019): `inbox show` prints
         the element from its snapshot. Answer from the study and the project's code. If the study is
         wrong, say so and offer a `/study <project> --refresh` rather than editing the snapshot.
-      - **A request to study a project** ("study X", "map out how X works", "refresh X's study"): follow
-        the `study` skill (`.claude/skills/study/SKILL.md`, ADR 0019) for the item's project. Its plan
-        is your reply: send it and stop there, unless the request said `--yes` or this message approves
-        a plan you sent earlier in the thread. Then carry out the study and reply with its summary.
-        A study is read-only on the project, so `inbox_edits` doesn't restrict it.
+      - **A study conversation** (`inbox show` prints `task: a study of <project>`, ADR 0020), or any
+        request to study a project ("study X", "map out how X works", "refresh X's study"): follow the
+        `study` skill (`.claude/skills/study/SKILL.md`) in its **conversation mode**. Each message is one
+        round: report, save the draft, ask, and wait for the reply; save the snapshot only once the user
+        approves. A study is read-only on the project, so `inbox_edits` doesn't restrict it.
       If the request is ambiguous, risky, or reaches outside the target project, don't guess. Reply with
       your question or concern instead. The user answers in the same thread.
    4. Write the reply to a temporary file in your scratchpad directory and send it with

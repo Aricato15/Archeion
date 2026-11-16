@@ -90,7 +90,14 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackThread; s
             </Anchor>
           </Text>
         )}
-        {!showDoc && item.anchor && !item.anchor.study && (
+        {item.anchor?.task && (
+          <Text size="xs" c="dimmed">
+            <Anchor component={Link} to={`/projects/${encodeURIComponent(item.anchor.task.project)}?tab=study`} size="xs">
+              {describeAnchor(item.anchor)}
+            </Anchor>
+          </Text>
+        )}
+        {!showDoc && item.anchor && !item.anchor.study && !item.anchor.task && (
           <Text size="xs" c="dimmed">
             {describeAnchor(item.anchor)}
           </Text>

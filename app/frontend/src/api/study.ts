@@ -132,6 +132,10 @@ export type SnapshotRow = {
   valid: boolean
   problems: string[]
   notes: boolean
+  /** The draft of a study in progress (ADR 0020), listed ahead of the snapshots. */
+  draft: boolean
+  /** The feedback thread the study was discussed in, if any. */
+  thread: number | null
   /** Commits in the project since the studied one; null when that can't be told. */
   commits_since: number | null
 }

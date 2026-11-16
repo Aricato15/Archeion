@@ -29,6 +29,8 @@ const row = {
   valid: true,
   problems: [],
   notes: false,
+  draft: false,
+  thread: null,
   commits_since: 3,
 }
 
@@ -102,5 +104,15 @@ describe('StudyTab', () => {
     renderTab('/projects/example?tab=study&view=components&item=api')
     expect((await screen.findAllByText('Serves things.')).length).toBe(2) // the table and the drawer
     expect(screen.getByText('src/app.py:3')).toBeTruthy()
+  })
+
+  it('shows a study in progress with a link to its conversation', async () => {
+    mockApi([{ ...row, id: 'draft', draft: true, thread: 12 }, row])
+    renderTab()
+    expect(await screen.findByText('A study is in progress')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /the conversation \(#12\)/ }).getAttribute('href')).toBe('/feedback/12')
+    expect(screen.queryByRole('button', { name: /Ask for a refresh/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'View the draft' }))
+    expect(await screen.findByText('An example service.')).toBeTruthy()
   })
 })

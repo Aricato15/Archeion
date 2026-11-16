@@ -34,6 +34,7 @@ import { MermaidBlock } from '../docs/MermaidBlock'
 import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { Cites } from './Cites'
 import { ComponentDetails } from './ComponentDetails'
+import { StartStudyButton } from './StartStudy'
 import { activity, componentMap, erDiagram, sequence, stateDiagram } from './mermaid'
 import { componentGraph, foldedAtDepth } from './graph'
 import { LazyGraph } from '../graph/LazyGraph'
@@ -80,13 +81,11 @@ export function Staleness({ row }: { row: Pick<SnapshotRow, 'commits_since' | 'd
   )
 }
 
-const studyPrompt = (id: string) =>
-  `Study ${id}: run /study ${id} and send me the plan here before writing (ADR 0019).`
-
 export function StudyTab({ project }: { project: Project }) {
   const [params, setParams] = useSearchParams()
   const snapshots = useSnapshots(project.id)
-  const latestId = snapshots.data?.[0]?.id ?? null
+  // The latest saved snapshot is shown first; a draft (ADR 0020) only when there's nothing else.
+  const latestId = (snapshots.data?.find((s) => !s.draft) ?? snapshots.data?.[0])?.id ?? null
   const snapId = params.get('snap') ?? latestId
   const snap = useSnapshot(project.id, snapId)
   const [draft, setDraft] = useState<FeedbackDraft | null>(null)
@@ -117,22 +116,16 @@ export function StudyTab({ project }: { project: Project }) {
           and states here (ADR 0019).
         </Text>
         <Text size="sm" c="dimmed">
-          In Archeion's terminal session run <Code>/study {project.id}</Code>, or send the request to Archeion's
-          inbox:
+          Start it here as a conversation with Claude, or run <Code>/study {project.id}</Code> in Archeion's terminal
+          session.
         </Text>
-        <Button
-          size="xs"
-          leftSection={<IconMicroscope size={14} />}
-          onClick={() => setDraft({ kind: 'prompt', source: SELF, body: studyPrompt(project.id) })}
-        >
-          Ask Claude to study {project.id}
-        </Button>
-        <FeedbackForm draft={draft} onClose={() => setDraft(null)} />
+        <StartStudyButton project={project.id} />
       </Stack>
     )
   }
 
   const row = snapshots.data.find((s) => s.id === snapId) ?? snapshots.data[0]
+  const inProgress = snapshots.data.find((s) => s.draft)
   const counts = row.counts
   const countOf: Partial<Record<View, number>> = {
     components: counts.components,
@@ -162,9 +155,11 @@ export function StudyTab({ project }: { project: Project }) {
             allowDeselect={false}
             value={row.id}
             onChange={(v) => set({ snap: v === latestId ? null : v })}
-            data={snapshots.data.map((s, i) => ({
+            data={snapshots.data.map((s) => ({
               value: s.id,
-              label: `${s.date} · ${(s.commit ?? '').slice(0, 7)}${i === 0 ? ' (latest)' : ''}${s.valid ? '' : ' ⚠'}`,
+              label: s.draft
+                ? `Draft (in progress)${s.valid ? '' : ' ⚠'}`
+                : `${s.date} · ${(s.commit ?? '').slice(0, 7)}${s.id === latestId ? ' (latest)' : ''}${s.valid ? '' : ' ⚠'}`,
             }))}
           />
           <Staleness row={row} />
@@ -178,22 +173,40 @@ export function StudyTab({ project }: { project: Project }) {
           >
             notes in the registry
           </Anchor>
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconMicroscope size={14} />}
-            onClick={() =>
-              setDraft({
-                kind: 'prompt',
-                source: SELF,
-                body: `Refresh the study of ${project.id}: run /study ${project.id} --refresh and send me the plan here.`,
-              })
-            }
-          >
-            Ask for a refresh
-          </Button>
+          {row.thread && !row.draft && (
+            <Anchor component={Link} size="xs" to={`/feedback/${row.thread}`}>
+              its conversation
+            </Anchor>
+          )}
+          {!inProgress && <StartStudyButton project={project.id} refresh variant="default" />}
         </Group>
       </Group>
+
+      {inProgress && (
+        <Alert color="blue" icon={<IconMicroscope size={18} />} title="A study is in progress">
+          <Group justify="space-between" gap="xs">
+            <Text size="sm">
+              Claude keeps its work so far as a draft between rounds.{' '}
+              {inProgress.thread ? (
+                <>
+                  Answer its questions in{' '}
+                  <Anchor component={Link} to={`/feedback/${inProgress.thread}`} size="sm">
+                    the conversation (#{inProgress.thread})
+                  </Anchor>
+                  , and say when it's done.
+                </>
+              ) : (
+                "Say when it's done in its conversation."
+              )}
+            </Text>
+            {row.id !== inProgress.id && (
+              <Button size="xs" variant="light" onClick={() => set({ snap: inProgress.id })}>
+                View the draft
+              </Button>
+            )}
+          </Group>
+        </Alert>
+      )}
 
       {!row.valid && (
         <Alert color="orange" title="This snapshot doesn't validate">

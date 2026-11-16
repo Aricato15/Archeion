@@ -192,6 +192,8 @@ def _summary_line(item: dict) -> str:
     if item.get("source", "archeion") != "archeion":
         where = f"[{item['source']}] {where}"
     anchor = item["anchor"] or {}
+    if anchor.get("task"):
+        where = f"[{anchor['task']['type']} {anchor['task']['project']}]"
     if anchor.get("study"):
         s = anchor["study"]
         where = f"[study {s['project']} {s['snapshot']}] {s['kind']} {s['element']}"
@@ -344,6 +346,12 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
     print(f"       created {item['created_at']}, doc at commit {(item['doc_rev'] or '-')[:10]}")
     if target:
         print(_target_line(target))
+    task = (root["anchor"] or {}).get("task")
+    if task:
+        draft = st.get_draft(settings.registry_root, task["project"])
+        state = f"draft in registry/studies/{task['project']}/draft/" if draft else "no draft yet"
+        print(f"       task: a {task['type']} of {task['project']} (ADR 0020); {state}")
+        print("       follow the study skill's conversation mode for this round")
     anchor = about["anchor"] or {}
     if anchor.get("quote") and not conversation:
         print()
@@ -715,15 +723,70 @@ def cmd_study_save(settings: Settings, args: argparse.Namespace) -> int:
     """Validate a study and store it as a new snapshot; the only way one is written."""
     manager = _sources(settings)
     p = _study_project(manager, args.project)
-    study = st.parse_text(_read_text_arg(args.file))
-    if study.meta.project != p.id:
-        raise ValueError(f"the study is for '{study.meta.project}', not '{p.id}'")
-    notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
-    snap, pruned = st.save(settings.registry_root, study, notes=notes, keep=settings.study_keep)
-    print(_study_counts(study))
+    if args.from_draft:
+        if args.file or args.notes:
+            raise ValueError("--from-draft takes the draft's model and notes; leave out --file and --notes")
+        snap, pruned = st.promote_draft(settings.registry_root, p.id, keep=settings.study_keep)
+        print(f"Saved the draft of {p.id} as a snapshot; the draft is gone.")
+    else:
+        if not args.file:
+            raise ValueError("give --file <study.json>, or --from-draft")
+        study = _study_for(p, args.file)
+        notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
+        snap, pruned = st.save(settings.registry_root, study, notes=notes, keep=settings.study_keep)
+        print(_study_counts(study))
     print(f"Saved snapshot {snap.id}: registry/{st.STUDIES_DIR}/{p.id}/{snap.id}/")
     if pruned:
         print(f"Pruned {len(pruned)} older snapshot(s) (keeping {settings.study_keep}): {', '.join(pruned)}")
+    return 0
+
+
+def _study_for(p: Project, file: str) -> st.Study:
+    study = st.parse_text(_read_text_arg(file))
+    if study.meta.project != p.id:
+        raise ValueError(f"the study is for '{study.meta.project}', not '{p.id}'")
+    return study
+
+
+def cmd_study_draft_save(settings: Settings, args: argparse.Namespace) -> int:
+    """Keep the study in progress between the rounds of its conversation (ADR 0020)."""
+    p = _study_project(_sources(settings), args.project)
+    study = _study_for(p, args.file)
+    notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
+    draft = st.save_draft(settings.registry_root, study, notes=notes, thread=args.thread)
+    thread = draft.info().get("thread")
+    print(_study_counts(study))
+    print(
+        f"Saved the draft: registry/{st.STUDIES_DIR}/{p.id}/{st.DRAFT}/"
+        + (f" (thread #{thread})" if thread else "")
+        + ". The Study tab shows it as Draft."
+    )
+    return 0
+
+
+def cmd_study_draft_show(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    if args.project not in manager.registry.projects:
+        raise ValueError(f"'{args.project}' isn't a registered project (see: projects list)")
+    draft = st.get_draft(settings.registry_root, args.project)
+    if draft is None:
+        print(f"No draft for {args.project}.")
+        return 0
+    model, problems = st.load(draft)
+    if args.json:
+        _print_json({"thread": draft.info().get("thread"), "model": model, "notes": st.load_notes(draft)})
+        return 0
+    row = st.summary(draft)
+    print(f"Draft of {args.project}" + (f" (thread #{row['thread']})" if row["thread"] else ""))
+    print("  " + ", ".join(f"{k} {v}" for k, v in row["counts"].items()))
+    for prob in problems:
+        print(f"  problem: {prob}")
+    return 0
+
+
+def cmd_study_draft_discard(settings: Settings, args: argparse.Namespace) -> int:
+    gone = st.discard_draft(settings.registry_root, args.project)
+    print(f"Discarded the draft of {args.project}." if gone else f"No draft for {args.project}.")
     return 0
 
 
@@ -906,9 +969,26 @@ def build_parser() -> argparse.ArgumentParser:
     sv.set_defaults(func=cmd_study_validate)
     sa = study.add_parser("save", help="validate a study and store it as a new snapshot")
     sa.add_argument("project")
-    sa.add_argument("--file", required=True, help="the model (study.json), or - for stdin")
+    sa.add_argument("--file", help="the model (study.json), or - for stdin")
     sa.add_argument("--notes", help="the narrative (Markdown) to keep with it")
+    sa.add_argument("--from-draft", action="store_true", help="save the project's draft instead (ADR 0020)")
     sa.set_defaults(func=cmd_study_save)
+    draft = study.add_parser(
+        "draft", help="the study in progress, between conversation rounds"
+    ).add_subparsers(dest="draft_action", required=True)
+    ds = draft.add_parser("save", help="validate a model and keep it as the project's draft")
+    ds.add_argument("project")
+    ds.add_argument("--file", required=True, help="the model (study.json), or - for stdin")
+    ds.add_argument("--notes", help="the narrative so far (kept from the last draft when left out)")
+    ds.add_argument("--thread", type=int, help="the feedback thread the study is discussed in")
+    ds.set_defaults(func=cmd_study_draft_save)
+    dsh = draft.add_parser("show", help="the project's draft")
+    dsh.add_argument("project")
+    dsh.add_argument("--json", action="store_true")
+    dsh.set_defaults(func=cmd_study_draft_show)
+    dd = draft.add_parser("discard", help="drop the project's draft")
+    dd.add_argument("project")
+    dd.set_defaults(func=cmd_study_draft_discard)
     sl = study.add_parser("list", help="a project's snapshots, or every project's latest")
     sl.add_argument("project", nargs="?")
     sl.add_argument("--json", action="store_true")

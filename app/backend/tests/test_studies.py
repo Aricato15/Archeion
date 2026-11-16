@@ -462,3 +462,66 @@ def test_api_searches_the_latest_studies(authed, settings):
     assert all(h["project"] == "alpha" for h in hits)
     assert authed.get("/api/studies/search?q=zzzz-none").json() == []
     assert authed.get("/api/studies/search?q=a").status_code == 422
+
+
+# --- study conversations (ADR 0020) -------------------------------------------------------------
+
+
+def test_drafts_carry_a_study_between_rounds(tmp_path):
+    reg = tmp_path / "registry"
+    draft = st.save_draft(reg, st.parse(model()), notes="# Round 1\n", thread=7)
+    assert draft.is_draft and draft.info() == {"thread": 7}
+    assert st.snapshots(reg, "alpha") == []  # a draft isn't a snapshot
+    round2 = model()
+    round2["meta"]["summary"] = "Round 2."
+    st.save_draft(reg, st.parse(round2))  # round 2: keeps the thread and notes
+    again = st.get_draft(reg, "alpha")
+    assert again.info()["thread"] == 7 and st.load_notes(again) == "# Round 1\n"
+    assert st.summary(again)["draft"] is True and st.summary(again)["date"] == "2026-11-16"
+    snap, _ = st.promote_draft(reg, "alpha")
+    assert st.get_draft(reg, "alpha") is None
+    assert snap.info() == {"thread": 7} and st.load_notes(snap) == "# Round 1\n"
+    with pytest.raises(st.StudyNotFound):
+        st.promote_draft(reg, "alpha")
+    st.save_draft(reg, st.parse(model()))
+    assert st.discard_draft(reg, "alpha") and not st.discard_draft(reg, "alpha")
+
+
+def test_cli_and_api_for_drafts(authed, settings, capsys, tmp_path):
+    path = tmp_path / "study.json"
+    path.write_text(json.dumps(model()), encoding="utf-8")
+    assert main(["study", "draft", "save", "alpha", "--file", str(path), "--thread", "3"], settings) == 0
+    assert "(thread #3)" in capsys.readouterr().out
+    rows = authed.get("/api/studies/alpha").json()
+    assert rows[0]["id"] == "draft" and rows[0]["draft"] and rows[0]["thread"] == 3
+    assert authed.get("/api/studies/alpha/draft").json()["model"]["meta"]["project"] == "alpha"
+    assert authed.get("/api/studies").json() == []  # drafts aren't anyone's latest study
+    assert main(["study", "draft", "show", "alpha"], settings) == 0
+    assert "Draft of alpha (thread #3)" in capsys.readouterr().out
+    assert main(["study", "save", "alpha", "--from-draft", "--file", str(path)], settings) == 1
+    assert main(["study", "save", "alpha", "--from-draft"], settings) == 0
+    assert "the draft is gone" in capsys.readouterr().out
+    assert authed.get("/api/studies/alpha/draft").status_code == 404
+    assert authed.get("/api/studies/alpha").json()[0]["thread"] == 3
+    assert main(["study", "save", "alpha"], settings) == 1
+    assert main(["study", "draft", "discard", "alpha"], settings) == 0
+
+
+def test_a_study_request_is_a_thread_for_archeion(authed, settings, capsys):
+    task = {"task": {"type": "study", "project": "alpha"}}
+    r = authed.post("/api/feedback", json={"kind": "prompt", "body": "Study alpha.", "anchor": task})
+    assert r.status_code == 201, r.text
+    item = r.json()
+    assert item["source"] == "archeion" and item["doc_path"] is None
+    bad = {"task": {"type": "study", "project": "nobody"}}
+    assert (
+        authed.post("/api/feedback", json={"kind": "prompt", "body": "x", "anchor": bad}).status_code == 400
+    )
+    r = authed.post("/api/feedback", json={"kind": "prompt", "body": "x", "anchor": task, "source": "alpha"})
+    assert r.status_code == 400
+    assert main(["inbox", "list"], settings) == 0
+    assert "[study alpha]" in capsys.readouterr().out
+    assert main(["inbox", "show", str(item["id"])], settings) == 0
+    assert "a study of alpha" in capsys.readouterr().out
+    assert main(["inbox", "list", "--project", "alpha"], settings) == 0
+    assert "Study alpha." not in capsys.readouterr().out  # the project's own session never sees it

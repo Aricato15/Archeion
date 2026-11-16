@@ -24,12 +24,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 | `study changes <p>` | files changed since the latest snapshot's commit (for `--refresh`) |
 | `study validate --file <f>` | check a model without saving it |
 | `study save <p> --file <f> --notes <f>` | validate and store it as a new snapshot (the only way one is written) |
+| `study draft save <p> --file <f> [--notes <f>] [--thread <n>]` | keep the study in progress between conversation rounds; the Study tab shows it as **Draft** |
+| `study draft show <p> [--json]` / `study draft discard <p>` | read or drop the draft |
+| `study save <p> --from-draft` | turn the draft into a dated snapshot (keeps its thread) and remove it |
 
 ## Arguments
 - `<project>`: a registered project or module (`projects list`). Exactly one per run.
 - `--yes`: skip the confirmation in step 4 and write straight away.
 - `--refresh`: start from the latest snapshot and reread only what changed since its commit.
 - `--focus <area>`: go deeper on one part (a module, a flow), and keep the rest of the latest snapshot as it is.
+
+## Two ways to run
+- **In the terminal** (`/study <project>`): the steps below, in one session. Step 4 asks you in the terminal.
+- **As a conversation** (an inbox thread anchored to a study task, ADR 0020): **Ask Claude to study** on the Study tab starts one, and `inbox show` prints `task: a study of <p>`. Each round is one `/inbox` run, often by on-demand Claude with nobody at the terminal, so everything you need to carry over goes in the draft and the thread. See **Conversation mode** below.
 
 ## Hard rules
 - **Read-only on the project.** Never edit, run, build, install or test anything in it. Don't run its scripts, start its servers or import its code.
@@ -61,6 +68,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 8. **Save** with `study save <p> --file <scratchpad>/study.json --notes <scratchpad>/notes.md`.
 9. **Update the registry page**, with only the changes the user confirmed in step 4: the frontmatter fields and `verified:`. Edit `registry/projects/<p>.md` by hand, and keep everything else on the page as it is. Cross-project notes in the body stay short: what this project means to the others. Link to the study rather than copying it.
 10. **Summarise** in a few lines: the snapshot id, what's covered, the main findings, the open questions, and the registry changes. Point to the viewer: the project page, **Study** tab.
+
+## Conversation mode (ADR 0020)
+
+Read the whole thread first (`inbox show <id>`), and the draft if there is one (`study draft show <p> --json`). Then do the round the thread is at:
+
+- **First round** (no draft yet): steps 1 to 3, then a first pass of step 5: enough reading to draw the components, the main flow or two, the tables and the interfaces. Write the model and notes, validate (step 7), and save them with `study draft save <p> --file ... --notes ... --thread <thread id>`. Reply with:
+  1. what the project is, in two or three sentences, and what the draft covers so far;
+  2. the main findings, each with its file and line;
+  3. **questions**: what you couldn't tell from the code, numbered, so the user can answer by number (why a module exists, which flows matter most, whether a finding is intended);
+  4. the registry frontmatter changes you'd make, as a before/after list;
+  5. what you'll cover next, and that they can look at the draft on the project page's **Study** tab (snapshot **Draft**).
+- **Next rounds** (the user replied): apply their answers. Correct the draft, read deeper where they pointed, and draw what they asked for. Save the draft again (the thread is kept). Reply with what changed, any new findings, and the questions still open. Don't ask again what they already answered.
+- **Last round**: when the user approves (they say it's done, save it, looks good, or similar), run `study save <p> --from-draft`, make the confirmed registry changes (step 9), and reply with the summary (step 10). Say the thread can be resolved. If they ask to stop instead, run `study draft discard <p>` and say so.
+- `--yes` in the first message: do every round in one go and save, as in the terminal.
+- Keep each reply short enough to read in the viewer. The detail belongs in the draft, which the Study tab draws.
+- An on-demand run can't approve arbitrary commands. Use the study commands, read files and write in your scratchpad and `registry/`. If something needs more, ask in the reply.
 
 ## The model (`study.json`, schema 1)
 

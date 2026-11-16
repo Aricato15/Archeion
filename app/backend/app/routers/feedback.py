@@ -23,9 +23,18 @@ class StudyAnchor(BaseModel):
     """An element of a code study (ADR 0019): what a question about the study is about."""
 
     project: str = Field(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
-    snapshot: str = Field(max_length=40, pattern=r"^\d{4}-\d{2}-\d{2}-[0-9a-f]{7}(-\d+)?$")
+    # A saved snapshot, or the draft of a study in progress (ADR 0020).
+    snapshot: str = Field(max_length=40, pattern=r"^(draft|\d{4}-\d{2}-\d{2}-[0-9a-f]{7}(-\d+)?)$")
     element: str = Field(max_length=120, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
     kind: Literal["component", "flow", "activity", "state machine", "entity", "interface", "finding"]
+
+
+class TaskAnchor(BaseModel):
+    """A job the thread is about, such as studying a project (ADR 0020). Handled by
+    Archeion's own inbox, whatever the project."""
+
+    type: Literal["study"]
+    project: str = Field(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 
 
 class Anchor(BaseModel):
@@ -33,6 +42,7 @@ class Anchor(BaseModel):
     lines: tuple[int, int] | None = None
     quote: str | None = Field(None, max_length=2000)
     study: StudyAnchor | None = None
+    task: TaskAnchor | None = None
 
     @field_validator("lines")
     @classmethod
@@ -56,7 +66,7 @@ class FeedbackIn(BaseModel):
     def _check(self) -> FeedbackIn:
         if self.parent_id is None and self.kind is None:
             raise ValueError("a new thread needs a kind")
-        if self.anchor is not None and self.doc_path is None and self.anchor.study is None:
+        if self.anchor is not None and self.doc_path is None and not (self.anchor.study or self.anchor.task):
             raise ValueError("an anchor needs a doc_path, unless it points at a study element")
         return self
 
@@ -92,6 +102,11 @@ def create(
     except git.GitError:
         rev = None
     anchor = item.anchor.model_dump(exclude_none=True) if item.anchor else None
+    if item.anchor and item.anchor.task:
+        if item.anchor.task.project not in state.sources.registry.projects:
+            raise ValueError(f"'{item.anchor.task.project}' isn't a registered project")
+        if src.id != "archeion":
+            raise ValueError("a task is for Archeion's inbox: leave out source, or use archeion")
     assert kind is not None
     return fb.create(
         conn,

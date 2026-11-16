@@ -379,6 +379,9 @@ def _where(item: dict) -> str:
     if item.get("source", "archeion") != "archeion":
         where = f"{where} in {item['source']}"
     anchor = item["anchor"] or {}
+    task = anchor.get("task")
+    if task:
+        where = f"a {task['type']} of {task['project']} (ADR 0020)"
     study = anchor.get("study")
     if study:
         where = (

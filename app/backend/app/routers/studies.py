@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/studies")
 system = APIRouter(prefix="/api/system")
 
 ProjectParam = Path(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
-SnapshotParam = Path(max_length=40, pattern=r"^(latest|\d{4}-\d{2}-\d{2}-[0-9a-f]{7}(-\d+)?)$")
+SnapshotParam = Path(max_length=40, pattern=r"^(latest|draft|\d{4}-\d{2}-\d{2}-[0-9a-f]{7}(-\d+)?)$")
 
 
 def _project(state: AppState, name: str) -> Project:
@@ -61,8 +61,11 @@ def search(q: str = Query(min_length=2, max_length=200), state: AppState = Depen
 
 @router.get("/{project}")
 def project_snapshots(project: str = ProjectParam, state: AppState = Depends(get_state)) -> list[dict]:
+    """Newest first, with the draft of a study in progress (ADR 0020) ahead of them."""
     p = _project(state, project)
-    return [_row(state, s) for s in st.snapshots(state.settings.registry_root, p.id)]
+    draft = st.get_draft(state.settings.registry_root, p.id)
+    snaps = st.snapshots(state.settings.registry_root, p.id)
+    return [_row(state, s) for s in ([draft] if draft else []) + snaps]
 
 
 @router.get("/{project}/diff")
