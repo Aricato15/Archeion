@@ -1,4 +1,6 @@
+import type { SystemLinks } from '../api/study'
 import type { Group, Project, Registry } from '../api/types'
+import type { Graph, GraphEdge, GraphNode } from '../graph/graph'
 
 /**
  * Mermaid flowcharts generated from the registry, so the maps can't drift from the pages:
@@ -122,4 +124,77 @@ export function buildMermaid(registry: Registry, opts: MapOptions = {}): string 
     lines.push(`  class ${inactive.map(nodeId).join(',')} inactive`)
   }
   return lines.join('\n')
+}
+
+// --- interactive maps (ADR 0015) ---------------------------------------------------------------
+
+export const GROUP_PREFIX = 'group:'
+
+/**
+ * The same selection as buildMermaid, as a Graph for GraphView: groups and parents are
+ * containers, depends_on are arrows. With `links` (from the studies, ADR 0019), arrows the
+ * code confirms are labelled with their calls, calls the registry doesn't list are added in
+ * orange, and depends_on entries a studied project's code never calls are dotted.
+ */
+export function buildGraph(registry: Registry, opts: MapOptions = {}, links?: SystemLinks | null): Graph {
+  const byId = new Map(registry.projects.map((p) => [p.id, p]))
+  const groups = new Map<string, Group>(registry.groups.map((g) => [g.id, g]))
+  const { shown, ghosts } = selectProjects(registry, opts)
+  const visible = new Set([...shown, ...ghosts])
+  if (visible.size === 0) return { nodes: [], edges: [] }
+  const nodes: GraphNode[] = []
+  const usedGroups = new Set<string>()
+  for (const id of [...visible].sort()) {
+    const p = byId.get(id)
+    const ghost = ghosts.has(id)
+    let parent: string | null = null
+    if (p?.parent && visible.has(p.parent) && !ghost) parent = p.parent
+    else if (p && !ghost && !opts.group && !opts.focus) {
+      const g = topGroup(byId, p)
+      if (g) {
+        parent = GROUP_PREFIX + g
+        usedGroups.add(g)
+      }
+    }
+    nodes.push({
+      id,
+      label: p?.title ?? id,
+      sublabel: [p?.type === 'module' ? 'module' : null, p?.kind, p && p.status !== 'active' ? p.status : null]
+        .filter(Boolean)
+        .join(' · '),
+      parent,
+      shape: p?.type === 'module' ? 'round' : 'box',
+      tone: id === opts.focus ? 'blue' : undefined,
+      ghost,
+      dimmed: p?.status === 'paused' || p?.status === 'archived',
+    })
+  }
+  for (const g of [...usedGroups].sort()) {
+    nodes.unshift({ id: GROUP_PREFIX + g, label: groups.get(g)?.title ?? g, sublabel: 'group', tone: 'grape' })
+  }
+
+  const found = new Map<string, NonNullable<SystemLinks>['links'][number]>()
+  for (const l of links?.links ?? []) found.set(`${l.from}|${l.to}`, l)
+  const studied = new Set(links?.studied ?? [])
+  const callLabel = (l: NonNullable<SystemLinks>['links'][number]) => {
+    const paths = l.calls.map((c) => [c.method, c.path].filter(Boolean).join(' ')).filter(Boolean)
+    return paths.length ? paths.slice(0, 2).join(', ') + (paths.length > 2 ? ` +${paths.length - 2}` : '') : `${l.calls.length} call(s)`
+  }
+  const edges: GraphEdge[] = []
+  for (const p of registry.projects) {
+    if (!visible.has(p.id)) continue
+    for (const d of p.depends_on) {
+      if (!visible.has(d)) continue
+      const l = found.get(`${p.id}|${d}`)
+      if (l) edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, label: callLabel(l), tone: 'blue' })
+      else if (links && studied.has(p.id))
+        edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, label: 'not seen in code', style: 'dotted', tone: 'gray' })
+      else edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d })
+    }
+  }
+  for (const l of links?.links ?? []) {
+    if (!visible.has(l.from) || !visible.has(l.to) || byId.get(l.from)?.depends_on.includes(l.to)) continue
+    edges.push({ id: `code:${l.from}>${l.to}`, from: l.from, to: l.to, label: `in code only: ${callLabel(l)}`, style: 'dashed', tone: 'orange' })
+  }
+  return { nodes, edges }
 }

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-15
+- Amended by: [ADR 0015](0015-interactive-registry-maps.md) (2026-11-16), which adds React Flow and elkjs for the interactive maps.
 
 ## Context
 [ADR 0002](0002-viewer-app-and-claude-feedback-loop.md) settles the shape of the viewer app. Before writing code, the stack and a few layout choices need pinning down so later sessions don't drift.

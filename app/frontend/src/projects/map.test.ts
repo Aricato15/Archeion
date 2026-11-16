@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Project, Registry } from '../api/types'
-import { buildMermaid, selectProjects } from './map'
+import { buildGraph, buildMermaid, selectProjects } from './map'
 
 function project(id: string, extra: Partial<Project> = {}): Project {
   return {
@@ -74,5 +74,40 @@ describe('buildMermaid', () => {
 
   it('returns nothing for an empty registry', () => {
     expect(buildMermaid({ projects: [], groups: [], warnings: [], unregistered: [] })).toBe('')
+  })
+})
+
+describe('buildGraph', () => {
+  it('nests projects in groups and parents, with dependencies as arrows', () => {
+    const g = buildGraph(registry)
+    expect(g.nodes[0]).toMatchObject({ id: 'group:shop', label: 'Shop' })
+    expect(g.nodes.find((n) => n.id === 'web')!.parent).toBe('group:shop')
+    expect(g.nodes.find((n) => n.id === 'collector-a')!.parent).toBe('datasvc')
+    expect(g.nodes.find((n) => n.id === 'notes')).toMatchObject({ dimmed: true, sublabel: 'archived' })
+    expect(g.edges.map((e) => `${e.from}>${e.to}`).sort()).toEqual(['bff>datasvc', 'web>bff'])
+  })
+
+  it('focuses one project, with its links as ghosts and no group boxes', () => {
+    const g = buildGraph(registry, { focus: 'datasvc' })
+    expect(g.nodes.map((n) => n.id).sort()).toEqual(['bff', 'collector-a', 'datasvc'])
+    expect(g.nodes.find((n) => n.id === 'bff')).toMatchObject({ ghost: true, parent: null })
+    expect(g.nodes.find((n) => n.id === 'datasvc')!.tone).toBe('blue')
+  })
+
+  it('labels arrows with the calls found in the code, and marks drift', () => {
+    const call = (id: string, path: string) => ({ id, kind: 'http', method: 'GET', path, resolved_by: 'port' as const, exposed: null, target_studied: true })
+    const g = buildGraph(registry, {}, {
+      links: [
+        { from: 'bff', to: 'datasvc', calls: [call('c1', '/items')] },
+        { from: 'web', to: 'datasvc', calls: [call('c2', '/a'), call('c3', '/b'), call('c4', '/c')] },
+      ],
+      unresolved: [],
+      drift: [],
+      studied: ['bff', 'web'],
+    })
+    const edge = (id: string) => g.edges.find((e) => e.id === id)!
+    expect(edge('dep:bff>datasvc')).toMatchObject({ label: 'GET /items', tone: 'blue' })
+    expect(edge('dep:web>bff')).toMatchObject({ label: 'not seen in code', style: 'dotted' })
+    expect(edge('code:web>datasvc')).toMatchObject({ style: 'dashed', tone: 'orange', label: 'in code only: GET /a, GET /b +1' })
   })
 })
