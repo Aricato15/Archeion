@@ -1,6 +1,7 @@
 # 0013: Start the inbox terminal from the viewer
 
 - Status: Accepted (2026-11-15)
+- Amended by: [ADR 0020](0020-study-conversations-and-on-demand-claude.md) (2026-11-16): the terminal doesn't start while on-demand Claude is on or running.
 - Date: 2026-11-15
 - Builds on: [ADR 0002](0002-viewer-app-and-claude-feedback-loop.md) (option A, the inbox pulled by a terminal session)
 
