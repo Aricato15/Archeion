@@ -25,6 +25,7 @@ import type {
   SourceId,
   TreeNode,
 } from './types'
+import type { Approval, BuiltVsDesigned, DesignFull, DesignRow, Impact, Preflight } from './design'
 import type { SnapshotFull, SnapshotRow, StudyDiff, StudyHit, SystemLinks } from './study'
 
 // --- session ---------------------------------------------------------------------------
@@ -332,3 +333,74 @@ export const useStudySearch = (q: string) =>
 
 export const useSystemLinks = () =>
   useQuery({ queryKey: ['studies', 'system-links'], queryFn: () => api<SystemLinks>('/system/links') })
+
+// --- designs (ADR 0022) ----------------------------------------------------------------------
+
+// Keyed under 'designs', so designs.changed refreshes them all (useEvents).
+export const useDesignIndex = () => useQuery({ queryKey: ['designs'], queryFn: () => api<DesignRow[]>('/designs') })
+
+export const useDesigns = (project: string) =>
+  useQuery({
+    queryKey: ['designs', project],
+    queryFn: () => api<DesignRow[]>(`/designs/${encodeURIComponent(project)}`),
+  })
+
+export const useDesign = (project: string, slug: string | null, revision: number | null) =>
+  useQuery({
+    queryKey: ['designs', project, 'design', slug, revision],
+    queryFn: () =>
+      api<DesignFull>(
+        `/designs/${encodeURIComponent(project)}/${encodeURIComponent(slug ?? '')}${qs({ revision })}`,
+      ),
+    enabled: Boolean(slug),
+    placeholderData: keepPreviousData,
+  })
+
+export const useDesignPreflight = (project: string, purpose: 'design' | 'handoff', slug: string) =>
+  useQuery({
+    queryKey: ['designs', project, 'preflight', purpose, slug],
+    queryFn: () =>
+      api<Preflight>(`/designs/${encodeURIComponent(project)}/preflight${qs({ for: purpose, slug })}`),
+  })
+
+export const useDesignApproval = (project: string, slug: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['designs', project, 'approval', slug],
+    queryFn: () => api<Approval>(`/designs/${encodeURIComponent(project)}/${encodeURIComponent(slug)}/approval`),
+    enabled,
+  })
+
+function useDesignMutation<V, R>(fn: (v: V) => Promise<R>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['designs'] })
+      qc.invalidateQueries({ queryKey: ['registry'] })
+      qc.invalidateQueries({ queryKey: ['feedback'] })
+    },
+  })
+}
+
+const designPath = (project: string, slug: string) => `/designs/${encodeURIComponent(project)}/${encodeURIComponent(slug)}`
+
+export const useSetDesignStage = (project: string, slug: string) =>
+  useDesignMutation((stage: string) => api<DesignRow>(`${designPath(project, slug)}/stage`, { method: 'PUT', json: { stage } }))
+
+export const useApproveDesign = (project: string, slug: string) =>
+  useDesignMutation(() => api<DesignRow>(`${designPath(project, slug)}/approve`, { method: 'POST' }))
+
+export const useHandoffDesign = (project: string, slug: string) =>
+  useDesignMutation(() => api<FeedbackItem>(`${designPath(project, slug)}/handoff`, { method: 'POST' }))
+
+export const useDesignImpact = (project: string, slug: string) =>
+  useQuery({
+    queryKey: ['designs', project, 'impact', slug],
+    queryFn: () => api<Impact[]>(`${designPath(project, slug)}/impact`),
+  })
+
+export const useBuiltVsDesigned = (project: string, slug: string) =>
+  useQuery({
+    queryKey: ['designs', project, 'built', slug],
+    queryFn: () => api<BuiltVsDesigned>(`${designPath(project, slug)}/built`),
+  })

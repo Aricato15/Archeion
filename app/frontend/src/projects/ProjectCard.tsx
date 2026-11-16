@@ -1,7 +1,9 @@
 import { Anchor, Badge, Card, Group, Stack, Text, Tooltip } from '@mantine/core'
 import { IconAlertTriangle } from '@tabler/icons-react'
 import { Link } from 'react-router'
+import { useDesignIndex } from '../api/queries'
 import type { Project } from '../api/types'
+import { StageBadge } from '../design/DesignTab'
 import { projectUrl } from '../docs/links'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -39,6 +41,7 @@ function childrenSummary(project: Project, projects: Map<string, Project>): stri
 
 export function ProjectCard({ project, projects }: { project: Project; projects: Map<string, Project> }) {
   const kids = childrenSummary(project, projects)
+  const design = useDesignIndex().data?.find((d) => d.project === project.id)
   return (
     <Card withBorder radius="md" padding="sm" component={Link} to={projectUrl(project.id)}>
       <Stack gap={4}>
@@ -50,6 +53,13 @@ export function ProjectCard({ project, projects }: { project: Project; projects:
             {project.path && !project.available && (
               <Tooltip label={`${project.path} isn't on this machine`}>
                 <IconAlertTriangle size={14} color="var(--mantine-color-orange-6)" />
+              </Tooltip>
+            )}
+            {design && (
+              <Tooltip label={`Design '${design.slug}'`}>
+                <span>
+                  <StageBadge stage={design.stage} size="xs" />
+                </span>
               </Tooltip>
             )}
             <StatusPill status={project.status} />

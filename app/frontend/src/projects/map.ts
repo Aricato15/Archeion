@@ -189,7 +189,7 @@ export function buildGraph(registry: Registry, opts: MapOptions = {}, links?: Sy
       if (l) edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, label: callLabel(l), tone: 'blue' })
       else if (links && studied.has(p.id))
         edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, label: 'not seen in code', style: 'dotted', tone: 'gray' })
-      else edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d })
+      else edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, ...(p.status === 'planned' ? { style: 'dashed' as const } : {}) })
     }
   }
   for (const l of links?.links ?? []) {

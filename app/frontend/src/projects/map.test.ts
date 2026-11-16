@@ -110,4 +110,20 @@ describe('buildGraph', () => {
     expect(edge('dep:web>bff')).toMatchObject({ label: 'not seen in code', style: 'dotted' })
     expect(edge('code:web>datasvc')).toMatchObject({ style: 'dashed', tone: 'orange', label: 'in code only: GET /a, GET /b +1' })
   })
+
+  it('draws the arrows of a planned project dashed until a study confirms them (ADR 0022)', () => {
+    const planned: Registry = {
+      ...registry,
+      projects: [project('web', { status: 'planned', depends_on: ['bff'] }), project('bff', { used_by: ['web'] })],
+    }
+    expect(buildGraph(planned).edges).toEqual([expect.objectContaining({ id: 'dep:web>bff', style: 'dashed' })])
+    const call = { id: 'c1', kind: 'http', method: 'GET', path: '/x', resolved_by: 'port' as const, exposed: null, target_studied: true }
+    const confirmed = buildGraph(planned, {}, {
+      links: [{ from: 'web', to: 'bff', calls: [call] }],
+      unresolved: [],
+      drift: [],
+      studied: ['web'],
+    })
+    expect(confirmed.edges.find((e) => e.id === 'dep:web>bff')?.style).toBeUndefined()
+  })
 })

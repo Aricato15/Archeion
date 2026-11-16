@@ -38,6 +38,7 @@ import { flattenFiles } from '../lib/format'
 import { ProjectCard, ProjectLink, StatusPill } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
+import { DesignTab } from '../design/DesignTab'
 import { StudyTab } from '../study/StudyTab'
 
 /** One of the project's own files, read-only, with a link to the full doc view. */
@@ -299,6 +300,7 @@ export function ProjectPage() {
         <Tabs.List>
           <Tabs.Tab value="notes">Cross-project notes</Tabs.Tab>
           <Tabs.Tab value="study">Study</Tabs.Tab>
+          <Tabs.Tab value="design">Design</Tabs.Tab>
           <Tabs.Tab value="readme" disabled={!available}>
             README
           </Tabs.Tab>
@@ -339,6 +341,9 @@ export function ProjectPage() {
         </Tabs.Panel>
         <Tabs.Panel value="study" pt="md">
           <StudyTab project={project} />
+        </Tabs.Panel>
+        <Tabs.Panel value="design" pt="md">
+          <DesignTab project={project.id} />
         </Tabs.Panel>
         <Tabs.Panel value="readme" pt="md">
           <SourceDoc source={id} path="README.md" />

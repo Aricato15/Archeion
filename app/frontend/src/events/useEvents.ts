@@ -79,7 +79,13 @@ export function useEvents() {
       })
 
       // A study snapshot was saved or pruned (ADR 0019).
-      source.addEventListener('studies.changed', () => qc.invalidateQueries({ queryKey: ['studies'] }))
+      source.addEventListener('studies.changed', () => {
+        qc.invalidateQueries({ queryKey: ['studies'] })
+        qc.invalidateQueries({ queryKey: ['designs'] }) // built vs designed and the impact list read studies
+      })
+
+      // A design was saved, staged, approved or handed off (ADR 0022).
+      source.addEventListener('designs.changed', () => qc.invalidateQueries({ queryKey: ['designs'] }))
 
       source.addEventListener('session.expired', () => {
         source?.close()
