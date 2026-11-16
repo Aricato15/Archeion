@@ -2,6 +2,7 @@
 
 - Status: Accepted (2026-11-16)
 - Date: 2026-11-16
+- Amended by: [ADR 0021](0021-claude-jobs-windows-headless-and-limits.md) (2026-11-16): runs are watchable sessions or headless, and up to 2 Claude instances may run.
 - Builds on: [ADR 0019](0019-code-studies.md) (code studies), [ADR 0018](0018-feedback-threads.md) (threads), [ADR 0013](0013-start-the-inbox-terminal-from-the-viewer.md) (the inbox terminal)
 
 ## Context

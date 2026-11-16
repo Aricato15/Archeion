@@ -47,7 +47,7 @@ export function OnDemandCard() {
                   label="Answer new messages"
                   checked={data.enabled}
                   disabled={toggle.isPending || (!data.enabled && !data.can_start)}
-                  onChange={(e) => toggle.mutate(e.currentTarget.checked)}
+                  onChange={(e) => toggle.mutate({ enabled: e.currentTarget.checked })}
                 />
               </Tooltip>
               {data.running ? (
@@ -59,7 +59,7 @@ export function OnDemandCard() {
                   loading={stop.isPending}
                   onClick={() => stop.mutate()}
                 >
-                  Stop this run
+                  Stop {data.jobs.length > 1 ? 'these runs' : 'this run'}
                 </Button>
               ) : (
                 <Tooltip label={data.reason ?? 'Answer the inbox once, now'} multiline w={260}>
@@ -79,16 +79,19 @@ export function OnDemandCard() {
           )}
         </Group>
         <Text size="sm" c="dimmed">
-          When it's on, Archeion opens a window running <code>claude -p "/inbox"</code> as soon as a new message waits:
-          a new thread, a reply, or a study started from a project's Study tab. The window closes when the run ends, and
-          the next message starts another run. Messages Claude leaves open on purpose don't start one. It can edit files
-          and use Archeion's CLI, but it can't approve other commands, a project's tests among them, so it says in its
-          reply what it couldn't run.
+          When it's on, Archeion starts Claude as soon as a new message waits: a new thread, a reply, or a study started
+          from a project's Study tab. By default it opens a window running <code>cmd /c claude "/inbox"</code>, so you can
+          watch it think and work, and closes it when its turn ends. With <b>Headless</b> (Claude jobs, above) nothing
+          opens and every step goes to a log. Messages Claude leaves open on purpose don't start a run. It may edit files
+          and use Archeion's CLI; in a window you can approve anything else, headless it says in its reply what it
+          couldn't run.
         </Text>
         {data && (
           <Text size="sm">
-            {data.running && data.started_at
-              ? `Working since ${timeAgo(data.started_at)}.`
+            {data.running
+              ? data.jobs
+                  .map((j) => `${j.mode === 'headless' ? 'Headless run' : 'Window'} working since ${timeAgo(j.started_at)}.`)
+                  .join(' ')
               : data.last_run_at
                 ? `Last run ${timeAgo(data.last_run_at)}.`
                 : "It hasn't run yet."}{' '}

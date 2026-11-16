@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_conn, get_state
 from ..security import local_only
@@ -15,8 +15,11 @@ from ..services import responder
 router = APIRouter(prefix="/api/responder")
 
 
-class EnabledIn(BaseModel):
-    enabled: bool
+class SettingsIn(BaseModel):
+    enabled: bool | None = None
+    # ADR 0021: no window at all, and how many Claude processes may run at once.
+    headless: bool | None = None
+    max_instances: int | None = Field(None, ge=1, le=2)
 
 
 def granted_dirs(state: AppState) -> list[Path]:
@@ -34,10 +37,16 @@ def get_responder(state: AppState = Depends(get_state), conn: sqlite3.Connection
 
 
 @router.put("")
-def put_enabled(
-    body: EnabledIn, state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)
+def put_settings(
+    body: SettingsIn, state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)
 ) -> dict:
-    responder.set_enabled(conn, body.enabled, can_start=local_only(state.settings.host))
+    responder.update(
+        conn,
+        enabled=body.enabled,
+        headless=body.headless,
+        max_instances=body.max_instances,
+        can_start=local_only(state.settings.host),
+    )
     return _view(state, conn)
 
 

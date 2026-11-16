@@ -205,12 +205,19 @@ export type NewFeedback = {
   parent_id?: number | null
 }
 
-/** On-demand Claude (ADR 0020): `claude -p "/inbox"` started whenever a new message waits. */
+/** On-demand Claude (ADR 0020, ADR 0021): a Claude run started whenever a new message waits. */
 export type ResponderStatus = {
   enabled: boolean
   running: boolean
-  pid: number | null
-  started_at: string | null
+  /** The runs going now: a visible session in its own window, or headless. */
+  jobs: { pid: number; started_at: string; mode: 'window' | 'headless' }[]
+  /** Runs open no window; their events go to a log. */
+  headless: boolean
+  /** How many Claude processes may run at once, the inbox terminal included (1 or 2). */
+  max_instances: number
+  /** Claude processes running now, the inbox terminal included. */
+  instances: number
+  terminal_running: boolean
   last_run_at: string | null
   /** Open messages newer than the last run. */
   waiting: number

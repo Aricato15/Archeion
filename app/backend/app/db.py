@@ -197,6 +197,29 @@ def _m8_responder(conn: sqlite3.Connection) -> None:
     )
 
 
+def _m9_claude_jobs(conn: sqlite3.Connection) -> None:
+    # Claude jobs (ADR 0021): headless or in a window, at most max_instances Claude processes
+    # (the inbox terminal included), and one row per on-demand run, so two can run side by side.
+    # The responder row's pid columns are no longer used; the runs live in claude_jobs.
+    _exec_all(
+        conn,
+        """
+        ALTER TABLE responder ADD COLUMN headless INTEGER NOT NULL DEFAULT 0 CHECK (headless IN (0, 1));
+        ALTER TABLE responder ADD COLUMN max_instances INTEGER NOT NULL DEFAULT 1
+          CHECK (max_instances BETWEEN 1 AND 2);
+        CREATE TABLE claude_jobs (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          pid           INTEGER NOT NULL,
+          proc_started  INTEGER,
+          started_at    TEXT NOT NULL,
+          mode          TEXT NOT NULL CHECK (mode IN ('window', 'headless')),
+          log_path      TEXT,
+          done_path     TEXT
+        )
+        """,
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
@@ -206,6 +229,7 @@ MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m6_feedback_threads,
     _m7_reopen_as_message,
     _m8_responder,
+    _m9_claude_jobs,
 ]
 
 

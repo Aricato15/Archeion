@@ -28,6 +28,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/on-demand-done.ps1",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   },
   "extraKnownMarketplaces": {

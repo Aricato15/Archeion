@@ -9,8 +9,11 @@ import { OnDemandCard } from './OnDemand'
 const base: ResponderStatus = {
   enabled: false,
   running: false,
-  pid: null,
-  started_at: null,
+  jobs: [],
+  headless: false,
+  max_instances: 1,
+  instances: 0,
+  terminal_running: false,
   last_run_at: null,
   waiting: 0,
   can_start: true,

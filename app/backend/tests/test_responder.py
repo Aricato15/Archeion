@@ -1,6 +1,8 @@
-"""On-demand Claude (ADR 0020). Launching and process checks are faked: no window opens."""
+"""On-demand Claude (ADR 0020, ADR 0021). Launching and process checks are faked: no window opens."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -11,7 +13,9 @@ from app.services import responder, runner
 class FakeOS:
     def __init__(self) -> None:
         self.procs: dict[int, int] = {}
-        self.runs: list[list[str]] = []
+        self.windows: list[str] = []  # done-marker paths
+        self.headless: list[str] = []  # log paths
+        self.dirs: list[list[str]] = []
         self.terminals: list[str] = []
         self.next_pid = 5100
 
@@ -20,8 +24,13 @@ class FakeOS:
         self.procs[self.next_pid] = 1000 + self.next_pid
         return self.next_pid
 
-    def launch_responder(self, repo_root, log, dirs):
-        self.runs.append([str(d) for d in dirs])
+    def launch_window(self, repo_root, dirs, done):
+        self.windows.append(str(done))
+        self.dirs.append([str(d) for d in dirs])
+        return self._spawn()
+
+    def launch_headless(self, claude, repo_root, dirs, log):
+        self.headless.append(str(log))
         return self._spawn()
 
     def launch_terminal(self, claude, interval, cwd):
@@ -34,8 +43,8 @@ class FakeOS:
     def kill(self, pid):
         self.procs.pop(pid, None)
 
-    def finish_all(self):
-        self.procs.clear()
+    def end(self, pid: int) -> None:
+        self.procs.pop(pid, None)
 
 
 @pytest.fixture
@@ -46,7 +55,8 @@ def fake(monkeypatch) -> FakeOS:
     monkeypatch.setattr(runner, "launch", f.launch_terminal)
     monkeypatch.setattr(runner, "process_start_time", f.start_time)
     monkeypatch.setattr(runner, "kill_tree", f.kill)
-    monkeypatch.setattr(responder, "launch", f.launch_responder)
+    monkeypatch.setattr(responder, "launch_window", f.launch_window)
+    monkeypatch.setattr(responder, "launch_headless", f.launch_headless)
     return f
 
 
@@ -55,60 +65,101 @@ def _tick(db, settings):
         return responder.tick(conn, settings.repo_root, [settings.repo_root.parent], can_start=True)
 
 
-def _message(db, body="hello", **kw):
+def _message(db, body="hello"):
     with db.conn() as conn:
-        return fb.create(conn, kind="prompt", body=body, **kw)
+        return fb.create(conn, kind="prompt", body=body)
 
 
-def test_runs_only_when_switched_on_and_something_new_waits(authed, fake, db, settings):
+def test_a_visible_session_closes_when_its_turn_ends(authed, fake, db, settings):
     assert authed.get("/api/responder").json()["enabled"] is False
     _message(db)
     assert _tick(db, settings) is None  # switched off
     r = authed.put("/api/responder", json={"enabled": True})
     assert r.status_code == 200 and r.json()["enabled"] and r.json()["waiting"] == 1
     assert _tick(db, settings) == "started"
-    assert fake.runs == [[str(settings.repo_root.parent)]]
+    assert len(fake.windows) == 1 and fake.dirs == [[str(settings.repo_root.parent)]]
     view = authed.get("/api/responder").json()
-    assert view["running"] and view["pid"] and view["waiting"] == 0
-    assert _tick(db, settings) is None  # still running: no second run
+    assert view["running"] and view["jobs"][0]["mode"] == "window" and view["instances"] == 1
+    assert _tick(db, settings) is None  # still working
 
-    item = _message(db, "during the run")
-    fake.finish_all()
+    # The Stop hook writes the marker: the backend closes the window.
+    marker = Path(fake.windows[0])
+    assert marker.parent == settings.repo_root / "app" / "backend" / "data" / "responder"
+    marker.write_text("done", encoding="ascii")
     assert _tick(db, settings) == "finished"
-    assert _tick(db, settings) == "started"  # the message written during the run
-    assert len(fake.runs) == 2
+    assert not fake.procs and not marker.exists()
+    assert authed.get("/api/responder").json()["running"] is False
 
-    # Claude claims and releases it: left open on purpose, so it doesn't start a run again.
+
+def test_new_messages_start_runs_and_released_ones_dont(authed, fake, db, settings):
+    authed.put("/api/responder", json={"enabled": True})
+    _message(db)
+    assert _tick(db, settings) == "started"
+    item = _message(db, "during the run")
+    assert _tick(db, settings) is None  # the one slot is taken
+    fake.end(fake.next_pid)
+    assert _tick(db, settings) == "started"  # the message written during the run
     with db.conn() as conn:
         fb.claim(conn, item["id"])
-        fb.release(conn, item["id"])
-    fake.finish_all()
+        fb.release(conn, item["id"])  # left open on purpose
+    fake.end(fake.next_pid)
     assert _tick(db, settings) == "finished"
     assert _tick(db, settings) is None
-    assert len(fake.runs) == 2
+    assert len(fake.windows) == 2
 
 
-def test_one_claude_job_at_a_time(authed, fake, db, settings):
-    # The terminal runs: on-demand can't be switched on or run.
+def test_headless_runs_open_no_window_and_log(authed, fake, db, settings):
+    r = authed.put("/api/responder", json={"enabled": True, "headless": True})
+    assert r.json()["headless"] is True
+    _message(db)
+    assert _tick(db, settings) == "started"
+    assert fake.windows == [] and fake.headless[0].endswith(".log")
+    assert authed.get("/api/responder").json()["jobs"][0]["mode"] == "headless"
+
+
+def test_two_instances_run_side_by_side(authed, fake, db, settings):
+    assert authed.put("/api/responder", json={"max_instances": 3}).status_code == 422
+    r = authed.put("/api/responder", json={"enabled": True, "max_instances": 2})
+    assert r.json()["max_instances"] == 2
+    _message(db)
+    assert _tick(db, settings) == "started"
+    _message(db, "second")
+    assert _tick(db, settings) == "started"  # a second run, in parallel
+    _message(db, "third")
+    assert _tick(db, settings) is None  # both slots taken
+    view = authed.get("/api/responder").json()
+    assert view["instances"] == 2 and not view["can_start"] and "most allowed" in view["reason"]
+    assert authed.post("/api/runner/start", json={}).status_code == 400  # the terminal counts too
+    r = authed.put("/api/responder", json={"max_instances": 1})
+    assert r.status_code == 400 and "lowering" in r.json()["detail"]
+    assert authed.post("/api/responder/stop").json()["running"] is False
+
+
+def test_with_two_the_terminal_and_on_demand_share(authed, fake, db, settings):
+    authed.put("/api/responder", json={"max_instances": 2, "enabled": True})
+    assert authed.post("/api/runner/start", json={}).status_code == 200
+    _message(db)
+    assert _tick(db, settings) == "started"  # terminal + one run = 2
+    _message(db, "more")
+    assert _tick(db, settings) is None
+    assert authed.put("/api/responder", json={"max_instances": 1}).status_code == 400
+
+
+def test_with_one_the_terminal_and_on_demand_exclude_each_other(authed, fake, db, settings):
     assert authed.post("/api/runner/start", json={}).status_code == 200
     r = authed.put("/api/responder", json={"enabled": True})
-    assert r.status_code == 400 and "inbox terminal is running" in r.json()["detail"]
+    assert r.status_code == 400 and "Max Claude instances is 1" in r.json()["detail"]
     assert authed.post("/api/responder/run").status_code == 400
-    assert authed.get("/api/responder").json()["can_start"] is False
     authed.post("/api/runner/stop")
 
-    # On-demand is switched on: the terminal can't start.
     assert authed.put("/api/responder", json={"enabled": True}).status_code == 200
     r = authed.post("/api/runner/start", json={})
     assert r.status_code == 400 and "switched on" in r.json()["detail"]
-    assert authed.get("/api/runner").json()["can_start"] is False
-
-    # Switched off but a run is going: still refused until it ends.
     authed.put("/api/responder", json={"enabled": False})
     assert authed.post("/api/responder/run").status_code == 200
-    assert "working on the inbox" in authed.post("/api/runner/start", json={}).json()["detail"]
-    assert authed.post("/api/responder/run").status_code == 400  # already running
-    assert authed.post("/api/responder/stop").json()["running"] is False
+    assert "working" in authed.post("/api/runner/start", json={}).json()["detail"]
+    assert authed.post("/api/responder/run").status_code == 400  # no free slot
+    authed.post("/api/responder/stop")
     assert authed.post("/api/runner/start", json={}).status_code == 200
 
 
@@ -117,6 +168,13 @@ def test_refused_when_the_backend_isnt_local(fake, db, settings):
         with pytest.raises(runner.RunnerError, match="another network interface"):
             responder.set_enabled(conn, True, can_start=False)
         responder.set_enabled(conn, False, can_start=False)  # switching off is always fine
+
+
+def test_flags_allow_only_archeions_cli_and_the_granted_roots(tmp_path):
+    flags = responder._flags([tmp_path])
+    assert flags[:2] == ["--permission-mode", "acceptEdits"]
+    assert any(f.startswith("Bash(powershell") and "archeion.ps1" in f for f in flags)
+    assert flags[-2:] == ["--add-dir", str(tmp_path)]
 
 
 def test_api_requires_login(client):

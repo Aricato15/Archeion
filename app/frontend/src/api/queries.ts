@@ -185,7 +185,9 @@ function useResponderMutation<V>(fn: (vars: V) => Promise<ResponderStatus>) {
 }
 
 export const useSetResponder = () =>
-  useResponderMutation((enabled: boolean) => api<ResponderStatus>('/responder', { method: 'PUT', json: { enabled } }))
+  useResponderMutation((settings: { enabled?: boolean; headless?: boolean; max_instances?: number }) =>
+    api<ResponderStatus>('/responder', { method: 'PUT', json: settings }),
+  )
 
 export const useRunResponder = () =>
   useResponderMutation<void>(() => api<ResponderStatus>('/responder/run', { method: 'POST', json: {} }))

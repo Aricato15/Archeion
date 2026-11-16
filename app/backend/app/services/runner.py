@@ -87,10 +87,10 @@ def process_start_time(pid: int) -> int | None:
 
 
 def launch(claude: str, interval: str, cwd: Path) -> Launch:
-    """Open Claude Code in a new console window, already running the loop."""
+    """Open Claude Code in a new console window, through cmd (ADR 0021), already running the loop."""
     env = {k: v for k, v in os.environ.items() if k not in DROP_ENV}
     proc = subprocess.Popen(  # noqa: S603 - fixed program and a validated interval
-        [claude, f"/loop {interval} /inbox"],
+        ["cmd", "/c", claude, f"/loop {interval} /inbox"],
         cwd=cwd,
         env=env,
         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
@@ -122,15 +122,25 @@ def _alive(row: sqlite3.Row | None) -> bool:
     return started is not None and started == row["proc_started"]
 
 
+def terminal_running(conn: sqlite3.Connection) -> bool:
+    return _alive(_row(conn))
+
+
 def _on_demand(conn: sqlite3.Connection) -> str | None:
-    """Why on-demand Claude (ADR 0020) blocks the terminal: one Claude job at a time."""
+    """Why on-demand Claude blocks the terminal (ADR 0021): Max Claude instances counts the
+    terminal and every on-demand run, and with a limit of 1 the two don't mix at all."""
     row = conn.execute("SELECT * FROM responder WHERE id = 1").fetchone()
     if row is None:
         return None
-    if _alive(row):
-        return "On-demand Claude is working on the inbox. Wait for it to finish: one Claude job at a time."
-    if row["enabled"]:
-        return "On-demand Claude is switched on. Switch it off first: one Claude job at a time."
+    most = int(row["max_instances"])
+    jobs = [j for j in conn.execute("SELECT * FROM claude_jobs").fetchall() if _alive(j)]
+    if len(jobs) >= most:
+        return (
+            f"On-demand Claude is working ({len(jobs)} run(s)), and Max Claude instances is {most}."
+            " Wait for it to finish, or allow more."
+        )
+    if most == 1 and row["enabled"]:
+        return "On-demand Claude is switched on, and Max Claude instances is 1. Switch it off, or allow 2."
     return None
 
 

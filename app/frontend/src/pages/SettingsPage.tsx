@@ -23,6 +23,7 @@ import { IconAlertTriangle, IconFolderPlus, IconLock, IconPlus, IconTrash } from
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useRegisterProject, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
+import { ClaudeJobsCard } from '../runner/ClaudeJobs'
 import { InboxTerminalCard } from '../runner/InboxTerminal'
 import { OnDemandCard } from '../runner/OnDemand'
 import type { ProjectType, RootEntry, RootItem, RootSurvey, RootsSettings } from '../api/types'
@@ -373,6 +374,7 @@ export function SettingsPage() {
       )}
       {survey.data?.map((r) => <RootProjects key={r.name} root={r} onlyNew={onlyNew} />)}
 
+      <ClaudeJobsCard />
       <InboxTerminalCard />
       <OnDemandCard />
     </Stack>
