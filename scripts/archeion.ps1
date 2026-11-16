@@ -9,5 +9,7 @@ if (-not (Test-Path -LiteralPath $BackendPython)) {
     exit 1
 }
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Invoke-Backend @args
+# Passed as a value, not splatted: splatting re-parses "--out" and the like as PowerShell
+# parameters, which then clash with common ones such as -OutVariable.
+Invoke-Backend -CliArgs $args
 exit $LASTEXITCODE
