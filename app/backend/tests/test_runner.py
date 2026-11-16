@@ -16,7 +16,7 @@ class FakeOS:
         self.killed: list[int] = []
         self.next_pid = 4100
 
-    def launch(self, claude, interval, cwd):
+    def launch(self, claude, interval, cwd, flags=None):
         self.next_pid += 1
         self.procs[self.next_pid] = 1000 + self.next_pid
         self.launched.append((claude, interval, str(cwd)))

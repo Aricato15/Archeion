@@ -115,6 +115,7 @@ def status(conn: sqlite3.Connection, *, can_start: bool) -> dict:
         "running": bool(alive),
         "jobs": [{"pid": int(j["pid"]), "started_at": j["started_at"], "mode": j["mode"]} for j in alive],
         "headless": headless(conn),
+        "accept_edits": runner.accepts_edits(conn),
         "max_instances": limit(conn),
         "instances": instances(conn),
         "terminal_running": runner.terminal_running(conn),
@@ -131,8 +132,16 @@ def update(
     enabled: bool | None = None,
     headless: bool | None = None,
     max_instances: int | None = None,
+    accept_edits: bool | None = None,
     can_start: bool,
 ) -> None:
+    current = _row(conn)
+    will_headless = headless if headless is not None else bool(current and current["headless"])
+    will_accept = accept_edits if accept_edits is not None else runner.accepts_edits(conn)
+    if will_headless and not will_accept:
+        raise RunnerError(
+            "Headless runs have no one to confirm edits with. Choose auto accept edits, or turn Headless off."
+        )
     if max_instances is not None and not 1 <= max_instances <= MAX_INSTANCES:
         raise RunnerError(f"Max Claude instances is 1 or {MAX_INSTANCES}.")
     most = max_instances if max_instances is not None else limit(conn)
@@ -157,6 +166,9 @@ def update(
         for column, value in (("enabled", enabled), ("headless", headless), ("max_instances", max_instances)):
             if value is not None:
                 conn.execute(f"UPDATE responder SET {column} = ? WHERE id = 1", (int(value),))  # noqa: S608
+        if accept_edits is not None:
+            mode = "accept_edits" if accept_edits else "confirm"
+            conn.execute("UPDATE responder SET permission_mode = ? WHERE id = 1", (mode,))
 
 
 def set_enabled(conn: sqlite3.Connection, value: bool, *, can_start: bool) -> None:
@@ -166,8 +178,10 @@ def set_enabled(conn: sqlite3.Connection, value: bool, *, can_start: bool) -> No
 # --- launching -------------------------------------------------------------------------------
 
 
-def _flags(dirs: list[Path]) -> list[str]:
-    out = ["--permission-mode", "acceptEdits", "--allowedTools", *ALLOWED_TOOLS]
+def _flags(dirs: list[Path], *, accept_edits: bool = True) -> list[str]:
+    """With "seek confirmations" no permission mode is passed: Claude asks before each edit,
+    which only makes sense in a window someone can answer."""
+    out = (["--permission-mode", "acceptEdits"] if accept_edits else []) + ["--allowedTools", *ALLOWED_TOOLS]
     for d in dirs:
         out += ["--add-dir", str(d)]
     return out
@@ -179,10 +193,10 @@ def _env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
-def launch_window(repo_root: Path, dirs: list[Path], done: Path) -> int:
+def launch_window(repo_root: Path, dirs: list[Path], done: Path, *, accept_edits: bool = True) -> int:
     """An interactive session in its own console window, through cmd, so it can be watched."""
     proc = subprocess.Popen(  # noqa: S603 - fixed program and flags, paths from settings
-        ["cmd", "/c", "claude", "/inbox", *_flags(dirs)],
+        ["cmd", "/c", "claude", "/inbox", *_flags(dirs, accept_edits=accept_edits)],
         cwd=repo_root,
         env=_env({DONE_ENV: str(done)}),
         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
@@ -241,7 +255,7 @@ def start(conn: sqlite3.Connection, repo_root: Path, dirs: list[Path], *, can_st
     else:
         mode = "window"
         done = folder / f"{stamp}.done"
-        pid = launch_window(repo_root, dirs, done)
+        pid = launch_window(repo_root, dirs, done, accept_edits=runner.accepts_edits(conn))
     started = runner.process_start_time(pid)
     with write_tx(conn):
         _ensure(conn)

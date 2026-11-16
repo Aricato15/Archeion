@@ -20,6 +20,8 @@ class SettingsIn(BaseModel):
     # ADR 0021: no window at all, and how many Claude processes may run at once.
     headless: bool | None = None
     max_instances: int | None = Field(None, ge=1, le=2)
+    # Auto accept file edits, or seek the user's confirmation for each (both terminals).
+    accept_edits: bool | None = None
 
 
 def granted_dirs(state: AppState) -> list[Path]:
@@ -45,6 +47,7 @@ def put_settings(
         enabled=body.enabled,
         headless=body.headless,
         max_instances=body.max_instances,
+        accept_edits=body.accept_edits,
         can_start=local_only(state.settings.host),
     )
     return _view(state, conn)

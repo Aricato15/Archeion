@@ -82,9 +82,9 @@ export function OnDemandCard() {
           When it's on, Archeion starts Claude as soon as a new message waits: a new thread, a reply, or a study started
           from a project's Study tab. By default it opens a window running <code>cmd /c claude "/inbox"</code>, so you can
           watch it think and work, and closes it when its turn ends. With <b>Headless</b> (Claude jobs, above) nothing
-          opens and every step goes to a log. Messages Claude leaves open on purpose don't start a run. It may edit files
-          and use Archeion's CLI; in a window you can approve anything else, headless it says in its reply what it
-          couldn't run.
+          opens and every step goes to a log. Messages Claude leaves open on purpose don't start a run. It may use
+          Archeion's CLI, and edits files as the <b>Edits</b> setting says; in a window you can approve anything else,
+          headless it says in its reply what it couldn't run.
         </Text>
         {data && (
           <Text size="sm">

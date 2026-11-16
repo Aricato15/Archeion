@@ -10,6 +10,7 @@ const status: ResponderStatus = {
   running: false,
   jobs: [],
   headless: false,
+  accept_edits: true,
   max_instances: 1,
   instances: 0,
   terminal_running: false,
@@ -42,4 +43,6 @@ it('sets headless and the number of Claude instances', async () => {
   await waitFor(() => expect(puts).toContainEqual({ headless: true }))
   fireEvent.click(screen.getByText('2'))
   await waitFor(() => expect(puts).toContainEqual({ max_instances: 2 }))
+  fireEvent.click(screen.getByText('Seek user confirmations'))
+  await waitFor(() => expect(puts).toContainEqual({ accept_edits: false }))
 })

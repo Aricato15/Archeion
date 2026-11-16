@@ -220,6 +220,17 @@ def _m9_claude_jobs(conn: sqlite3.Connection) -> None:
     )
 
 
+def _m10_permission_mode(conn: sqlite3.Connection) -> None:
+    # How Archeion's Claude sessions handle file edits (ADR 0021): accept them, or ask first.
+    _exec_all(
+        conn,
+        """
+        ALTER TABLE responder ADD COLUMN permission_mode TEXT NOT NULL DEFAULT 'accept_edits'
+          CHECK (permission_mode IN ('accept_edits', 'confirm'))
+        """,
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
@@ -230,6 +241,7 @@ MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m7_reopen_as_message,
     _m8_responder,
     _m9_claude_jobs,
+    _m10_permission_mode,
 ]
 
 

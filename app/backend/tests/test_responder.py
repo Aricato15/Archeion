@@ -16,6 +16,8 @@ class FakeOS:
         self.windows: list[str] = []  # done-marker paths
         self.headless: list[str] = []  # log paths
         self.dirs: list[list[str]] = []
+        self.accept: list[bool] = []
+        self.terminal_flags: list[list[str]] = []
         self.terminals: list[str] = []
         self.next_pid = 5100
 
@@ -24,8 +26,9 @@ class FakeOS:
         self.procs[self.next_pid] = 1000 + self.next_pid
         return self.next_pid
 
-    def launch_window(self, repo_root, dirs, done):
+    def launch_window(self, repo_root, dirs, done, accept_edits=True):
         self.windows.append(str(done))
+        self.accept.append(accept_edits)
         self.dirs.append([str(d) for d in dirs])
         return self._spawn()
 
@@ -33,8 +36,9 @@ class FakeOS:
         self.headless.append(str(log))
         return self._spawn()
 
-    def launch_terminal(self, claude, interval, cwd):
+    def launch_terminal(self, claude, interval, cwd, flags=None):
         self.terminals.append(interval)
+        self.terminal_flags.append(list(flags or []))
         return runner.Launch(pid=self._spawn())
 
     def start_time(self, pid):
@@ -180,3 +184,26 @@ def test_flags_allow_only_archeions_cli_and_the_granted_roots(tmp_path):
 def test_api_requires_login(client):
     assert client.get("/api/responder").status_code == 401
     assert client.post("/api/responder/run").status_code == 401
+
+
+def test_edits_are_accepted_or_confirmed_in_both_terminals(authed, fake, db, settings):
+    assert authed.get("/api/responder").json()["accept_edits"] is True
+    assert authed.post("/api/runner/start", json={}).json()["running"]
+    assert fake.terminal_flags[-1] == ["--permission-mode", "acceptEdits"]
+    authed.post("/api/runner/stop")
+
+    assert authed.put("/api/responder", json={"accept_edits": False}).json()["accept_edits"] is False
+    authed.post("/api/runner/start", json={})
+    assert fake.terminal_flags[-1] == []  # Claude asks before each edit
+    authed.post("/api/runner/stop")
+    authed.post("/api/responder/run")
+    assert fake.accept[-1] is False
+    authed.post("/api/responder/stop")
+    assert "--permission-mode" not in responder._flags([], accept_edits=False)
+
+    # Nobody can confirm a headless run's edits.
+    r = authed.put("/api/responder", json={"headless": True})
+    assert r.status_code == 400 and "no one to confirm" in r.json()["detail"]
+    assert authed.put("/api/responder", json={"headless": True, "accept_edits": True}).status_code == 200
+    r = authed.put("/api/responder", json={"accept_edits": False})
+    assert r.status_code == 400

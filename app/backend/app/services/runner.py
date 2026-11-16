@@ -86,11 +86,11 @@ def process_start_time(pid: int) -> int | None:
         k32.CloseHandle(handle)
 
 
-def launch(claude: str, interval: str, cwd: Path) -> Launch:
+def launch(claude: str, interval: str, cwd: Path, flags: list[str] | None = None) -> Launch:
     """Open Claude Code in a new console window, through cmd (ADR 0021), already running the loop."""
     env = {k: v for k, v in os.environ.items() if k not in DROP_ENV}
     proc = subprocess.Popen(  # noqa: S603 - fixed program and a validated interval
-        ["cmd", "/c", claude, f"/loop {interval} /inbox"],
+        ["cmd", "/c", claude, f"/loop {interval} /inbox", *(flags or [])],
         cwd=cwd,
         env=env,
         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
@@ -120,6 +120,17 @@ def _alive(row: sqlite3.Row | None) -> bool:
         return False
     started = process_start_time(int(row["pid"]))
     return started is not None and started == row["proc_started"]
+
+
+def accepts_edits(conn: sqlite3.Connection) -> bool:
+    """The Edits setting (ADR 0021): accept file edits, or ask before each one. Shared by both
+    Claude terminals; it lives on the responder row with the other Claude job settings."""
+    row = conn.execute("SELECT permission_mode FROM responder WHERE id = 1").fetchone()
+    return row is None or row["permission_mode"] == "accept_edits"
+
+
+def permission_flags(conn: sqlite3.Connection) -> list[str]:
+    return ["--permission-mode", "acceptEdits"] if accepts_edits(conn) else []
 
 
 def terminal_running(conn: sqlite3.Connection) -> bool:
@@ -191,7 +202,7 @@ def start(conn: sqlite3.Connection, repo_root: Path, interval: str | None, *, ca
     claude = find_claude()
     if claude is None:  # checked above; it can vanish in between
         raise RunnerError("The claude command isn't on the backend's PATH.")
-    proc = launch(claude, value, repo_root)
+    proc = launch(claude, value, repo_root, permission_flags(conn))
     started = process_start_time(proc.pid)
     with write_tx(conn):
         conn.execute(

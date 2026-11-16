@@ -41,10 +41,29 @@ export function ClaudeJobsCard() {
             </Text>
           </Stack>
           <Stack gap={4}>
+            <Text size="sm" fw={500}>
+              Edits
+            </Text>
+            <SegmentedControl
+              size="xs"
+              value={data.accept_edits ? 'accept' : 'confirm'}
+              disabled={save.isPending}
+              onChange={(v) => save.mutate({ accept_edits: v === 'accept' })}
+              data={[
+                { value: 'accept', label: 'Auto accept edits' },
+                { value: 'confirm', label: 'Seek user confirmations', disabled: data.headless },
+              ]}
+            />
+            <Text size="xs" c="dimmed" maw={340}>
+              For both the inbox terminal and on-demand runs. Asking first needs someone at the window, so it can't be
+              combined with Headless.
+            </Text>
+          </Stack>
+          <Stack gap={4}>
             <Switch
               label="Headless"
               checked={data.headless}
-              disabled={save.isPending}
+              disabled={save.isPending || (!data.headless && !data.accept_edits)}
               onChange={(e) => save.mutate({ headless: e.currentTarget.checked })}
             />
             <Text size="xs" c="dimmed" maw={360}>

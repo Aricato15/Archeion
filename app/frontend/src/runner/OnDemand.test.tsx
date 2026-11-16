@@ -11,6 +11,7 @@ const base: ResponderStatus = {
   running: false,
   jobs: [],
   headless: false,
+  accept_edits: true,
   max_instances: 1,
   instances: 0,
   terminal_running: false,

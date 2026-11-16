@@ -213,6 +213,8 @@ export type ResponderStatus = {
   jobs: { pid: number; started_at: string; mode: 'window' | 'headless' }[]
   /** Runs open no window; their events go to a log. */
   headless: boolean
+  /** Auto accept file edits (true), or seek the user's confirmation for each (both terminals). */
+  accept_edits: boolean
   /** How many Claude processes may run at once, the inbox terminal included (1 or 2). */
   max_instances: number
   /** Claude processes running now, the inbox terminal included. */
