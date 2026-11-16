@@ -119,6 +119,7 @@ def settings(repo: Path) -> Settings:
         db_path=str(repo / "data" / "test.db"),
         watch_docs=False,
         feedback_poll_seconds=0.05,
+        watch_responder=False,
         login_fail_delay_seconds=0,
         extra_allowed_hosts=["testserver"],
     )

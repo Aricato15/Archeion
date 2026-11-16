@@ -176,6 +176,27 @@ def _m7_reopen_as_message(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE feedback SET status = 'answered' WHERE status = 'open' AND reply IS NOT NULL")
 
 
+def _m8_responder(conn: sqlite3.Connection) -> None:
+    # On-demand Claude (ADR 0020): whether it's switched on, the run in progress (PID plus
+    # the process's start time, as for the runner), when the last run started, and the
+    # highest feedback id it could see: only messages above it are new to on-demand Claude.
+    _exec_all(
+        conn,
+        """
+        CREATE TABLE responder (
+          id            INTEGER PRIMARY KEY CHECK (id = 1),
+          enabled       INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+          pid           INTEGER,
+          proc_started  INTEGER,
+          started_at    TEXT,
+          last_run_at   TEXT,
+          seen_id       INTEGER NOT NULL DEFAULT 0,
+          log_path      TEXT
+        )
+        """,
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
@@ -184,6 +205,7 @@ MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m5_runner,
     _m6_feedback_threads,
     _m7_reopen_as_message,
+    _m8_responder,
 ]
 
 

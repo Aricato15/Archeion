@@ -15,6 +15,7 @@ import type {
   Project,
   ProjectType,
   Registry,
+  ResponderStatus,
   RootSurvey,
   RootsSettings,
   RunnerStatus,
@@ -146,7 +147,14 @@ export const useRunner = () =>
 
 function useRunnerMutation<V>(fn: (vars: V) => Promise<RunnerStatus>) {
   const qc = useQueryClient()
-  return useMutation({ mutationFn: fn, onSuccess: (data) => qc.setQueryData(['runner'], data) })
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (data) => {
+      qc.setQueryData(['runner'], data)
+      // One Claude job at a time (ADR 0020): the other card's buttons depend on this one.
+      qc.invalidateQueries({ queryKey: ['responder'] })
+    },
+  })
 }
 
 export const useSetRunnerInterval = () =>
@@ -159,6 +167,31 @@ export const useStartRunner = () =>
 
 export const useStopRunner = () =>
   useRunnerMutation<void>(() => api<RunnerStatus>('/runner/stop', { method: 'POST', json: {} }))
+
+// --- on-demand Claude (ADR 0020) -------------------------------------------------------------
+
+export const useResponder = () =>
+  useQuery({ queryKey: ['responder'], queryFn: () => api<ResponderStatus>('/responder'), refetchInterval: 5000 })
+
+function useResponderMutation<V>(fn: (vars: V) => Promise<ResponderStatus>) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (data) => {
+      qc.setQueryData(['responder'], data)
+      qc.invalidateQueries({ queryKey: ['runner'] })
+    },
+  })
+}
+
+export const useSetResponder = () =>
+  useResponderMutation((enabled: boolean) => api<ResponderStatus>('/responder', { method: 'PUT', json: { enabled } }))
+
+export const useRunResponder = () =>
+  useResponderMutation<void>(() => api<ResponderStatus>('/responder/run', { method: 'POST', json: {} }))
+
+export const useStopResponder = () =>
+  useResponderMutation<void>(() => api<ResponderStatus>('/responder/stop', { method: 'POST', json: {} }))
 
 // --- docs ------------------------------------------------------------------------------
 // Every doc query is keyed by [kind, source, path, ...] so live updates can target them.

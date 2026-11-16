@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     repo_root: Path = REPO_ROOT
     watch_docs: bool = True
     feedback_poll_seconds: float = 2.0
+    # On-demand Claude (ADR 0020): how often the backend checks for waiting messages.
+    watch_responder: bool = True
+    responder_poll_seconds: float = 3.0
     login_max_failures: int = 5
     login_window_seconds: int = 600
     login_fail_delay_seconds: float = 0.5

@@ -72,6 +72,12 @@ export function useEvents() {
         for (const key of ['registry', 'sources', 'tree', 'roadmap', 'diagrams']) qc.invalidateQueries({ queryKey: [key] })
       })
 
+      // On-demand Claude started or finished a run (ADR 0020).
+      source.addEventListener('responder.changed', () => {
+        qc.invalidateQueries({ queryKey: ['responder'] })
+        qc.invalidateQueries({ queryKey: ['runner'] })
+      })
+
       // A study snapshot was saved or pruned (ADR 0019).
       source.addEventListener('studies.changed', () => qc.invalidateQueries({ queryKey: ['studies'] }))
 

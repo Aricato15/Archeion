@@ -155,6 +155,8 @@ export type Anchor = {
   heading?: string
   lines?: [number, number]
   quote?: string
+  /** A job the thread is about, such as studying a project (ADR 0020). Needs no doc. */
+  task?: { type: 'study'; project: string }
   /** An element of a code study (ADR 0019), for a question about it. Needs no doc. */
   study?: { project: string; snapshot: string; element: string; kind: StudyElementKind }
 }
@@ -201,6 +203,19 @@ export type NewFeedback = {
   doc_path?: string | null
   anchor?: Anchor | null
   parent_id?: number | null
+}
+
+/** On-demand Claude (ADR 0020): `claude -p "/inbox"` started whenever a new message waits. */
+export type ResponderStatus = {
+  enabled: boolean
+  running: boolean
+  pid: number | null
+  started_at: string | null
+  last_run_at: string | null
+  /** Open messages newer than the last run. */
+  waiting: number
+  can_start: boolean
+  reason: string | null
 }
 
 /** The inbox terminal: Claude Code running `/loop <interval> /inbox` (ADR 0013). */

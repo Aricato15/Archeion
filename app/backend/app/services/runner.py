@@ -122,6 +122,18 @@ def _alive(row: sqlite3.Row | None) -> bool:
     return started is not None and started == row["proc_started"]
 
 
+def _on_demand(conn: sqlite3.Connection) -> str | None:
+    """Why on-demand Claude (ADR 0020) blocks the terminal: one Claude job at a time."""
+    row = conn.execute("SELECT * FROM responder WHERE id = 1").fetchone()
+    if row is None:
+        return None
+    if _alive(row):
+        return "On-demand Claude is working on the inbox. Wait for it to finish: one Claude job at a time."
+    if row["enabled"]:
+        return "On-demand Claude is switched on. Switch it off first: one Claude job at a time."
+    return None
+
+
 def status(conn: sqlite3.Connection, *, can_start: bool) -> dict:
     row = _row(conn)
     running = _alive(row)
@@ -135,6 +147,8 @@ def status(conn: sqlite3.Connection, *, can_start: bool) -> dict:
         )
     elif claude is None:
         reason = "The claude command isn't on the backend's PATH. Install Claude Code, then restart Archeion."
+    elif not running:
+        reason = _on_demand(conn)
     return {
         "running": running,
         "interval": row["interval"] if row else DEFAULT_INTERVAL,

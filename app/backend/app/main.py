@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -16,10 +17,11 @@ from .config import Settings, read_version
 from .db import Database
 from .deps import AppState, require_session
 from .paths import DocNotFound, DocPathError
-from .routers import auth, docs, events, feedback, manage, runner, studies
-from .security import LoginLimiter
+from .routers import auth, docs, events, feedback, manage, responder, runner, studies
+from .security import LoginLimiter, local_only
 from .services import git
-from .services.events import EventBus, poll_feedback, watch_sources
+from .services import responder as on_demand
+from .services.events import Event, EventBus, poll_feedback, watch_sources
 from .services.feedback import FeedbackConflict, FeedbackNotFound
 from .services.sources import SourceManager, SourceNotFound
 
@@ -63,6 +65,37 @@ class OriginGuard:
         await self.app(scope, receive, send_with_headers)
 
 
+log = logging.getLogger("archeion.responder")
+
+
+async def watch_responder(state: AppState) -> None:
+    """On-demand Claude (ADR 0020): start a run when a new message waits, and tell the
+    browser when a run starts or ends."""
+    settings = state.settings
+
+    def tick() -> str | None:
+        with state.db.conn() as conn:
+            return on_demand.tick(
+                conn,
+                settings.repo_root,
+                responder.granted_dirs(state),
+                can_start=local_only(settings.host),
+            )
+
+    while not state.stop.is_set():
+        try:
+            await asyncio.wait_for(state.stop.wait(), timeout=settings.responder_poll_seconds)
+            break
+        except TimeoutError:
+            pass
+        try:
+            change = await asyncio.to_thread(tick)
+            if change:
+                state.bus.publish(Event("responder.changed", {"state": change}))
+        except Exception:  # pragma: no cover - keep the server up
+            log.exception("on-demand Claude check failed")
+
+
 def _error(status_code: int, detail: str) -> JSONResponse:
     return JSONResponse({"detail": detail}, status_code=status_code)
 
@@ -95,6 +128,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         state.tasks.append(
             asyncio.create_task(poll_feedback(db, state.bus, state.stop, settings.feedback_poll_seconds))
         )
+        if settings.watch_responder:
+            state.tasks.append(asyncio.create_task(watch_responder(state)))
         try:
             yield
         finally:
@@ -152,6 +187,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     protected.include_router(feedback.router)
     protected.include_router(manage.router)
     protected.include_router(runner.router)
+    protected.include_router(responder.router)
     protected.include_router(studies.router)
     protected.include_router(studies.system)
     app.include_router(protected)

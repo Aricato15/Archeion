@@ -44,6 +44,8 @@ def test_every_env_setting_of_the_backend_is_in_the_schema():
         "repo_root",
         "watch_docs",
         "feedback_poll_seconds",
+        "watch_responder",
+        "responder_poll_seconds",
         "login_max_failures",
         "login_window_seconds",
         "login_fail_delay_seconds",
