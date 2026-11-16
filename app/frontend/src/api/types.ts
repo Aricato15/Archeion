@@ -149,10 +149,14 @@ export function locationOf(item: { path: string | null; root: string | null }): 
 export type FeedbackKind = 'prompt' | 'review' | 'comment'
 export type FeedbackStatus = 'open' | 'in_progress' | 'answered' | 'resolved'
 
+export type StudyElementKind = 'component' | 'flow' | 'activity' | 'state machine' | 'entity' | 'interface' | 'finding'
+
 export type Anchor = {
   heading?: string
   lines?: [number, number]
   quote?: string
+  /** An element of a code study (ADR 0019), for a question about it. Needs no doc. */
+  study?: { project: string; snapshot: string; element: string; kind: StudyElementKind }
 }
 
 export type FeedbackItem = {

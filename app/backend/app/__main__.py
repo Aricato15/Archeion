@@ -192,6 +192,9 @@ def _summary_line(item: dict) -> str:
     if item.get("source", "archeion") != "archeion":
         where = f"[{item['source']}] {where}"
     anchor = item["anchor"] or {}
+    if anchor.get("study"):
+        s = anchor["study"]
+        where = f"[study {s['project']} {s['snapshot']}] {s['kind']} {s['element']}"
     if anchor.get("heading"):
         where += f" > {anchor['heading']}"
     if anchor.get("lines"):
@@ -249,6 +252,38 @@ def _doc_excerpt(settings: Settings, item: dict) -> str:
     return docs_fs.excerpt(docs_fs.read_text(target), lines=lines, heading=anchor.get("heading"))
 
 
+STUDY_SECTIONS = {
+    "component": ("components",),
+    "flow": ("flows",),
+    "activity": ("activities",),
+    "state machine": ("states",),
+    "entity": ("entities",),
+    "finding": ("findings",),
+    "interface": ("interfaces.exposes", "interfaces.calls"),
+}
+
+
+def _study_excerpt(settings: Settings, item: dict) -> str:
+    """For feedback about a study element (ADR 0019): that element from its snapshot, as JSON."""
+    study = (item["anchor"] or {}).get("study")
+    if not study:
+        return ""
+    try:
+        snap = st.get_snapshot(settings.registry_root, study["project"], study["snapshot"])
+    except st.StudyNotFound:
+        return f"(snapshot {study['snapshot']} of {study['project']} no longer exists; see: study list)"
+    model, _ = st.load(snap)
+    for section in STUDY_SECTIONS.get(study["kind"], ()):
+        value: object = model
+        for key in section.split("."):
+            value = value.get(key, []) if isinstance(value, dict) else []
+        for element in value if isinstance(value, list) else []:
+            if isinstance(element, dict) and element.get("id") == study["element"]:
+                text = json.dumps(element, ensure_ascii=False, indent=2)
+                return text if len(text) <= 6000 else text[:6000] + "\n..."
+    return f"(no {study['kind']} '{study['element']}' in snapshot {snap.id})"
+
+
 def _item_target(settings: Settings, item: dict) -> dict | None:
     """For an item about a registered project: where its files are and whether Archeion's
     /inbox may edit them (ADR 0017). None for Archeion's own items."""
@@ -290,6 +325,7 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
     root = thread[0] if thread else item
     about = item if item["doc_path"] and item["anchor"] else root
     excerpt = _doc_excerpt(settings, about)
+    study_excerpt = _study_excerpt(settings, about)
     target = _item_target(settings, item)
     conversation = fb.conversation(thread, item["id"]) if len(thread) > 1 else ""
     if args.json:
@@ -299,6 +335,7 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
                 "thread": thread,
                 "conversation": conversation,
                 "excerpt": excerpt,
+                "study_excerpt": study_excerpt,
                 "target": target,
             }
         )
@@ -321,6 +358,13 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
         print()
         print(f"Doc excerpt ({where}):")
         print(excerpt)
+    if study_excerpt:
+        s = about["anchor"]["study"]
+        print()
+        print(
+            f"Study element ({s['kind']} '{s['element']}', registry/studies/{s['project']}/{s['snapshot']}/):"
+        )
+        print(study_excerpt)
     if conversation:
         print()
         print(f"Conversation so far ({len(thread)} messages; answer the one marked 'Your request now'):")

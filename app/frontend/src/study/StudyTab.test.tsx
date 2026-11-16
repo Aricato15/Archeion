@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Project } from '../api/types'
@@ -8,6 +8,13 @@ import { StudyTab } from './StudyTab'
 
 // Mermaid can't render in jsdom: show the code instead.
 vi.mock('../docs/MermaidBlock', () => ({ MermaidBlock: ({ code }: { code: string }) => <pre data-testid="mermaid">{code}</pre> }))
+// ELK needs a worker: lay everything out in a row instead.
+vi.mock('../graph/layout', () => ({
+  layoutGraph: async (root: { children?: { width?: number; height?: number }[] }) => ({
+    ...root,
+    children: root.children?.map((c, i) => ({ ...c, x: i * 200, y: 0, width: c.width ?? 300, height: c.height ?? 150 })),
+  }),
+}))
 
 const project = { id: 'example', title: 'Example' } as Project
 
@@ -50,7 +57,7 @@ function mockApi(snapshots: unknown[]) {
 
 function renderTab(path = '/projects/example?tab=study') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <MantineProvider>
       <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={[path]}>
@@ -73,10 +80,16 @@ describe('StudyTab', () => {
 
   it('shows the overview, staleness and the generated diagrams', async () => {
     mockApi([row])
-    renderTab()
+    const { container } = renderTab()
     expect(await screen.findByText('An example service.')).toBeTruthy()
     expect(screen.getByText('3 commits behind')).toBeTruthy()
     fireEvent.click(screen.getByText('Components 2'))
+    // The interactive graph first, with a box per component...
+    await waitFor(() => expect(container.querySelector('[data-node="db"]')).toBeTruthy())
+    fireEvent.click(container.querySelector('[data-node="db"]')!)
+    expect((await screen.findAllByText('app.db')).length).toBeGreaterThan(1) // the details drawer opened
+    // ...and the same map as Mermaid on request.
+    fireEvent.click(screen.getByText('Mermaid'))
     const map = await screen.findByTestId('mermaid')
     expect(map.textContent).toContain('flowchart LR')
     expect(map.textContent).toContain('SELECT')

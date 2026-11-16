@@ -421,3 +421,30 @@ def test_study_changes_publish_an_event(settings):
         sources, {(Change.added, str(snap_file)), (Change.modified, str(settings.registry_root / "x.md"))}
     )
     assert [(e.type, e.data) for e in events] == [("studies.changed", {"projects": ["alpha"]})]
+
+
+def test_feedback_about_a_study_element_reaches_the_inbox_with_it(authed, settings, capsys):
+    snap, _ = st.save(settings.registry_root, st.parse(model()))
+    study = {"project": "alpha", "snapshot": snap.id, "element": "routes", "kind": "component"}
+    r = authed.post(
+        "/api/feedback", json={"kind": "prompt", "body": "Why is this split?", "anchor": {"study": study}}
+    )
+    assert r.status_code == 201, r.text
+    item = r.json()
+    assert item["doc_path"] is None and item["anchor"]["study"]["element"] == "routes"
+    # A plain anchor still needs a doc.
+    bad = authed.post("/api/feedback", json={"kind": "prompt", "body": "x", "anchor": {"heading": "H"}})
+    assert bad.status_code == 422
+    bad = authed.post(
+        "/api/feedback",
+        json={"kind": "prompt", "body": "x", "anchor": {"study": {**study, "kind": "whatever"}}},
+    )
+    assert bad.status_code == 422
+
+    assert main(["inbox", "list"], settings) == 0
+    assert f"[study alpha {snap.id}] component routes" in capsys.readouterr().out
+    assert main(["inbox", "show", str(item["id"])], settings) == 0
+    out = capsys.readouterr().out
+    assert "Study element (component 'routes'" in out and '"parent": "api"' in out
+    assert main(["inbox", "show", str(item["id"]), "--json"], settings) == 0
+    assert '"id": "routes"' in json.loads(capsys.readouterr().out)["study_excerpt"]

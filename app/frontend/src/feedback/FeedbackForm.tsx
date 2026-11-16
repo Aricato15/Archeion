@@ -126,6 +126,11 @@ function FormBody({ draft, onClose, onCreated }: Props & { draft: FeedbackDraft 
           </Text>
         )
       )}
+      {anchor?.study && (
+        <Text size="sm">
+          About the {describeAnchor(anchor)} (snapshot {anchor.study.snapshot})
+        </Text>
+      )}
       {anchor?.quote && (
         <Blockquote p="xs" style={{ maxHeight: 140, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
           <Text size="sm">{anchor.quote}</Text>

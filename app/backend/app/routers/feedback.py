@@ -19,10 +19,20 @@ Kind = Literal["prompt", "review", "comment"]
 Status = Literal["open", "in_progress", "answered", "resolved"]
 
 
+class StudyAnchor(BaseModel):
+    """An element of a code study (ADR 0019): what a question about the study is about."""
+
+    project: str = Field(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
+    snapshot: str = Field(max_length=40, pattern=r"^\d{4}-\d{2}-\d{2}-[0-9a-f]{7}(-\d+)?$")
+    element: str = Field(max_length=120, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
+    kind: Literal["component", "flow", "activity", "state machine", "entity", "interface", "finding"]
+
+
 class Anchor(BaseModel):
     heading: str | None = Field(None, max_length=300)
     lines: tuple[int, int] | None = None
     quote: str | None = Field(None, max_length=2000)
+    study: StudyAnchor | None = None
 
     @field_validator("lines")
     @classmethod
@@ -46,8 +56,8 @@ class FeedbackIn(BaseModel):
     def _check(self) -> FeedbackIn:
         if self.parent_id is None and self.kind is None:
             raise ValueError("a new thread needs a kind")
-        if self.anchor is not None and self.doc_path is None:
-            raise ValueError("an anchor needs a doc_path")
+        if self.anchor is not None and self.doc_path is None and self.anchor.study is None:
+            raise ValueError("an anchor needs a doc_path, unless it points at a study element")
         return self
 
 

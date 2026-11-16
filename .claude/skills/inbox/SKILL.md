@@ -52,6 +52,9 @@ If the command says the backend environment is missing, tell the user to run `se
         an answer.
       - **review:** feedback on the doc as a whole.
       - **prompt:** a task. It may touch several docs, or none.
+      - **A question about a study element** (its anchor names a study, ADR 0019): `inbox show` prints
+        the element from its snapshot. Answer from the study and the project's code. If the study is
+        wrong, say so and offer a `/study <project> --refresh` rather than editing the snapshot.
       - **A request to study a project** ("study X", "map out how X works", "refresh X's study"): follow
         the `study` skill (`.claude/skills/study/SKILL.md`, ADR 0019) for the item's project. Its plan
         is your reply: send it and stop there, unless the request said `--yes` or this message approves

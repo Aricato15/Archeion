@@ -379,6 +379,12 @@ def _where(item: dict) -> str:
     if item.get("source", "archeion") != "archeion":
         where = f"{where} in {item['source']}"
     anchor = item["anchor"] or {}
+    study = anchor.get("study")
+    if study:
+        where = (
+            f"the study of {study['project']} (snapshot {study['snapshot']}),"
+            f" {study['kind']} '{study['element']}'"
+        )
     if anchor.get("heading"):
         where += f", section '{anchor['heading']}'"
     if anchor.get("lines"):

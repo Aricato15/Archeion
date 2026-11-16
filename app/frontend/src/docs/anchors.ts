@@ -57,6 +57,7 @@ export function blockForLine(root: HTMLElement, line: number): HTMLElement | nul
 
 export function describeAnchor(anchor: Anchor | null | undefined): string {
   if (!anchor) return 'Whole doc'
+  if (anchor.study) return `${anchor.study.kind} ${anchor.study.element} in the study of ${anchor.study.project}`
   const parts = []
   if (anchor.heading) parts.push(`§ ${anchor.heading}`)
   if (anchor.lines) {

@@ -27,7 +27,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useSnapshot, useSnapshots, useStudyDiff } from '../api/queries'
 import { normalizeModel, type SnapshotRow, type StudyModel } from '../api/study'
-import { REGISTRY, SELF, type Project } from '../api/types'
+import { REGISTRY, SELF, type Project, type StudyElementKind } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { MermaidBlock } from '../docs/MermaidBlock'
@@ -35,6 +35,8 @@ import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { Cites } from './Cites'
 import { ComponentDetails } from './ComponentDetails'
 import { activity, componentMap, erDiagram, sequence, stateDiagram } from './mermaid'
+import { componentGraph, foldedAtDepth } from './graph'
+import { LazyGraph } from '../graph/LazyGraph'
 
 const VIEWS = [
   ['overview', 'Overview'],
@@ -142,11 +144,11 @@ export function StudyTab({ project }: { project: Project }) {
     findings: counts.findings,
   }
 
-  const ask = (element: string, what: string) =>
+  const ask = (element: string, kind: StudyElementKind) =>
     setDraft({
       kind: 'prompt',
       source: SELF,
-      body: `About ${what} \`${element}\` in the study of ${project.id} (snapshot ${row.id}):\n\n`,
+      anchor: { study: { project: project.id, snapshot: row.id, element, kind } },
     })
 
   return (
@@ -242,7 +244,7 @@ type ViewProps = {
   notes: string
   params: URLSearchParams
   set: (changes: Record<string, string | null>) => void
-  ask: (element: string, what: string) => void
+  ask: (element: string, kind: StudyElementKind) => void
 }
 
 function StudyView({ view, ...props }: ViewProps & { view: View }) {
@@ -354,10 +356,14 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
   const [depth, setDepth] = useState(2)
   const [showImports, setShowImports] = useState(false)
   const [query, setQuery] = useState('')
+  const [mode, setMode] = useState<'graph' | 'diagram'>('graph')
   const focus = params.get('focus')
   const selected = params.get('item')
   const byId = new Map(model.components.map((c) => [c.id, c]))
-  const code = componentMap(model, { focus, depth, hideKinds: showImports ? [] : ['imports'] })
+  const hideKinds = showImports ? [] : ['imports']
+  const code = mode === 'diagram' ? componentMap(model, { focus, depth, hideKinds }) : ''
+  const graph = componentGraph(model, { focus, hideKinds })
+  const hasKids = new Set(model.components.map((c) => c.parent).filter(Boolean))
   const trail: string[] = []
   for (let cur = focus ? byId.get(focus) : undefined; cur; cur = cur.parent ? byId.get(cur.parent) : undefined) {
     trail.unshift(cur.id)
@@ -390,13 +396,43 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
             <Slider w={100} size="sm" min={0} max={4} step={1} value={depth} onChange={setDepth} label={null} />
           </Group>
           <Switch size="xs" label="Imports" checked={showImports} onChange={(e) => setShowImports(e.currentTarget.checked)} />
+          <SegmentedControl
+            size="xs"
+            value={mode}
+            onChange={(v) => setMode(v as 'graph' | 'diagram')}
+            data={[
+              { value: 'graph', label: 'Interactive' },
+              { value: 'diagram', label: 'Mermaid' },
+            ]}
+          />
         </Group>
       </Group>
       <Card withBorder radius="md">
-        {code ? <MermaidBlock code={code} /> : <Text c="dimmed">Nothing inside to draw.</Text>}
+        {mode === 'graph' ? (
+          graph.nodes.length ? (
+            <LazyGraph
+              key={`${focus ?? ''}|${depth}|${showImports}`}
+              graph={graph}
+              height={520}
+              minimap
+              selected={selected}
+              initialFolded={foldedAtDepth(graph, depth)}
+              onSelect={(id) => set({ item: id })}
+              onOpen={(id) => (hasKids.has(id) ? set({ focus: id, item: null }) : set({ item: id }))}
+            />
+          ) : (
+            <Text c="dimmed">Nothing inside to draw.</Text>
+          )
+        ) : code ? (
+          <MermaidBlock code={code} />
+        ) : (
+          <Text c="dimmed">Nothing inside to draw.</Text>
+        )}
         <Text size="xs" c="dimmed" mt="xs">
-          Boxes inside boxes are parts of a component. Solid arrows are calls, thick ones database access, dashed
-          ones HTTP and events. Dashed boxes sit outside the part you're looking at.
+          Boxes inside boxes are parts of a component: fold them with their arrow. Click a box for its details,
+          double-click to look inside it, hover to light up what it's linked to. Solid arrows are calls, thick ones
+          database writes and SQL, dashed ones HTTP and events, dotted ones imports. Dashed boxes sit outside the
+          part you're looking at.
         </Text>
       </Card>
       <TextInput
@@ -486,7 +522,7 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
   extra,
 }: Pick<ViewProps, 'params' | 'set' | 'ask'> & {
   items: T[]
-  what: string
+  what: StudyElementKind
   draw: (item: T) => string
   extra?: (item: T) => React.ReactNode
 }) {

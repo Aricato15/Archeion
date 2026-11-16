@@ -3,6 +3,7 @@ import { IconMessages } from '@tabler/icons-react'
 import { Link } from 'react-router'
 import { REGISTRY, SELF, type FeedbackItem, type FeedbackThread } from '../api/types'
 import { describeAnchor } from '../docs/anchors'
+import { studyUrl } from '../study/links'
 import { projectUrl } from '../docs/links'
 import { timeAgo } from '../lib/format'
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, docLink } from './labels'
@@ -82,7 +83,14 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackThread; s
             · {describeAnchor(item.anchor)}
           </Text>
         )}
-        {!showDoc && item.anchor && (
+        {item.anchor?.study && (
+          <Text size="xs" c="dimmed">
+            <Anchor component={Link} to={studyUrl(item.anchor.study)} size="xs">
+              {describeAnchor(item.anchor)}
+            </Anchor>
+          </Text>
+        )}
+        {!showDoc && item.anchor && !item.anchor.study && (
           <Text size="xs" c="dimmed">
             {describeAnchor(item.anchor)}
           </Text>
