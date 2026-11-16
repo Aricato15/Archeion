@@ -107,7 +107,7 @@ export function OnDemandCard() {
         {status.isError && (
           <Alert color="orange" title="On-demand Claude isn't available">
             {isNotFound(status.error)
-              ? "The backend that's running doesn't have it yet: it was started before this version. Restart Archeion (stop.bat, then start.bat)."
+              ? "The backend that's running doesn't have it yet: it was started before this version. Restart Archeion (restart.bat)."
               : status.error.message}
           </Alert>
         )}

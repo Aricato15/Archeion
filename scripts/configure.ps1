@@ -214,5 +214,5 @@ if (Test-Path -LiteralPath $envPath) {
     Write-Host 'Kept the previous .env as .env.bak (gitignored).'
 }
 [IO.File]::WriteAllText($envPath, $text, $utf8)
-Write-Host 'Wrote .env. Restart Archeion (stop.bat, then start.bat) for changes to take effect.' -ForegroundColor Green
+Write-Host 'Wrote .env. Restart Archeion (restart.bat) for changes to take effect.' -ForegroundColor Green
 exit 0

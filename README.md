@@ -72,6 +72,7 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 3. `start.bat` opens the backend and frontend in two windows. Browse to `http://127.0.0.1:20301/`. The first time, it asks you to create the admin password, and logs you in with it ([ADR 0011](docs/decisions/0011-create-the-admin-password-in-the-viewer.md)). Only a salted scrypt hash is stored.
 4. Register your projects on the **Settings** page, or with `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write`, then fill in `group` and `depends_on` in the new pages. See [Registering a project](#registering-a-project).
 5. `stop.bat` shuts both down cleanly (it kills them only if they don't exit in time), closes their windows and checks that the ports are free.
+6. `restart.bat` stops both the same way, then starts them again. It doesn't start again if something couldn't be stopped.
 
 To change or reset the admin password, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 password set` from the repo root. It logs out every session.
 
