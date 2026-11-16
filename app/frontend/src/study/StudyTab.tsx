@@ -35,7 +35,8 @@ import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { Cites } from './Cites'
 import { ComponentDetails } from './ComponentDetails'
 import { StartStudyButton } from './StartStudy'
-import { activity, componentMap, erDiagram, sequence, stateDiagram } from './mermaid'
+import { activity, componentMap, erDiagram, erNames, sequence, stateDiagram } from './mermaid'
+import type { LabelActions } from '../docs/DiagramFrame'
 import { componentGraph, foldedAtDepth } from './graph'
 import { LazyGraph } from '../graph/LazyGraph'
 
@@ -533,11 +534,14 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
   what,
   draw,
   extra,
+  labels,
 }: Pick<ViewProps, 'params' | 'set' | 'ask'> & {
   items: T[]
   what: StudyElementKind
   draw: (item: T) => string
   extra?: (item: T) => React.ReactNode
+  /** Labels in the diagram that act as links (e.g. a flow's participants). */
+  labels?: (item: T) => LabelActions
 }) {
   const current = items.find((i) => i.id === params.get('item')) ?? items[0]
   if (!current) return <Text c="dimmed">None in this study.</Text>
@@ -556,7 +560,7 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
         {extra?.(current)}
         {current.summary && <Text size="sm">{current.summary}</Text>}
         <Card withBorder radius="md">
-          <MermaidBlock code={draw(current)} />
+          <MermaidBlock code={draw(current)} labels={labels?.(current)} title={current.title} />
         </Card>
         <Cites cites={current.cites} />
       </Stack>
@@ -571,6 +575,12 @@ function FlowsView({ model, ...rest }: ViewProps) {
       items={model.flows}
       what="flow"
       draw={(f) => sequence(f, model.components)}
+      labels={(f) => {
+        const names = new Map(model.components.map((c) => [c.id, c.name]))
+        return Object.fromEntries(
+          f.participants.map((id) => [names.get(id) ?? id, () => rest.set({ view: 'components', item: id, focus: null })]),
+        )
+      }}
       extra={(f) =>
         f.trigger && (
           <Text size="sm" c="dimmed">
@@ -610,14 +620,23 @@ function StatesView({ model, ...rest }: ViewProps) {
 function DataView({ model }: ViewProps) {
   const stores = new Map(model.components.map((c) => [c.id, c.name]))
   const code = useMemo(() => erDiagram(model.entities), [model])
+  const labels = Object.fromEntries(
+    [...erNames(model.entities)].map(([id, name]) => [
+      name,
+      () => document.getElementById(`entity-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+    ]),
+  )
   return (
     <Stack gap="md">
       <Card withBorder radius="md">
-        <MermaidBlock code={code} />
+        <MermaidBlock code={code} labels={labels} title="Data" />
+        <Text size="xs" c="dimmed" mt={4}>
+          Click a table's name to jump to its fields and sources below.
+        </Text>
       </Card>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         {model.entities.map((e) => (
-          <Card key={e.id} withBorder radius="md" padding="sm">
+          <Card key={e.id} id={`entity-${e.id}`} withBorder radius="md" padding="sm">
             <Group gap="xs" mb={4}>
               <Text fw={600}>{e.name}</Text>
               {e.store && (

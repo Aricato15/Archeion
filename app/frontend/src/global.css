@@ -49,3 +49,21 @@
 .diff-view .d2h-wrapper {
   font-size: 12px;
 }
+
+/* DiagramFrame: labels that act as links, and the toolbar shown on hover. */
+.diagram-link {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.diagram-link:hover {
+  fill: var(--mantine-color-blue-filled);
+  color: var(--mantine-color-blue-filled);
+}
+.diagram-frame .diagram-toolbar {
+  opacity: 0.55;
+  transition: opacity 120ms;
+}
+.diagram-frame:hover .diagram-toolbar,
+.diagram-frame:focus-within .diagram-toolbar {
+  opacity: 1;
+}

@@ -1,5 +1,6 @@
 import { Alert, Code, Loader, Stack, Text, useComputedColorScheme } from '@mantine/core'
 import { useEffect, useId, useState } from 'react'
+import { DiagramFrame, type LabelActions } from './DiagramFrame'
 
 type State = { svg: string; error: null } | { svg: null; error: string } | { svg: null; error: null }
 
@@ -30,7 +31,8 @@ function loadMermaid(): Promise<Mermaid> {
 }
 
 /** Renders a Mermaid diagram. mermaid is loaded only when the first diagram appears. */
-export function MermaidBlock({ code }: { code: string }) {
+/** `labels` makes labels with that exact text clickable (see DiagramFrame). */
+export function MermaidBlock({ code, labels, title }: { code: string; labels?: LabelActions; title?: string }) {
   const scheme = useComputedColorScheme('light')
   const reactId = useId()
   const [state, setState] = useState<State>({ svg: null, error: null })
@@ -73,5 +75,5 @@ export function MermaidBlock({ code }: { code: string }) {
     )
   }
   if (state.svg === null) return <Loader size="sm" my="md" aria-label="Rendering diagram" />
-  return <div className="mermaid-block" role="img" dangerouslySetInnerHTML={{ __html: state.svg }} />
+  return <DiagramFrame svg={state.svg} labels={labels} title={title} />
 }

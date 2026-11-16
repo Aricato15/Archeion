@@ -242,8 +242,8 @@ export function activity(a: StudyActivity): string {
 
 // --- entities ---------------------------------------------------------------------------------
 
-export function erDiagram(entities: StudyEntity[]): string {
-  if (entities.length === 0) return ''
+/** The name each entity has in the ER diagram (a bare word, unique), by entity id. */
+export function erNames(entities: StudyEntity[]): Map<string, string> {
   const names = new Map<string, string>()
   const used = new Set<string>()
   for (const e of entities) {
@@ -252,6 +252,12 @@ export function erDiagram(entities: StudyEntity[]): string {
     used.add(n)
     names.set(e.id, n)
   }
+  return names
+}
+
+export function erDiagram(entities: StudyEntity[]): string {
+  if (entities.length === 0) return ''
+  const names = erNames(entities)
   const lines = ['erDiagram']
   const rels: string[] = []
   for (const e of entities) {
