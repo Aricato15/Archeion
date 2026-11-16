@@ -52,6 +52,20 @@ describe('OnDemandCard', () => {
     await waitFor(() => expect(calls.some((c) => c.url.endsWith('/responder/run'))).toBe(true))
   })
 
+  it('says to restart when the backend is older than the page', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Not Found' }), { status: 404 })))
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter>
+            <OnDemandCard />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+    expect(await screen.findByText(/Restart Archeion/)).toBeTruthy()
+  })
+
   it("can't be switched on while the inbox terminal runs", async () => {
     show({ ...base, can_start: false, reason: 'The inbox terminal is running. Stop it first.' })
     const toggle = (await screen.findByLabelText('Answer new messages')) as HTMLInputElement

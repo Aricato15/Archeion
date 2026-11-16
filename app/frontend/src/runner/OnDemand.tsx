@@ -2,6 +2,7 @@ import { Alert, Badge, Button, Card, Group, Stack, Switch, Text, Title, Tooltip 
 import { IconBolt, IconPlayerPlay, IconPlayerStop } from '@tabler/icons-react'
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
+import { isNotFound } from '../api/client'
 import { useResponder, useRunResponder, useSetResponder, useStopResponder } from '../api/queries'
 import { timeAgo } from '../lib/format'
 
@@ -98,6 +99,13 @@ export function OnDemandCard() {
           <Alert color="gray" variant="light">
             {data.reason}{' '}
             {data.reason?.includes('inbox terminal') && <Link to="/settings#inbox-terminal">Inbox terminal</Link>}
+          </Alert>
+        )}
+        {status.isError && (
+          <Alert color="orange" title="On-demand Claude isn't available">
+            {isNotFound(status.error)
+              ? "The backend that's running doesn't have it yet: it was started before this version. Restart Archeion (stop.bat, then start.bat)."
+              : status.error.message}
           </Alert>
         )}
         {error && <Alert color="red">{error.message}</Alert>}
