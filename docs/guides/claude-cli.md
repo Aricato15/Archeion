@@ -21,6 +21,7 @@ Start it at Archeion's root, not a subfolder: the session-start hook that announ
 |---|---|
 | `/inbox` | Works through the feedback left for Archeion and for every registered project. For a project's item it reads that project's `CLAUDE.md`, edits its files when its inbox edits are allowed, runs its tests, and leaves the changes uncommitted there |
 | `/study <project>` | Reads one registered project's code, read-only, and saves what it learns as a dated snapshot: components, libraries, calls, web calls, tables, flows, logic and states, each with the code it came from. Shows its plan first (skip with `--yes`). `--refresh` rereads only what changed since the last snapshot. The project page's **Study** tab draws it ([ADR 0019](../decisions/0019-code-studies.md)) |
+| On-demand Claude | Not a command: **Settings → On-demand Claude** has the backend open a window running `claude -p "/inbox"` whenever a new message waits, and close it when the run ends ([ADR 0020](../decisions/0020-study-conversations-and-on-demand-claude.md)). It never runs alongside the inbox terminal below |
 | `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking. The viewer can run this for you: **Settings → Inbox terminal** starts, stops and restarts it in its own window, and the header badge shows whether it's running |
 | `/workspace-core:commit` | Reviews the staged changes, proposes a Conventional Commits message, and asks before committing |
 | `/workspace-core:handoff` | Writes a handoff note to `docs/notes/` for the next session |
@@ -53,6 +54,8 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `study list [<name>]` | Study snapshots, and how many commits behind the project each is |
 | `study show <name> [<snapshot>]` | One snapshot's counts, problems and folder |
 | `study changes <name>` | Files changed since the latest snapshot (what `/study --refresh` rereads) |
+| `study draft save\|show\|discard <name>` | The study in progress, kept between the rounds of its conversation; the Study tab shows it as **Draft** |
+| `study save <name> --from-draft` | Turn the draft into a dated snapshot |
 | `study validate --file <f>` / `study save <name> --file <f>` | Check a study model, or store it as a new snapshot (`/study` does this) |
 | `password set` | Changes the admin password and logs out every session |
 
