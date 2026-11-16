@@ -44,6 +44,9 @@ MAX_FILE_BYTES = 1024 * 1024
 PORT_RANGE = (20000, 20799)
 
 HTTP_LIBS = {"requests", "httpx", "aiohttp", "urllib3"}
+HTTP_CLIENTS = {"Client", "AsyncClient", "Session", "ClientSession", "PoolManager"}
+# Calls on a variable or attribute named like this are likely HTTP calls through a client.
+_CLIENTISH = re.compile(r"(?i)(^|_)(client|session|http)s?$")
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "request", "stream"}
 ROUTE_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "route", "websocket",
                  "api_route"}  # fmt: skip
@@ -81,6 +84,9 @@ class Inventory:
     external_imports: dict[str, int] = field(default_factory=dict)
     routes: list[dict] = field(default_factory=list)
     http_calls: list[dict] = field(default_factory=list)
+    # Where HTTP clients are built (with their base_url), since calls made through a shared
+    # client elsewhere can't be followed statically.
+    http_clients: list[dict] = field(default_factory=list)
     sql_tables: list[dict] = field(default_factory=list)
     env_vars: list[dict] = field(default_factory=list)
     ports: list[dict] = field(default_factory=list)
@@ -287,7 +293,23 @@ def _scan_python(root: Path, rel: str, text: str, modname: str, inv: Inventory) 
         elif isinstance(node, ast.Call):
             func = _dotted(node.func)
             parts = func.split(".")
-            if len(parts) >= 2 and parts[0] in http_aliases and parts[-1] in HTTP_METHODS:
+            if len(parts) == 2 and parts[0] in http_aliases and parts[1] in HTTP_CLIENTS:
+                base = next((_const_str(k.value) for k in node.keywords if k.arg == "base_url"), None)
+                inv.http_clients.append(
+                    {"path": rel, "line": node.lineno, "lib": parts[0], "client": parts[1], "base_url": base}
+                )
+            elif len(parts) >= 2 and parts[-1] in HTTP_METHODS and _CLIENTISH.search(parts[-2]):
+                url = _const_str(node.args[0]) if node.args else None
+                inv.http_calls.append(
+                    {
+                        "path": rel,
+                        "line": node.lineno,
+                        "lib": "client?",
+                        "method": parts[-1].upper(),
+                        "url": url,
+                    }
+                )
+            elif len(parts) >= 2 and parts[0] in http_aliases and parts[-1] in HTTP_METHODS:
                 url = _const_str(node.args[0]) if node.args else None
                 if parts[-1] == "request" and len(node.args) > 1:
                     url = _const_str(node.args[1])
@@ -580,7 +602,16 @@ def text_report(inv: Inventory) -> str:
         )
     out.append(f"  routes: {len(inv.routes)}")
     out += [f"    {r['method']} {r['route']}  {r['path']}:{r['line']}" for r in inv.routes[:60]]
-    out.append(f"  outgoing http calls: {len(inv.http_calls)}")
+    if inv.http_clients:
+        out.append(f"  http clients built: {len(inv.http_clients)}")
+        out += [
+            f"    {c['lib']}.{c['client']} base_url={c.get('base_url') or '(dynamic)'}"
+            f"  {c['path']}:{c['line']}"
+            for c in inv.http_clients[:20]
+        ]
+    out.append(
+        f"  outgoing http calls: {len(inv.http_calls)} ('client?' = through a client variable, likely)"
+    )
     out += [
         f"    {c.get('method') or '?'} {c.get('url') or '(dynamic)'}  {c['path']}:{c['line']}"
         for c in inv.http_calls[:40]

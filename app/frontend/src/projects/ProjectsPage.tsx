@@ -6,6 +6,7 @@ import { useRegistry } from '../api/queries'
 import { REGISTRY, locationOf, type Project, type Registry } from '../api/types'
 import { docUrl } from '../docs/links'
 import { ProjectCard } from './ProjectCard'
+import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
 
 export const SCAN_CMD = 'powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects scan --write'
@@ -97,6 +98,7 @@ export function ProjectsPage() {
       </Group>
       <RegistryWarnings registry={reg} />
       <Unregistered registry={reg} />
+      <DriftAlert />
       {reg.projects.length > 0 && (
         <Card withBorder radius="md">
           <Text size="xs" c="dimmed" mb="xs">

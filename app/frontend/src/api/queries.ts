@@ -24,7 +24,7 @@ import type {
   SourceId,
   TreeNode,
 } from './types'
-import type { SnapshotFull, SnapshotRow, StudyDiff, SystemLinks } from './study'
+import type { SnapshotFull, SnapshotRow, StudyDiff, StudyHit, SystemLinks } from './study'
 
 // --- session ---------------------------------------------------------------------------
 
@@ -285,6 +285,14 @@ export const useStudyDiff = (project: string, from: string | null, to: string | 
     queryKey: ['studies', project, 'diff', from, to],
     queryFn: () => api<StudyDiff>(`/studies/${encodeURIComponent(project)}/diff${qs({ from, to })}`),
     enabled: Boolean(from && to),
+  })
+
+export const useStudySearch = (q: string) =>
+  useQuery({
+    queryKey: ['studies', 'search', q],
+    queryFn: () => api<StudyHit[]>(`/studies/search${qs({ q })}`),
+    enabled: q.trim().length >= 2,
+    placeholderData: keepPreviousData,
   })
 
 export const useSystemLinks = () =>

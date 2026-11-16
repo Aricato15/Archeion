@@ -1,5 +1,7 @@
 # Plan: code studies
 
+_Status (2026-11-16): phases 1 to 3 are built on `feat/code-studies`, with tests. Still to do: the user's own checks in the viewer, including a first real `/study`, and a map with every registered project (ADR 0015's last check)._
+
 _Written 2026-11-16. Implements [ADR 0019](../decisions/0019-code-studies.md), and in phase 2 accepts [ADR 0015](../decisions/0015-interactive-registry-maps.md). The work is on the branch `feat/code-studies`._
 
 ```mermaid

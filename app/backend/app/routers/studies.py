@@ -48,6 +48,17 @@ def latest(state: AppState = Depends(get_state)) -> list[dict]:
     return [_row(state, snap) for name, snap in sorted(found.items()) if name in reg.projects]
 
 
+@router.get("/search")
+def search(q: str = Query(min_length=2, max_length=200), state: AppState = Depends(get_state)) -> list[dict]:
+    """Elements of every registered project's latest study that match `q`."""
+    reg = state.sources.registry
+    latest = {}
+    for name, snap in st.latest_by_project(state.settings.registry_root).items():
+        if name in reg.projects:
+            latest[name] = (snap.id, st.load(snap)[0])
+    return st.search(latest, q)
+
+
 @router.get("/{project}")
 def project_snapshots(project: str = ProjectParam, state: AppState = Depends(get_state)) -> list[dict]:
     p = _project(state, project)

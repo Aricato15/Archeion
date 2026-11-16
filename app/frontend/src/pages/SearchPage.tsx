@@ -3,7 +3,8 @@ import { useDebouncedValue } from '@mantine/hooks'
 import { IconSearch } from '@tabler/icons-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
-import { useSearch } from '../api/queries'
+import { useSearch, useStudySearch } from '../api/queries'
+import { studyUrl } from '../study/links'
 import { SELF, type SearchHit } from '../api/types'
 import { docUrl } from '../docs/links'
 
@@ -12,6 +13,7 @@ export function SearchPage() {
   const [q, setQ] = useState(params.get('q') ?? '')
   const [debounced] = useDebouncedValue(q, 250)
   const results = useSearch(debounced)
+  const studyHits = useStudySearch(debounced)
 
   useEffect(() => {
     if ((params.get('q') ?? '') !== debounced) setParams(debounced ? { q: debounced } : {}, { replace: true })
@@ -34,7 +36,42 @@ export function SearchPage() {
         autoFocus
         rightSection={results.isFetching ? <Loader size="xs" /> : null}
       />
-      {debounced.trim().length >= 2 && results.data?.length === 0 && <Text c="dimmed">No matches.</Text>}
+      {debounced.trim().length >= 2 && results.data?.length === 0 && !studyHits.data?.length && (
+        <Text c="dimmed">No matches.</Text>
+      )}
+      {debounced.trim().length >= 2 && (studyHits.data?.length ?? 0) > 0 && (
+        <Card withBorder padding="sm" radius="md">
+          <Text fw={600} mb={4}>
+            In code studies
+          </Text>
+          <Stack gap={4}>
+            {studyHits.data!.map((h) => (
+              <Group key={`${h.project}:${h.kind}:${h.element}`} gap="xs" wrap="nowrap">
+                <Badge variant="dot" color="grape" size="sm">
+                  {h.project}
+                </Badge>
+                <Badge variant="light" size="sm">
+                  {h.kind}
+                </Badge>
+                <Anchor
+                  component={Link}
+                  to={studyUrl({ project: h.project, snapshot: h.snapshot, element: h.element, kind: h.kind })}
+                  size="sm"
+                >
+                  <Highlight component="span" highlight={debounced} size="sm">
+                    {h.label}
+                  </Highlight>
+                </Anchor>
+                {h.summary && (
+                  <Text size="xs" c="dimmed" truncate>
+                    {h.summary}
+                  </Text>
+                )}
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+      )}
       {results.data?.length === 200 && (
         <Text size="sm" c="dimmed">
           Showing the first 200 matches. Narrow the search to see more.

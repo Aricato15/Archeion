@@ -72,5 +72,6 @@ sequenceDiagram
 
 ## Tips
 - If a diagram has an error, the viewer shows the message and the source in place of the diagram.
+- Don't hand-draw a project's insides. `/study <project>` reads its code and the project page's **Study** tab generates its component map and its sequence, ER, activity and state diagrams from the study ([ADR 0019](../decisions/0019-code-studies.md)).
 - Keep the system-wide maps generated: the Projects page draws them from the registry frontmatter. Hand-drawn diagrams are for one flow or one design, not for the whole system.
 - The `logos:` pack is large (several MB). It's downloaded only the first time a diagram uses one of its icons.

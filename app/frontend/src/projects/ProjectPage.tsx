@@ -36,6 +36,7 @@ import { FeedbackCard } from '../feedback/FeedbackCard'
 import { FeedbackForm, type FeedbackDraft } from '../feedback/FeedbackForm'
 import { flattenFiles } from '../lib/format'
 import { ProjectCard, ProjectLink, StatusPill } from './ProjectCard'
+import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
 import { StudyTab } from '../study/StudyTab'
 
@@ -267,6 +268,8 @@ export function ProjectPage() {
           Its own docs and feedback aren't available until then. The registry page still works.
         </Alert>
       )}
+
+      <DriftAlert project={project.id} />
 
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder radius="md">

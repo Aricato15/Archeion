@@ -250,6 +250,8 @@ def _code(alpha: Path) -> None:
         "router = APIRouter(prefix='/api')\napp = FastAPI()\nPORT = os.getenv('SVC_PORT')\n\n"
         "@router.get('/items/{item_id}')\ndef item(item_id: int):\n    db.connect()\n"
         "    return httpx.get('http://127.0.0.1:20200/api/x')\n\n"
+        "CLIENT = httpx.AsyncClient(base_url='http://127.0.0.1:20300')\n\n"
+        "async def other(client):\n    return await client.post('/api/y')\n\n"
         "class Thing:\n    def run(self):\n        pass\n\n"
         "if __name__ == '__main__':\n    pass\n",
         encoding="utf-8",
@@ -284,7 +286,7 @@ def test_scan_inventories_python_and_typescript(repo):
     api = files["src/svc/api.py"]
     assert api["module"] == "svc.api" and api["imports"] == ["src/svc/db.py"]
     assert "httpx" in api["external"] and "os" in api["external"]
-    assert {"name": "Thing.run", "kind": "method", "line": 16, "end": 17} in api["defs"]
+    assert {"name": "Thing.run", "kind": "method", "line": 21, "end": 22} in api["defs"]
     assert inv.routes == [
         {
             "path": "src/svc/api.py",
@@ -297,6 +299,8 @@ def test_scan_inventories_python_and_typescript(repo):
     ]
     urls = {(c["lib"], c["url"]) for c in inv.http_calls}
     assert ("httpx", "http://127.0.0.1:20200/api/x") in urls and ("fetch", "/api/items/1") in urls
+    assert ("client?", "/api/y") in urls
+    assert inv.http_clients[0]["base_url"] == "http://127.0.0.1:20300"
     assert {t["name"] for t in inv.sql_tables} == {"items"}
     assert {e["name"] for e in inv.env_vars} == {"SVC_PORT", "VITE_PORT"}
     assert {p["port"] for p in inv.ports} == {20100}
@@ -448,3 +452,13 @@ def test_feedback_about_a_study_element_reaches_the_inbox_with_it(authed, settin
     assert "Study element (component 'routes'" in out and '"parent": "api"' in out
     assert main(["inbox", "show", str(item["id"]), "--json"], settings) == 0
     assert '"id": "routes"' in json.loads(capsys.readouterr().out)["study_excerpt"]
+
+
+def test_api_searches_the_latest_studies(authed, settings):
+    st.save(settings.registry_root, st.parse(model()))
+    hits = authed.get("/api/studies/search?q=item").json()
+    kinds = {(h["kind"], h["element"]) for h in hits}
+    assert ("interface", "get-items") in kinds and ("entity", "items") in kinds and ("flow", "read") in kinds
+    assert all(h["project"] == "alpha" for h in hits)
+    assert authed.get("/api/studies/search?q=zzzz-none").json() == []
+    assert authed.get("/api/studies/search?q=a").status_code == 422

@@ -726,3 +726,50 @@ def system_links(
         "drift": drift,
         "studied": sorted(models),
     }
+
+
+# --- search -------------------------------------------------------------------------------
+
+_SEARCH_SECTIONS = (
+    ("components", "component", ("name", "summary", "tech", "paths")),
+    ("flows", "flow", ("title", "summary", "trigger")),
+    ("activities", "activity", ("title", "summary")),
+    ("states", "state machine", ("title", "summary")),
+    ("entities", "entity", ("name", "summary", "fields")),
+    ("exposes", "interface", ("method", "path", "name", "summary")),
+    ("calls", "interface", ("method", "path", "target_url", "target_project", "summary")),
+    ("findings", "finding", ("title", "detail", "rule")),
+)
+
+
+def _text_of(value: object) -> str:
+    if isinstance(value, list):
+        return " ".join(_text_of(v) for v in value)
+    if isinstance(value, dict):
+        return " ".join(_text_of(v) for v in value.values())
+    return "" if value is None else str(value)
+
+
+def search(latest: dict[str, tuple[str, dict]], q: str, limit: int = 100) -> list[dict]:
+    """Elements of the latest studies whose text contains `q` (case-insensitive): components,
+    flows, activities, state machines, entities, endpoints and findings (ADR 0019)."""
+    needle = q.casefold()
+    out: list[dict] = []
+    for project, (snapshot, model) in sorted(latest.items()):
+        for section, kind, fields in _SEARCH_SECTIONS:
+            for item in _section(model, section):
+                text = " ".join(_text_of(item.get(f)) for f in fields)
+                if needle in text.casefold() or needle in str(item["id"]).casefold():
+                    out.append(
+                        {
+                            "project": project,
+                            "snapshot": snapshot,
+                            "kind": kind,
+                            "element": item["id"],
+                            "label": _label(item),
+                            "summary": str(item.get("summary") or item.get("detail") or "")[:200],
+                        }
+                    )
+                    if len(out) >= limit:
+                        return out
+    return out

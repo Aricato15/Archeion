@@ -166,6 +166,16 @@ export type SystemLinks = {
   studied: string[]
 }
 
+/** An element of a latest study that matches a search. */
+export type StudyHit = {
+  project: string
+  snapshot: string
+  kind: 'component' | 'flow' | 'activity' | 'state machine' | 'entity' | 'interface' | 'finding'
+  element: string
+  label: string
+  summary: string
+}
+
 /** Fill in sections a hand-edited or older model may leave out, so views can rely on them. */
 export function normalizeModel(raw: Partial<StudyModel> | null | undefined): StudyModel | null {
   if (!raw || typeof raw !== 'object' || !raw.meta) return null
