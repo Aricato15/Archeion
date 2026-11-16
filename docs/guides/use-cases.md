@@ -98,10 +98,10 @@ sequenceDiagram
 ### b) Start inside Archeion
 Use this when the idea comes before the repo, or when it's mostly about how the project fits with the others.
 
-1. **Archeion's session:** brainstorm in the terminal. Claude records the result in the private registry. A page `registry/projects/<name>.md` with `status: planned` and **no `path` yet** holds the intended group, ports and `depends_on`, and its body holds the brief: purpose, scope, how it connects to the other projects, and open questions. **(planned)** `/brainstorm <name>` guides this and keeps the brief in its own file.
+1. **Archeion's session:** brainstorm in the terminal. Claude records the result in the private registry. A page `registry/projects/<name>.md` with `status: planned` and **no `path` yet** holds the intended group, ports and `depends_on`, and its body holds the brief: purpose, scope, how it connects to the other projects, and open questions. **(planned)** The Design tab and `/design <name>` take this over ([use case 4](#4-design-and-plan-a-project-that-already-exists-outside-archeion-planned)).
 2. **Viewer:** the planned project shows up on the Projects page and the maps, so you can see where it fits. Comment on the brief, and `/inbox` revises it. Repeat.
 3. **When you're ready to build:** run `/new-project` from the workspace root. Then, in Archeion's session, add `path:` (and `root:`, if it's in a root) to the planned page. Don't use Register: the page already exists.
-4. **The new project's session:** `/archeion:context` shows the brief. Ask Claude to turn it into the project's own `README.md`, `CLAUDE.md` and `docs/`. **(planned)** `/archeion:bootstrap` does this in one step.
+4. **The new project's session:** `/archeion:context` shows the brief. Ask Claude to turn it into the project's own `README.md`, `CLAUDE.md` and `docs/`. **(planned)** `/archeion:consume-design` does this in one step ([use case 4](#4-design-and-plan-a-project-that-already-exists-outside-archeion-planned)).
 5. **Archeion's session:** cut the brief down to cross-project notes, now that the project's docs hold the details. Set `status: active` once building starts, and verify the page.
 
 ```mermaid
@@ -112,4 +112,38 @@ flowchart LR
   plan --> loop[Comment in the viewer,<br/>/archeion:inbox revises]
   boot --> loop
   loop --> verify[Archeion verifies the page]
+```
+
+---
+
+## 4. Design and plan a project that already exists outside Archeion **(planned)**
+
+**Goal:** a project made elsewhere, empty or with just a `CLAUDE.md` that names its tech stack, gets its purpose, technical design and plan worked out in Archeion, with the other projects in view, and then handed back to the project to build. This is [ADR 0022](../decisions/0022-design-and-plan-a-project.md). Until it's built, use case 3 is the closest thing: brainstorm in the project's own session (a), or in a planned registry page (b).
+
+1. **Create the project outside Archeion**, in any folder. It can be empty, or hold code and a short `CLAUDE.md` with the stack.
+2. **Viewer, Settings:** add its folder as a root if needed, then **Register** it. If it already has code, run `/study <project>` first, so the design starts from what's built.
+3. **Viewer, the project's Design tab:** **Ask Claude to design**. The skill checks the setup first (registered, folder reachable, studied) and fixes what it can after asking. Archeion's session (through `/inbox` or on-demand Claude) reads the project's stack, the registry, the neighbouring projects' pages and their studies, then asks about the purpose. You answer in the thread, and each round updates a **Draft** you can read, with diagrams.
+4. **Move through the stages**, yourself: **brief** (purpose, users, scope, non-goals), **architecture** (components, interfaces, data, flows, ports and `depends_on` drawn from the model), **plan** (phases with dates, decisions as ADRs). Comment on any passage or diagram, and Claude revises. The **impact list** shows what the design asks of other projects, such as an endpoint a neighbour doesn't expose yet, with a button to send that neighbour an item.
+5. **Approve.** The viewer shows which registry lines will change (`status: planned`, ports, `depends_on`, group) and freezes a dated revision.
+6. **Hand off.** **Hand off to the project** sends a design package to the project. Archeion's skill checks the setup first: if the project's `inbox_edits` is off, it offers to switch it on. Then `/inbox` copies the package into the project's `.archeion/designs/<slug>/`. In the project's session, run `/archeion:consume-design`. If there's no package, it says so and stops. Otherwise it reads the package and the project's `CLAUDE.md`, shows what it will write, and on your yes writes the design, ADRs, roadmap and `CLAUDE.md` additions in the project's own way, runs its checks, and leaves a small receipt. It doesn't commit. Then it offers to start building, with `/archeion:ports` and `/archeion:context` as usual.
+7. **While it builds,** `/archeion:report` flags where the build departs from the design, which reopens a thread on the Design tab. After a `/study`, the tab shows **built vs designed**. The project's own docs now hold the facts, and the registry keeps the revision as history.
+
+```mermaid
+sequenceDiagram
+  actor You
+  participant V as Viewer
+  participant A as Archeion session
+  participant P as Project session
+  You->>V: Register the project (study it first if it has code)
+  You->>V: Design tab: Ask Claude to design
+  A->>V: draft: brief, architecture, plan (uses registry and neighbours' studies)
+  You->>V: answer, comment, move to the next stage
+  A->>V: revised draft, impact list
+  You->>V: Approve (registry lines + frozen revision)
+  You->>V: Hand off to the project
+  A-->>P: package in .archeion/designs (after checking inbox_edits)
+  P->>P: /archeion:consume-design: docs, ADRs, roadmap, CLAUDE.md
+  P->>P: build
+  P->>A: /archeion:report (departs from the design)
+  A->>V: thread on the Design tab
 ```

@@ -1,6 +1,6 @@
 # Roadmap
 
-_Last updated: 2026-11-16_
+_Last updated: 2026-11-17_
 
 ## Now
 - Done on 2026-11-16, in 1.0.0: code studies ([ADR 0019](../decisions/0019-code-studies.md), [the plan](2026-11-16-code-studies-plan.md)). `/study <project>` saves dated snapshots of a project's code that the project page's **Study** tab draws as component maps and sequence, ER, activity and state diagrams. Studies started from the viewer are conversations, answered by on-demand Claude ([ADR 0020](../decisions/0020-study-conversations-and-on-demand-claude.md)). The maps are interactive (React Flow and ELK, [ADR 0015](../decisions/0015-interactive-registry-maps.md), accepted on 2026-11-16), and every diagram zooms and pans. Claude jobs can be watched in a window or run headless, up to 2 at a time ([ADR 0021](../decisions/0021-claude-jobs-windows-headless-and-limits.md)).
@@ -13,7 +13,7 @@ _Last updated: 2026-11-16_
 
 ## Next
 - Run the viewer checks in the [end-to-end notes](../notes/2026-11-15-named-roots-and-plugin-e2e.md) on `main`. The branch was merged on 2026-11-15 before they were run, so fix anything they find in PATCH releases.
-- A `brainstorm` skill for new, empty projects. The terminal stays the main way to work with Claude; the viewer shows the results.
+- Design and plan a registered project from Archeion, then hand it back to the project to build: a **Design** tab, a `/design` skill and `/archeion:consume-design` ([ADR 0022](../decisions/0022-design-and-plan-a-project.md), proposed on 2026-11-17; [the plan](2026-11-17-design-and-plan-plan.md)). It replaces the planned `brainstorm` skill and `/archeion:bootstrap`. Needs the ADR accepted first.
 - Keep the registry pages' `verified` dates current, and add a group page whenever related projects form a new system.
 
 ## Later
