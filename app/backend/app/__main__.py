@@ -10,6 +10,7 @@ import argparse
 import getpass
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from .config import Settings, read_version
 from .db import Database
 from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
+from .services import designs as dz
 from .services import docs_fs, git, study_scan
 from .services import feedback as fb
 from .services import studies as st
@@ -24,10 +26,13 @@ from .services.registry import (
     REGISTRY_ID,
     SELF_ID,
     Project,
+    RegisterError,
     Registry,
+    apply_structure,
     effective_group,
     modules_of,
     owning_project,
+    plan_structure,
     set_inbox_edits,
     set_type,
     split_frontmatter,
@@ -357,10 +362,27 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
         print(_target_line(target))
     task = (root["anchor"] or {}).get("task")
     if task:
-        draft = st.get_draft(settings.registry_root, task["project"])
-        state = f"draft in registry/studies/{task['project']}/draft/" if draft else "no draft yet"
-        print(f"       task: a {task['type']} of {task['project']} (ADR 0020); {state}")
-        print("       follow the study skill's conversation mode for this round")
+        if task["type"] == "study":
+            draft = st.get_draft(settings.registry_root, task["project"])
+            state = f"draft in registry/studies/{task['project']}/draft/" if draft else "no draft yet"
+            print(f"       task: a {task['type']} of {task['project']} (ADR 0020); {state}")
+            print("       follow the study skill's conversation mode for this round")
+        else:
+            slug = task.get("slug") or dz.DEFAULT_SLUG
+            try:
+                stage = dz.get(settings.registry_root, task["project"], slug).stage
+                state = f"stage {stage}, in registry/designs/{task['project']}/{slug}/"
+            except dz.DesignNotFound:
+                state = "no design yet"
+            print(f"       task: a {task['type']} of {task['project']} '{slug}' (ADR 0022); {state}")
+            if task["type"] == "design":
+                print("       follow the design skill's conversation mode for this round")
+            else:
+                rev = task.get("revision", "latest")
+                print(
+                    f"       deliver revision {rev}: design package {task['project']} --slug {slug}"
+                    f" --revision {rev} (after design preflight {task['project']} --for handoff)"
+                )
     anchor = about["anchor"] or {}
     if anchor.get("quote") and not conversation:
         print()
@@ -972,6 +994,451 @@ def cmd_study_changes(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# --- design (ADR 0022) ------------------------------------------------------------------
+
+EXIT_PREFLIGHT = 4
+
+
+def _design_project(manager: SourceManager, name: str) -> Project:
+    reg = manager.registry
+    if name not in reg.projects:
+        raise ValueError(f"'{name}' isn't a registered project (see: projects list)")
+    return reg.projects[name]
+
+
+def _ports_taken(reg: Registry) -> dict[int, list[str]]:
+    taken: dict[int, list[str]] = {}
+    for p in reg.projects.values():
+        for port in p.ports:
+            taken.setdefault(port, []).append(p.id)
+    return taken
+
+
+def _design_ref(settings: Settings, project: str, slug: str) -> dz.DesignRef:
+    try:
+        return dz.get(settings.registry_root, project, slug)
+    except dz.DesignNotFound as exc:
+        raise ValueError(
+            f"{project} has no design '{slug}' (see: design list {project};"
+            f" start one with: design init {project})"
+        ) from exc
+
+
+def _design_row(row: dict) -> str:
+    rev = f", revision {row['revision']}" if row["revision"] else ""
+    bad = "" if row["valid"] else "  INVALID: " + "; ".join(row["problems"])[:200]
+    return f"{row['project']:<24} {row['slug']:<14} {row['stage']}{rev}{bad}"
+
+
+def cmd_design_preflight(settings: Settings, args: argparse.Namespace) -> int:
+    """What must be true before a design step, each problem with its fix. Exit 0 when nothing
+    blocks, 4 when something does. Skills run this first (ADR 0022 point 11)."""
+    manager = _sources(settings)
+    reg = manager.registry
+    unregistered = [u["name"] for u in manager.unregistered()] if manager.roots.all() else []
+    has_study = bool(args.project in reg.projects and st.snapshots(settings.registry_root, args.project))
+    problems = dz.preflight(
+        reg,
+        project=args.project,
+        unregistered=unregistered,
+        purpose=args.purpose,
+        slug=args.slug,
+        registry_root=settings.registry_root,
+        has_study=has_study,
+    )
+    blocked = any(p["severity"] == "block" for p in problems)
+    if args.json:
+        _print_json({"ok": not blocked, "problems": problems})
+    elif not problems:
+        print(f"Ready: nothing in the way of a {args.purpose} for {args.project}.")
+    else:
+        for pr in problems:
+            print(f"{pr['severity']:<5} {pr['message']}")
+            if pr["fix"]:
+                print(f"      fix: {pr['fix']}")
+    return EXIT_PREFLIGHT if blocked else 0
+
+
+def _workspace_rules() -> str:
+    ranges = "; ".join(f"{name} {lo}-{hi}" for lo, hi, name in dz.PORT_RANGES)
+    return (
+        f"Ports: every server listens on a port in its category's range: {ranges}. Check the ports in use"
+        " before choosing one.\n"
+        "Databases: each service that needs a relational database gets its own SQLite file, owned by that"
+        " service alone; no other service opens it, and there are no foreign keys or joins across services"
+        " (a reference to another service's data is a plain id).\n"
+        "Environments stay inside the project (uv for Python with .venv/, npm for Node);"
+        " never global installs.\n"
+        "Shell is Windows: prefer Node, Python or PowerShell scripts over bash-only tooling."
+    )
+
+
+def _neighbour(manager: SourceManager, settings: Settings, pid: str) -> dict:
+    p = manager.registry.projects[pid]
+    snaps = st.snapshots(settings.registry_root, pid)
+    exposes: list[dict] = []
+    studied = None
+    if snaps:
+        model, problems = st.load(snaps[0])
+        studied = snaps[0].id
+        if not problems:
+            exposes = [
+                {k: x.get(k) for k in ("kind", "method", "path", "name", "summary") if x.get(k)}
+                for x in (model.get("interfaces") or {}).get("exposes", [])
+            ][:60]
+    return {
+        "id": p.id,
+        "title": p.title,
+        "status": p.status,
+        "kind": p.kind,
+        "ports": p.ports,
+        "depends_on": p.depends_on,
+        "used_by": p.used_by,
+        "summary": p.summary,
+        "studied": studied,
+        "exposes": exposes,
+    }
+
+
+def _claude_md(p: Project) -> str | None:
+    if p.dir is None:
+        return None
+    f = p.dir / "CLAUDE.md"
+    if not f.is_file():
+        return None
+    text = f.read_text(encoding="utf-8", errors="replace")
+    return text if len(text) <= 12000 else text[:12000] + "\n... (cut)"
+
+
+def cmd_design_context(settings: Settings, args: argparse.Namespace) -> int:
+    """Everything a design round needs to know about the system, in one read-only bundle."""
+    manager = _sources(settings)
+    reg = manager.registry
+    p = _design_project(manager, args.project)
+    facts = _project_facts(manager, p)
+    near = sorted({*p.depends_on, *p.used_by, *facts["group_members"]} - {p.id})
+    near = [n for n in near if n in reg.projects]
+    overview = settings.registry_root / "overview.md"
+    data = {
+        "project": facts,
+        "has_code": dz.has_code(p.dir),
+        "claude_md": _claude_md(p),
+        "studied": bool(st.snapshots(settings.registry_root, p.id)),
+        "neighbours": [_neighbour(manager, settings, n) for n in near],
+        "ports_in_use": [{"port": port, "projects": ids} for port, ids in sorted(_ports_taken(reg).items())],
+        "groups": [g.id for g in reg.groups.values()],
+        "registered_projects": sorted(reg.projects),
+        "designs": [
+            dz.summary(dz.get(settings.registry_root, p.id, s))
+            for s in dz.slugs(settings.registry_root, p.id)
+        ],
+        "overview": overview.read_text(encoding="utf-8", errors="replace")[:4000]
+        if overview.is_file()
+        else "",
+        "rules": _workspace_rules(),
+    }
+    if args.json:
+        _print_json(data)
+        return 0
+    print(f"# Design context for {p.id}")
+    print(
+        f"\nStatus: {p.status}; kind: {p.kind or '-'}; ports: {p.ports or 'none'};"
+        f" depends on: {p.depends_on or 'none'}"
+    )
+    print(
+        f"Folder: {'available' if p.dir else 'not available'}; has code: {data['has_code']};"
+        f" studied: {data['studied']}"
+    )
+    if data["designs"]:
+        print("\nExisting designs: " + ", ".join(f"{d['slug']} ({d['stage']})" for d in data["designs"]))
+    print("\n## The project's own CLAUDE.md")
+    print(data["claude_md"] or "(none: ask for the tech stack)")
+    if facts["notes"]:
+        print("\n## Its registry page notes")
+        print(facts["notes"])
+    print("\n## Neighbours (group, depends_on, used_by)")
+    for n in data["neighbours"]:
+        studied = f", studied {n['studied']}" if n["studied"] else ", not studied"
+        print(f"- {n['id']} ({n['status']}, {n['kind'] or '-'}), ports {n['ports'] or 'none'}{studied}")
+        if n["summary"]:
+            print(f"  {n['summary']}")
+        for ex in n["exposes"][:20]:
+            print("  exposes: " + " ".join(str(ex[k]) for k in ("method", "path", "name") if ex.get(k)))
+    print("\n## Ports in use")
+    print(", ".join(f"{r['port']} ({'/'.join(r['projects'])})" for r in data["ports_in_use"]) or "none")
+    print(f"\n## Groups you may use: {', '.join(data['groups']) or 'none'}")
+    print(f"\n## Registered projects (for depends_on): {', '.join(data['registered_projects'])}")
+    if data["overview"]:
+        print("\n## Registry overview")
+        print(data["overview"])
+    print("\n## Workspace rules")
+    print(data["rules"])
+    return 0
+
+
+def cmd_design_list(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    if args.project:
+        _design_project(manager, args.project)
+    names = [args.project] if args.project else dz.projects_with_designs(settings.registry_root)
+    rows = [
+        dz.summary(dz.get(settings.registry_root, n, s))
+        for n in names
+        for s in dz.slugs(settings.registry_root, n)
+    ]
+    if args.json:
+        _print_json(rows)
+        return 0
+    if not rows:
+        print("No designs yet." + (f" Start one: design init {args.project}" if args.project else ""))
+        return 0
+    for row in rows:
+        print(_design_row(row))
+    return 0
+
+
+def cmd_design_init(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    ref = dz.init(settings.registry_root, p.id, args.slug, thread=args.thread, summary=args.summary or "")
+    print(
+        f"Started design '{ref.slug}' for {p.id}: registry/{dz.DESIGNS_DIR}/{p.id}/{ref.slug}/"
+        " (stage: brief)."
+    )
+    print(
+        "Write brief.md, architecture.md, plan.md, questions.md, decisions/ and model.json"
+        " into a work folder,"
+    )
+    print(f"then: design save {p.id} --slug {ref.slug} --dir <folder>")
+    return 0
+
+
+def cmd_design_show(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    ref = _design_ref(settings, p.id, args.slug)
+    if args.revision:
+        rev, folder = dz.revision_folder(ref, args.revision)
+        label = f"revision {rev['number']} ({rev['id']})"
+    else:
+        folder, label = ref.folder, "working copy"
+    model, problems = dz.load(folder, p.id)
+    files = dz.read_files(folder)
+    if args.json:
+        _print_json({**dz.summary(ref), "label": label, "files": files, "model": model, "problems": problems})
+        return 0
+    row = dz.summary(ref)
+    print(_design_row(row) + f"   [{label}]")
+    if row["summary"]:
+        print(f"  {row['summary']}")
+    print("  " + ", ".join(f"{k} {v}" for k, v in row["counts"].items()))
+    for prob in problems:
+        print(f"  problem: {prob}")
+    for name, text in files.items():
+        print(f"  {name}: {'written' if text.strip() else 'empty'}")
+    if row["revisions"]:
+        print("  revisions: " + ", ".join(r["id"] for r in row["revisions"]))
+    print(f"  files: registry/{dz.DESIGNS_DIR}/{p.id}/{ref.slug}/")
+    return 0
+
+
+def cmd_design_validate(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    files, model = dz.read_workdir(Path(args.dir))
+    problems = [x for n, t in files.items() for x in dz.prose_problems(n, t)]
+    if model is not None:
+        try:
+            dz.parse(
+                model, project=p.id, registry=manager.registry, ports_taken=_ports_taken(manager.registry)
+            )
+        except dz.DesignError as exc:
+            problems.append(str(exc))
+    if problems:
+        raise dz.DesignError("; ".join(problems))
+    print(f"Valid: {len(files)} file(s)" + (", and a model." if model is not None else ", no model."))
+    return 0
+
+
+def cmd_design_save(settings: Settings, args: argparse.Namespace) -> int:
+    """Replace a design's working copy with the files in a work folder (the only way one is
+    written). Files the folder lacks stay as they are."""
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    ref = _design_ref(settings, p.id, args.slug)
+    files, model = dz.read_workdir(Path(args.dir))
+    was = ref.stage
+    dz.save(
+        settings.registry_root,
+        ref,
+        files=files,
+        model=model,
+        registry=manager.registry,
+        ports_taken=_ports_taken(manager.registry),
+        thread=args.thread,
+    )
+    row = dz.summary(ref)
+    what = f"{len(files)} file(s)" + (" and the model" if model is not None else "")
+    print(f"Saved design '{ref.slug}' of {p.id}: {what}.")
+    print("  " + ", ".join(f"{k} {v}" for k, v in row["counts"].items()))
+    if was in ("approved", "handed off"):
+        print(f"  It was {was}; it's back at stage plan, since it differs from its latest revision.")
+    print(f"  Stage: {row['stage']}. The Design tab shows it as a draft until it's approved.")
+    return 0
+
+
+def cmd_design_stage(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    ref = _design_ref(settings, _design_project(manager, args.project).id, args.slug)
+    dz.set_stage(ref, args.stage)
+    print(f"{ref.project} '{ref.slug}': stage is now {args.stage}.")
+    return 0
+
+
+def cmd_design_approve(settings: Settings, args: argparse.Namespace) -> int:
+    """Freeze the working copy as a revision and write the structural facts into the project's
+    registry page. Without --yes, shows what it would do and changes nothing."""
+    manager = _sources(settings)
+    reg = manager.registry
+    p = _design_project(manager, args.project)
+    ref = _design_ref(settings, p.id, args.slug)
+    taken = _ports_taken(reg)
+    problems = dz.approval_problems(ref, reg, taken)
+    if problems:
+        raise dz.DesignError("; ".join(problems))
+    model, _ = dz.load(ref.folder, p.id)
+    structure = model.get("structure", {})
+    try:
+        changes = [] if args.no_registry else plan_structure(manager.registry_root, reg, p.id, structure)
+    except RegisterError as exc:
+        raise ValueError(str(exc)) from exc
+    revs = dz.revisions(ref)
+    print(f"Approving '{ref.slug}' of {p.id} would freeze revision {(revs[0]['number'] if revs else 0) + 1}.")
+    if changes:
+        print(f"It would change these lines in registry/{p.page}:")
+        for c in changes:
+            old = c["old"] if c["old"] not in (None, []) else "(not set)"
+            print(f"  {c['key']}: {old} -> {c['value']}")
+    else:
+        print(
+            "The registry page is left alone." if args.no_registry else "The registry page needs no changes."
+        )
+    if not args.yes:
+        print("Nothing was changed. Run again with --yes once the user has agreed.")
+        return 0
+    rev = dz.approve(ref, reg, taken)
+    if changes:
+        try:
+            apply_structure(manager.registry_root, reg, p.id, structure)
+        except RegisterError as exc:
+            raise ValueError(
+                f"revision {rev['number']} was frozen, but the registry page wasn't updated: {exc}"
+            ) from exc
+        manager.reload()
+    print(
+        f"Approved: revision {rev['number']} ({rev['id']})."
+        f" Hand it off with: design handoff {p.id} --slug {ref.slug}"
+    )
+    return 0
+
+
+def cmd_design_handoff(settings: Settings, args: argparse.Namespace) -> int:
+    """Ask Archeion's /inbox to deliver a revision to the project: a thread for Archeion
+    (anchor.task = handoff-design), like a study conversation."""
+    manager = _sources(settings)
+    reg = manager.registry
+    p = _design_project(manager, args.project)
+    unregistered = [u["name"] for u in manager.unregistered()] if manager.roots.all() else []
+    blocking = [
+        x
+        for x in dz.preflight(
+            reg,
+            project=p.id,
+            unregistered=unregistered,
+            purpose="handoff",
+            slug=args.slug,
+            registry_root=settings.registry_root,
+            has_study=True,
+        )
+        if x["severity"] == "block"
+    ]
+    if blocking:
+        raise ValueError(
+            "; ".join(f"{x['message']} Fix: {x['fix']}" if x["fix"] else x["message"] for x in blocking)
+        )
+    ref = _design_ref(settings, p.id, args.slug)
+    rev, _ = dz.revision_folder(ref, args.revision)
+    body = (
+        f"Deliver revision {rev['number']} of the design '{ref.slug}' to {p.id}: copy its package into the"
+        f" project's {dz.PACKAGE_DIR}/{ref.slug}/ with `design package {p.id} --slug {ref.slug}"
+        f" --revision {rev['number']}`, then reply with the files. The project's session then runs"
+        " /archeion:consume-design."
+    )
+    anchor = {
+        "task": {"type": "handoff-design", "project": p.id, "slug": ref.slug, "revision": rev["number"]}
+    }
+    with _db(settings).conn() as conn:
+        item = fb.create(conn, kind="prompt", body=body, anchor=anchor, source=SELF_ID)
+    dz.record_handoff(ref, rev["number"], item["thread_id"])
+    return _done(args, item, f"Handoff of revision {rev['number']} to {p.id} requested in Archeion's inbox.")
+
+
+def cmd_design_package(settings: Settings, args: argparse.Namespace) -> int:
+    """Copy a revision's package into the project's .archeion/designs/<slug>/. A plain copy, the
+    only place a design is written outside the registry, and only where /inbox may edit (ADR 0017)."""
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    if p.dir is None:
+        raise ValueError(
+            f"{p.id}'s folder isn't available on this machine (see: design preflight {p.id} --for handoff)"
+        )
+    if not p.inbox_edits:
+        raise ValueError(f"Archeion's /inbox may not edit {p.id} (fix: projects inbox-edits {p.id} on)")
+    ref = _design_ref(settings, p.id, args.slug)
+    rev, files = dz.package_files(ref, args.revision)
+    target = (p.dir / dz.PACKAGE_DIR / ref.slug).resolve()
+    if not target.is_relative_to(p.dir.resolve()):
+        raise ValueError("the package folder must stay inside the project")
+    if target.exists():
+        for old in list(target.iterdir()):
+            if old.name == "receipt.md":
+                continue
+            if old.is_dir():
+                shutil.rmtree(old)
+            else:
+                old.unlink()
+    for name, text in files.items():
+        dest = target / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text, encoding="utf-8")
+    print(f"Delivered revision {rev['number']} of '{ref.slug}' to {p.id}: {dz.PACKAGE_DIR}/{ref.slug}/")
+    for name in sorted(files):
+        print(f"  {name}")
+    print(
+        f"These files are inside {p.id}; commit them from there if wanted."
+        " Next: /archeion:consume-design in its session."
+    )
+    return 0
+
+
+def cmd_design_consumed(settings: Settings, args: argparse.Namespace) -> int:
+    """The project consumed a revision (called by /archeion:consume-design): the design is handed off."""
+    manager = _sources(settings)
+    p = _design_project(manager, args.project)
+    ref = _design_ref(settings, p.id, args.slug)
+    dz.mark_consumed(ref, args.revision)
+    print(f"{p.id} '{ref.slug}': revision {args.revision} consumed; stage is {ref.stage}.")
+    return 0
+
+
+def cmd_design_discard(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    ref = _design_ref(settings, _design_project(manager, args.project).id, args.slug)
+    dz.delete(ref)
+    print(f"Deleted the design '{ref.slug}' of {ref.project}, revisions included.")
+    return 0
+
+
 def cmd_version(settings: Settings, _: argparse.Namespace) -> int:
     print(read_version(settings.repo_root))
     return 0
@@ -1129,6 +1596,64 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--json", action="store_true")
     sc.set_defaults(func=cmd_study_changes)
 
+    design = sub.add_parser("design", help="design and plan a project (ADR 0022)").add_subparsers(
+        dest="action", required=True
+    )
+
+    def design_cmd(name: str, help_: str, func, *, slug: bool = True):
+        d = design.add_parser(name, help=help_)
+        d.add_argument("project")
+        if slug:
+            d.add_argument("--slug", default=dz.DEFAULT_SLUG, help="which design of the project")
+        d.set_defaults(func=func)
+        return d
+
+    dp = design_cmd(
+        "preflight", "what stands in the way of a design step, with the fix", cmd_design_preflight
+    )
+    dp.add_argument("--for", dest="purpose", choices=["design", "handoff"], default="design")
+    dp.add_argument("--json", action="store_true")
+    dc = design_cmd(
+        "context", "the project, its neighbours, ports in use and the rules", cmd_design_context, slug=False
+    )
+    dc.add_argument("--json", action="store_true")
+    dl = design.add_parser("list", help="designs, of one project or all")
+    dl.add_argument("project", nargs="?")
+    dl.add_argument("--json", action="store_true")
+    dl.set_defaults(func=cmd_design_list)
+    di = design_cmd("init", "start a design", cmd_design_init)
+    di.add_argument("--thread", type=int, help="the feedback thread it's discussed in")
+    di.add_argument("--summary", help="one line on what it is")
+    dsw = design_cmd("show", "a design's state, files and problems", cmd_design_show)
+    dsw.add_argument("--revision", help="a frozen revision (a number, or latest) instead of the working copy")
+    dsw.add_argument("--json", action="store_true")
+    dv = design_cmd("validate", "check a work folder without saving it", cmd_design_validate, slug=False)
+    dv.add_argument("--dir", required=True, help="the folder with the design's files and model.json")
+    dsa = design_cmd("save", "replace the working copy with a work folder's files", cmd_design_save)
+    dsa.add_argument("--dir", required=True)
+    dsa.add_argument("--thread", type=int)
+    dst = design_cmd("stage", "move a design to brief, architecture or plan", cmd_design_stage)
+    dst.add_argument("stage", choices=list(dz.MOVABLE))
+    da = design_cmd(
+        "approve", "freeze a revision and update the registry page (needs --yes)", cmd_design_approve
+    )
+    da.add_argument("--yes", action="store_true", help="do it; without it, only show what would change")
+    da.add_argument("--no-registry", action="store_true", help="leave the registry page alone")
+    dh = design_cmd("handoff", "ask /inbox to deliver a revision to the project", cmd_design_handoff)
+    dh.add_argument("--revision", default="latest")
+    dh.add_argument("--json", action="store_true")
+    dpk = design_cmd(
+        "package", "copy a revision into the project's .archeion/designs/ (for /inbox)", cmd_design_package
+    )
+    dpk.add_argument("--revision", default="latest")
+    dco = design_cmd(
+        "consumed",
+        "record that the project consumed a revision (for /archeion:consume-design)",
+        cmd_design_consumed,
+    )
+    dco.add_argument("--revision", type=int, required=True)
+    design_cmd("discard", "delete a design and its revisions", cmd_design_discard)
+
     sub.add_parser("version", help="Archeion's version").set_defaults(func=cmd_version)
     return parser
 
@@ -1151,6 +1676,9 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
         return 1
     except st.StudyNotFound as exc:
         print(f"No study snapshot '{exc.args[0]}'. See: study list", file=sys.stderr)
+        return 1
+    except dz.DesignNotFound as exc:
+        print(f"No design {exc.args[0]}. See: design list", file=sys.stderr)
         return 1
     except fb.FeedbackNotFound as exc:
         print(f"No feedback item #{exc.args[0]}.", file=sys.stderr)

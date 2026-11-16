@@ -716,3 +716,69 @@ def _set_line(
         tmp.write_bytes(new.encode("utf-8"))
         tmp.replace(page)
     return project.page
+
+
+# --- the structural facts a design approval writes (ADR 0022) --------------------------------
+
+
+def _frontmatter_text(registry_root: Path, project: Project) -> str:
+    page = registry_root / project.page
+    text = page.read_text(encoding="utf-8", errors="replace") if page.is_file() else ""
+    m = FRONTMATTER_RE.match(text.lstrip("﻿"))
+    return m.group(1) if m else ""
+
+
+def _has_block_list(front: str, key: str) -> bool:
+    return bool(re.search(rf"^{re.escape(key)}\s*:\s*(#.*)?$\n\s*-", front, re.M))
+
+
+def plan_structure(registry_root: Path, reg: Registry, project_id: str, structure: dict) -> list[dict]:
+    """The registry-page lines an approval would change: ports and `depends_on` are added to what's
+    there (never removed), `group` and `kind` are filled only when the page has none, and
+    `status` is set when the design says so. Each change: key, old, new, value (the line)."""
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    front = _frontmatter_text(registry_root, project)
+    changes: list[dict] = []
+
+    def add(key: str, old, new, value: str) -> None:
+        if old != new:
+            if _has_block_list(front, key):
+                raise RegisterError(
+                    f"{project.page} writes `{key}:` as a block list; change it to `{key}: [..]` first,"
+                    " or edit by hand"
+                )
+            changes.append({"key": key, "old": old, "new": new, "value": value})
+
+    for key, have in (("ports", project.ports), ("depends_on", project.depends_on)):
+        want = [x for x in (structure.get(key) or []) if x not in have]
+        if want:
+            merged = [*have, *want]
+            add(key, have, merged, "[" + ", ".join(str(x) for x in merged) + "]")
+    if structure.get("group") and not project.group:
+        add("group", None, structure["group"], structure["group"])
+    if structure.get("kind") and not project.kind:
+        add("kind", None, structure["kind"], structure["kind"])
+    if structure.get("status") and structure["status"] != project.status:
+        add("status", project.status, structure["status"], structure["status"])
+    return changes
+
+
+_STRUCTURE_AFTER = {
+    "ports": ("path", "parent", "type", "inbox_edits", "status", "kind", "group"),
+    "depends_on": ("ports", "group", "kind", "status"),
+    "group": ("path", "parent", "type", "inbox_edits"),
+    "kind": ("status", "group", "path"),
+    "status": ("group", "path", "parent", "type", "inbox_edits"),
+}
+
+
+def apply_structure(registry_root: Path, reg: Registry, project_id: str, structure: dict) -> list[dict]:
+    """Write the changes `plan_structure` lists, one frontmatter line each. Nothing else in the page
+    changes. Returns the changes made."""
+    changes = plan_structure(registry_root, reg, project_id, structure)
+    project = reg.projects[project_id]
+    for c in changes:
+        _set_line(registry_root, project, c["key"], c["value"], _STRUCTURE_AFTER[c["key"]])
+    return changes

@@ -1,7 +1,7 @@
 ---
 name: inbox
 description: Work through the feedback (prompts, reviews, comments) left in the Archeion viewer, for Archeion itself (its docs, the registry, cross-project questions) and for every registered project (ADR 0017). Claims each open item, does what it asks (in this repo, or in the target project when its inbox edits are allowed), and posts a reply that shows up in the browser. Use when the user says "/inbox", "check the inbox", "check feedback", or a session starts with open feedback items.
-allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*)
+allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox:*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 design:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 design:*)
 ---
 
 # Inbox
@@ -63,6 +63,15 @@ If the command says the backend environment is missing, tell the user to run `se
         `study` skill (`.claude/skills/study/SKILL.md`) in its **conversation mode**. Each message is one
         round: report, save the draft, ask, and wait for the reply; save the snapshot only once the user
         approves. A study is read-only on the project, so `inbox_edits` doesn't restrict it.
+      - **A design conversation** (`inbox show` prints `task: a design of <project> '<slug>'`, ADR 0022), or
+        any request to design or plan a project ("design X", "plan X"), or a comment on a design doc in the
+        registry: follow the `design` skill (`.claude/skills/design/SKILL.md`) in its **conversation mode**.
+        Designing is read-only on the project. Each message is one round; the user moves the stages and
+        approves, you never do.
+      - **A design handoff** (`task: a handoff-design of <project> '<slug>'`): follow the `design` skill's
+        **Handoff tasks**. Run `design preflight <project> --for handoff`, then `design package` copies the
+        revision into the project's `.archeion/designs/<slug>/`. That is a plain copy and the only thing
+        written there; it needs `inbox_edits` allowed. Never commit in the project.
       If the request is ambiguous, risky, or reaches outside the target project, don't guess. Reply with
       your question or concern instead. The user answers in the same thread.
    4. Write the reply to a temporary file in your scratchpad directory and send it with
