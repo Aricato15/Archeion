@@ -7,6 +7,9 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Conversations from a session** ([ADR 0018](docs/decisions/0018-feedback-threads.md)). The inbox CLI can carry on a thread, so a project session's `/archeion:report` and `/archeion:inbox` (plugin 0.2.0) work as a reply in the viewer does instead of starting a new item each time: `inbox create --in <id>` adds the next message to a thread (keeping its project and kind; `--claim` adds it already claimed, so on-demand Claude doesn't pick up a message the session answers itself), `inbox threads` lists conversations one row per thread (`--here`, `--from-here` for the threads a project started, `--status active|...|all`), and `inbox resolve <id>` closes a thread. `claim`, `release`, `reply`, `create`, `resolve` and `show` print a fixed `ids: item #N, thread #T` line, and take `--json` (`show --json` adds `id`, `thread_id` and `latest_id`), so a session reads the ids instead of guessing them. Archeion's own `/inbox` records chat follow-ups the same way.
+
 ## [1.0.0] - 2026-11-16
 
 ### Added

@@ -31,10 +31,10 @@ Or just ask in plain words: "register the new project in my workspace", "check t
 ## In a project's session (Archeion plugin)
 | Command | What it does |
 |---|---|
-| `/archeion:inbox` | Works through the feedback left for this project |
+| `/archeion:inbox` | Works through the feedback left for this project. A follow-up you type in the chat goes into that item's thread, as if you'd replied in the viewer |
 | `/archeion:context` | Where this project sits: its group, what it depends on, what uses it, its ports |
 | `/archeion:ports` | The ports every project uses, before you pick a new one |
-| `/archeion:report` | Tells Archeion about a change the registry needs (a port, a dependency, a rename) |
+| `/archeion:report` | Tells Archeion about a change the registry needs (a port, a dependency, a rename). A report on something already reported, or an answer to Archeion's reply, carries on that thread |
 
 A project session never edits Archeion's registry. It reports, and Archeion's session makes the change.
 
@@ -44,6 +44,9 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | Command | What it does |
 |---|---|
 | `inbox list` | Open feedback, with the projects that have items waiting |
+| `inbox threads` | Conversations, one row per thread (`--project <name>`, or `--here`/`--from-here` in a project's folder) |
+| `inbox create --in <id> --file <f>` | Add a message to a thread from a session, as a reply in the viewer would (`--claim` to answer it yourself) |
+| `inbox resolve <id>` | Close a whole thread |
 | `projects list` | The registered projects, by group, with any problems |
 | `projects scan` | Folders in your roots with no registry page yet (`--write` creates stub pages) |
 | `projects show --project <name>` | One project's place in the system |

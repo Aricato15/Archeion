@@ -4,6 +4,14 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-17
+
+### Changed
+- `/archeion:report` carries on a conversation. It lists the threads this project started (`inbox threads --from-here`), and a report on the same matter, or an answer to Archeion's reply, goes into that thread (`inbox create --in <id>`) instead of starting a new one, as a reply in the viewer would. It can show Archeion's answer and resolve the thread.
+- `/archeion:inbox` keeps a follow-up typed in the chat in the item's thread: it records the message already claimed (`inbox create --in <id> --claim`), answers it with `inbox reply`, and resolves the thread when the user says it's done. The viewer shows the same conversation either way.
+- Both read the item and thread ids from the `ids: item #N, thread #T` line every inbox command now prints (or `--json`), name them to the user so a later call in the same chat finds the thread, and look the thread up with `inbox threads` when the ids are gone.
+- Both need an Archeion with `inbox threads`, `create --in` and `resolve`. With an older one they work as before and say so.
+
 ## [0.1.2] - 2026-11-16
 
 ### Changed

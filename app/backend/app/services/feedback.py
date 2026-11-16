@@ -95,11 +95,15 @@ def create(
     doc_rev: str | None = None,
     source: str = "archeion",
     origin: str | None = None,
+    claimed: bool = False,
 ) -> dict:
     """A new thread, or with parent_id a follow-up in that item's thread.
 
     A follow-up always goes after the thread's latest item, whichever item it names, and is
     refused while an earlier one still waits for Claude: edit that one instead.
+
+    claimed=True writes it already in progress, for a message a Claude session records and
+    answers itself: it never shows as open, so on-demand Claude doesn't start a run for it.
     """
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
@@ -118,8 +122,8 @@ def create(
         cur = conn.execute(
             "INSERT INTO feedback"
             " (kind, source, origin, doc_path, anchor, body, parent_id, thread_id, doc_rev,"
-            " created_at, updated_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " created_at, updated_at, status, claimed_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 kind,
                 source,
@@ -132,6 +136,8 @@ def create(
                 doc_rev,
                 now,
                 now,
+                "in_progress" if claimed else "open",
+                now if claimed else None,
             ),
         )
         item_id = cur.lastrowid
@@ -199,6 +205,7 @@ def list_threads(
     doc_path: str | None = None,
     kind: str | None = None,
     source: str | list[str] | None = None,
+    origin: str | list[str] | None = None,
     limit: int = 500,
 ) -> list[dict]:
     """Threads, most recently changed first: what the viewer lists.
@@ -215,6 +222,8 @@ def list_threads(
         sql += " AND r.doc_path = ?"
         args.append(doc_path)
     sql += _sources_sql(source, "r.source", args)
+    # The project a session-started thread came from (/archeion:report) is its root's origin.
+    sql += _sources_sql(origin, "r.origin", args)
     if kind:
         sql += " AND r.kind = ?"
         args.append(kind)

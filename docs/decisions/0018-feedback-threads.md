@@ -24,3 +24,10 @@ Feedback items could already point at a `parent_id`, and the thread page had a *
 - In the viewer, the thread's actions sit under Claude's latest answer: **Resolve thread**, **Reopen thread** (a new "Reopened" message for Claude) and a box to reply in.
 - `/inbox` and `/archeion:inbox` read one block of context instead of piecing the thread together. A long thread makes a long `show`, which is the point.
 - Deleting is limited to a waiting message, so a thread's first message can't be deleted once it has replies. A thread with nothing but one open message can still be deleted whole.
+
+## Addendum (2026-11-17): threads from a session
+A session in a project only had `inbox create`, which always starts a thread, so `/archeion:report` and `/archeion:inbox` couldn't carry on a conversation the way a reply in the viewer does. The inbox CLI now has the same thread operations as the viewer:
+- `inbox create --in <id>` adds the next message to the thread `<id>` is in, with the same rules as a viewer reply (point 3 and 6): it goes after the latest message, keeps the thread's project and kind, and is refused while a message waits. It records the caller's project as its origin.
+- `--claim` writes it already in progress, for a message the session records and answers itself (a follow-up the user typed in the chat). It never shows as open, so on-demand Claude (ADR 0020) doesn't start a run for it.
+- `inbox threads` lists threads as `GET /api/feedback` does (point 7); `--from-here` narrows to those a project started (the root's `origin`). `inbox resolve <id>` resolves a thread (point 4).
+- A session carries on a thread only if it knows the thread's id, so every inbox command that changes an item, and `show`, prints a fixed `ids: item #N, thread #T` line (`--json`: `id`, `thread_id`; `show --json` also `latest_id`). The skills read the ids from it, name them in the chat, and fall back to `inbox threads` when the chat no longer has them.

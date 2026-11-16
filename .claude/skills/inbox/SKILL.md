@@ -22,6 +22,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 inbox <
 | `reply <id> --file <path>` | in_progress → answered. The file is UTF-8 Markdown and is shown in the browser. |
 | `release <id>` | in_progress → open, when you can't or shouldn't finish it |
 | `count` (`--project <name>`) | the number of open items |
+| `create --in <id> --claim --file <path>` | what the user said in the chat, as the next message in `<id>`'s thread, already claimed so you answer it with `reply` (keeps the thread's project and kind) |
+| `threads` (`--project <name>`, `--status active\|all\|...`) | conversations, one row per thread, latest change first |
+| `resolve <id>` | close the whole thread |
 
 If the command says the backend environment is missing, tell the user to run `setup.bat` and stop.
 
@@ -71,6 +74,18 @@ If the command says the backend environment is missing, tell the user to run `se
 4. Don't commit by yourself. For Archeion's changes, offer `/workspace-core:commit`, as one commit per item
    when they're unrelated. For a project's changes, say they're uncommitted in that project, to be committed
    from there.
+
+## Follow-ups in the chat
+
+When the user answers one of your replies here in the chat instead of in the viewer, it belongs in that
+item's thread (ADR 0018), so the viewer shows the same conversation: write their message to a scratchpad
+file, `inbox create --in <thread> --claim --file <file>`, read the new message's id from the
+`ids: item #<N>, thread #<T>` line it prints, do the work, then `inbox reply <N>`. Every write command and
+`show` print that line (`--json` gives `id`/`thread_id`): take ids from it, never guess them, and name
+both in the chat summary ("#14, thread #9") so a later follow-up knows its thread. If that's
+refused because the thread's newest message is still waiting, answer that message instead, with the chat
+message in mind. Find an earlier item the user refers to with `inbox threads --status all`, and
+`inbox resolve <id>` when they say it's done.
 
 ## Notes
 

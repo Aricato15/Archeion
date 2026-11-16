@@ -96,3 +96,101 @@ def test_origin_is_in_the_api(settings, authed, monkeypatch, tmp_path):
 def test_version(settings, capsys):
     assert main(["version"], settings) == 0
     assert capsys.readouterr().out.strip() == "9.9.9"
+
+
+def _answer(settings, item_id: int, text: str) -> None:
+    from app.services import feedback as fb
+
+    with Database(settings.db_file).conn() as conn:
+        fb.claim(conn, item_id)
+        fb.reply(conn, item_id, text)
+
+
+def test_a_session_carries_on_a_thread(settings, monkeypatch, tmp_path, capsys):
+    """/archeion:report and /archeion:inbox add to a conversation, as a reply in the viewer does."""
+    note = tmp_path / "note.md"
+    note.write_text("I moved to port 20105.\n", encoding="utf-8")
+    _here(monkeypatch, settings.repo_root.parent / "alpha" / "docs")
+    assert main(["inbox", "create", "--kind", "review", "--json", "--file", str(note)], settings) == 0
+    created = json.loads(capsys.readouterr().out)
+    assert (created["id"], created["thread_id"], created["status"]) == (1, 1, "open")
+
+    # Waiting for Archeion: a second message is refused, as in the viewer.
+    assert main(["inbox", "create", "--in", "1", "--file", str(note)], settings) == 1
+    assert "still waits for Claude" in capsys.readouterr().err
+
+    _answer(settings, 1, "Which port does the worker use?")
+    note.write_text("The worker uses 20106.\n", encoding="utf-8")
+    assert main(["inbox", "create", "--in", "1", "--file", str(note)], settings) == 0
+    out = capsys.readouterr().out
+    assert "Added #2 to thread #1 (for archeion), after #1; open." in out
+    assert "ids: item #2, thread #1" in out
+
+    with Database(settings.db_file).conn() as conn:
+        row = conn.execute("SELECT * FROM feedback WHERE id = 2").fetchone()
+    assert (row["thread_id"], row["parent_id"], row["kind"], row["source"], row["origin"]) == (
+        1,
+        1,
+        "review",
+        "archeion",
+        "alpha",
+    )
+    assert main(["inbox", "show", "2"], settings) == 0
+    out = capsys.readouterr().out
+    assert "Which port does the worker use?" in out and "Your request now (#2" in out
+    assert "ids: item #2, thread #1" in out and "thread #1: 2 message(s), newest #2 (open)" in out
+    assert main(["inbox", "show", "1", "--json"], settings) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert (shown["id"], shown["thread_id"], shown["latest_id"]) == (1, 1, 2)
+
+    # The project's own threads, one row each, and nothing from elsewhere.
+    _here(monkeypatch, settings.repo_root.parent / "gamma")
+    assert main(["inbox", "create", "--file", str(note)], settings) == 0
+    _here(monkeypatch, settings.repo_root.parent / "alpha")
+    capsys.readouterr()
+    assert main(["inbox", "threads", "--from-here", "--json"], settings) == 0
+    threads = json.loads(capsys.readouterr().out)
+    assert [(t["id"], t["messages"], t["latest_id"], t["status"]) for t in threads] == [(1, 2, 2, "open")]
+    assert main(["inbox", "threads", "--from-here"], settings) == 0
+    out = capsys.readouterr().out
+    assert "2 message(s), latest #2" in out and "last reply: Which port" in out
+
+    # Resolving closes the whole thread; it then leaves the active list.
+    _answer(settings, 2, "Recorded both ports.")
+    assert main(["inbox", "resolve", "2"], settings) == 0
+    assert "Resolved thread #1." in capsys.readouterr().out
+    assert main(["inbox", "threads", "--from-here"], settings) == 0
+    assert "No active threads." in capsys.readouterr().out
+    assert main(["inbox", "threads", "--from-here", "--status", "all", "--json"], settings) == 0
+    assert json.loads(capsys.readouterr().out)[0]["status"] == "resolved"
+
+
+def test_a_session_records_and_answers_a_follow_up(settings, monkeypatch, tmp_path, capsys):
+    """A follow-up typed in the chat goes into the thread already claimed, so it never shows as
+    open and on-demand Claude doesn't pick it up."""
+    note = tmp_path / "note.md"
+    note.write_text("Fix the README.\n", encoding="utf-8")
+    _here(monkeypatch, settings.repo_root.parent / "gamma")
+    assert main(["inbox", "create", "--to", "alpha", "--file", str(note)], settings) == 0
+    _answer(settings, 1, "Fixed the install section.")
+    _here(monkeypatch, settings.repo_root.parent / "alpha")
+    note.write_text("Also the usage section.\n", encoding="utf-8")
+    assert (
+        main(["inbox", "create", "--in", "1", "--claim", "--to", "beta", "--file", str(note)], settings) == 1
+    )
+    assert "--to and --in" in capsys.readouterr().err
+    assert main(["inbox", "create", "--claim", "--file", str(note)], settings) == 1
+    assert main(["inbox", "create", "--in", "1", "--claim", "--file", str(note)], settings) == 0
+    out = capsys.readouterr().out
+    assert "claimed, answer it with: inbox reply 2" in out and "ids: item #2, thread #1" in out
+    with Database(settings.db_file).conn() as conn:
+        row = conn.execute("SELECT status, claimed_at, source, origin FROM feedback WHERE id = 2").fetchone()
+    assert row["status"] == "in_progress" and row["claimed_at"]
+    assert (row["source"], row["origin"]) == ("alpha", "alpha")
+    assert main(["inbox", "threads", "--here", "--json"], settings) == 0
+    assert json.loads(capsys.readouterr().out)[0]["status"] == "in_progress"
+    reply = tmp_path / "reply.md"
+    reply.write_text("Done.\n", encoding="utf-8")
+    assert main(["inbox", "reply", "2", "--json", "--file", str(reply)], settings) == 0
+    replied = json.loads(capsys.readouterr().out)
+    assert (replied["id"], replied["thread_id"], replied["status"]) == (2, 1, "answered")

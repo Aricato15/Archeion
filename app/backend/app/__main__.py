@@ -333,6 +333,9 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
     if args.json:
         _print_json(
             {
+                "id": item["id"],
+                "thread_id": root["id"],
+                "latest_id": (thread[-1] if thread else item)["id"],
                 "item": item,
                 "thread": thread,
                 "conversation": conversation,
@@ -343,7 +346,13 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
         )
         return 0
     print(_summary_line(item))
+    print(f"ids: item #{item['id']}, thread #{root['id']}")
     print(f"       created {item['created_at']}, doc at commit {(item['doc_rev'] or '-')[:10]}")
+    latest = thread[-1] if thread else item
+    print(
+        f"       thread #{root['id']}: {len(thread) or 1} message(s),"
+        f" newest #{latest['id']} ({latest['status']})"
+    )
     if target:
         print(_target_line(target))
     task = (root["anchor"] or {}).get("task")
@@ -389,18 +398,28 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _done(args: argparse.Namespace, item: dict, text: str) -> int:
+    """What a write command prints: the sentence, then the ids a session needs to carry on, on a
+    fixed line (`ids: item #N, thread #T`). With --json, just the ids and the state."""
+    if getattr(args, "json", False):
+        keys = ("id", "thread_id", "parent_id", "status", "kind", "source", "origin")
+        _print_json({k: item.get(k) for k in keys})
+    else:
+        print(text)
+        print(f"ids: item #{item['id']}, thread #{item['thread_id']}")
+    return 0
+
+
 def cmd_inbox_claim(settings: Settings, args: argparse.Namespace) -> int:
     with _db(settings).conn() as conn:
         item = fb.claim(conn, args.id)
-    print(f"Claimed #{item['id']}.")
-    return 0
+    return _done(args, item, f"Claimed #{item['id']} (thread #{item['thread_id']}).")
 
 
 def cmd_inbox_release(settings: Settings, args: argparse.Namespace) -> int:
     with _db(settings).conn() as conn:
         item = fb.release(conn, args.id)
-    print(f"Released #{item['id']}; it's open again.")
-    return 0
+    return _done(args, item, f"Released #{item['id']}; it's open again.")
 
 
 def _read_text_arg(value: str) -> str:
@@ -409,27 +428,109 @@ def _read_text_arg(value: str) -> str:
     return Path(value).read_text(encoding="utf-8")
 
 
+def _caller_origin(settings: Settings, manager: SourceManager) -> str | None:
+    """The registered project the caller's folder is in, or None (Archeion itself, or elsewhere)."""
+    here = _caller_dir()
+    if here.is_relative_to(settings.repo_root.resolve()):
+        return None
+    found = manager.registry.project_for_dir(here)
+    return found.id if found else None
+
+
 def cmd_inbox_create(settings: Settings, args: argparse.Namespace) -> int:
     """A new item, written from a session rather than the viewer (/archeion:report). It
-    records which registered project the caller is in as its origin (ADR 0009)."""
+    records which registered project the caller is in as its origin (ADR 0009).
+
+    With --in, it's the next message in that thread instead (ADR 0018), as a reply typed in
+    the viewer would be: it keeps the thread's project and doc, and its kind unless --kind
+    names one. So a session can carry on a conversation instead of starting a new one each time.
+    """
     manager = _sources(settings)
-    to = args.to
+    origin = _caller_origin(settings, manager)
+    body = _read_text_arg(args.file).strip()
+    if not body:
+        raise ValueError("the item is empty")
+    if args.thread is not None:
+        if args.to is not None:
+            raise ValueError("--to and --in don't go together: a reply stays with its thread's project")
+    elif args.claim:
+        raise ValueError("--claim only goes with --in")
+    if args.thread is not None:
+        with _db(settings).conn() as conn:
+            first = fb.root(conn, args.thread)
+            item = fb.create(
+                conn,
+                kind=args.kind or first["kind"],
+                body=body,
+                doc_path=first["doc_path"],
+                parent_id=args.thread,
+                source=first["source"],
+                origin=origin,
+                claimed=args.claim,
+            )
+        state = f"claimed, answer it with: inbox reply {item['id']}" if args.claim else "open"
+        return _done(
+            args,
+            item,
+            f"Added #{item['id']} to thread #{item['thread_id']} (for {item['source']}),"
+            f" after #{item['parent_id']}; {state}. It shows up in the viewer under the thread.",
+        )
+    to = args.to or SELF_ID
     if to == REGISTRY_ID:
         to = SELF_ID
     if to != SELF_ID and to not in manager.registry.projects:
         raise ValueError(f"'{to}' isn't a registered project (see: projects list)")
-    here = _caller_dir()
-    origin = None
-    if not here.is_relative_to(settings.repo_root.resolve()):
-        found = manager.registry.project_for_dir(here)
-        origin = found.id if found else None
-    body = _read_text_arg(args.file).strip()
-    if not body:
-        raise ValueError("the item is empty")
     with _db(settings).conn() as conn:
-        item = fb.create(conn, kind=args.kind, body=body, source=to, origin=origin)
+        item = fb.create(conn, kind=args.kind or "prompt", body=body, source=to, origin=origin)
     sender = f" from {origin}" if origin else ""
-    print(f"Created #{item['id']} ({item['kind']}) for {to}{sender}. It shows up in the viewer.")
+    return _done(
+        args, item, f"Created #{item['id']} ({item['kind']}) for {to}{sender}. It shows up in the viewer."
+    )
+
+
+def cmd_inbox_resolve(settings: Settings, args: argparse.Namespace) -> int:
+    """Close a whole thread, from any of its messages, as Resolve thread in the viewer does."""
+    with _db(settings).conn() as conn:
+        item = fb.resolve_thread(conn, args.id)
+    return _done(args, item, f"Resolved thread #{item['thread_id']}.")
+
+
+ACTIVE = ("open", "in_progress", "answered")
+
+
+def cmd_inbox_threads(settings: Settings, args: argparse.Namespace) -> int:
+    """Conversations, one row per thread, most recently changed first (as the viewer lists them).
+    --from-here narrows to the threads this project started (/archeion:report), so a session
+    can find the conversation it's carrying on."""
+    source = _target(settings, args)
+    origin = None
+    if args.from_here:
+        manager = _sources(settings)
+        here = _caller_dir()
+        project = None
+        if not here.is_relative_to(settings.repo_root.resolve()):
+            project = manager.registry.project_for_dir(here)
+        if project is None:
+            raise ValueError(_not_registered(here, manager))
+        origin = _with_modules(manager.registry, owning_project(manager.registry, project))
+    status = None if args.status in ("all", "active") else args.status
+    with _db(settings).conn() as conn:
+        threads = fb.list_threads(conn, status=status, source=source, origin=origin, limit=500)
+    if args.status == "active":
+        threads = [t for t in threads if t["status"] in ACTIVE]
+    threads = threads[: args.limit]
+    if args.json:
+        _print_json(threads)
+        return 0
+    if not threads:
+        print(f"No {args.status} threads.")
+        return 0
+    for t in threads:
+        print(_summary_line(t))
+        print(f"       {t['messages']} message(s), latest #{t['latest_id']}, changed {t['updated_at']}")
+        if t["reply"]:
+            last = t["reply"].strip().splitlines()[0] if t["reply"].strip() else ""
+            print(f"       last reply: {last[:77] + '...' if len(last) > 80 else last}")
     return 0
 
 
@@ -440,8 +541,11 @@ def cmd_inbox_reply(settings: Settings, args: argparse.Namespace) -> int:
         text = Path(args.file).read_text(encoding="utf-8")
     with _db(settings).conn() as conn:
         item = fb.reply(conn, args.id, text.strip())
-    print(f"Replied to #{item['id']}; it's now answered.")
-    return 0
+    return _done(
+        args,
+        item,
+        f"Replied to #{item['id']}; it's now answered. To carry on: inbox create --in {item['thread_id']}",
+    )
 
 
 # --- projects ---------------------------------------------------------------------------
@@ -914,16 +1018,38 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         p = inbox.add_parser(name, help=text)
         p.add_argument("id", type=int)
+        p.add_argument("--json", action="store_true", help="print the ids and the state as JSON")
         p.set_defaults(func=func)
     rep = inbox.add_parser("reply", help="answer an in-progress item (in_progress -> answered)")
     rep.add_argument("id", type=int)
     rep.add_argument("--file", required=True, help="UTF-8 file with the reply (Markdown), or - for stdin")
+    rep.add_argument("--json", action="store_true", help="print the ids and the state as JSON")
     rep.set_defaults(func=cmd_inbox_reply)
-    new = inbox.add_parser("create", help="a new item from this session, e.g. a change to report (open)")
-    new.add_argument("--to", default=SELF_ID, help="the project it is for (default: archeion)")
-    new.add_argument("--kind", default="prompt", choices=fb.KINDS)
+    new = inbox.add_parser(
+        "create", help="a new item from this session, or with --in the next message in a thread (open)"
+    )
+    new.add_argument("--to", help="the project a new thread is for (default: archeion)")
+    new.add_argument(
+        "--in", dest="thread", type=int, metavar="ID", help="add to the thread this item is in (ADR 0018)"
+    )
+    new.add_argument("--kind", choices=fb.KINDS, help="default: prompt, or the thread's kind with --in")
+    new.add_argument(
+        "--claim", action="store_true", help="with --in: add it already claimed, to answer it in this session"
+    )
     new.add_argument("--file", required=True, help="UTF-8 file with the text (Markdown), or - for stdin")
+    new.add_argument("--json", action="store_true", help="print the new item's ids and state as JSON")
     new.set_defaults(func=cmd_inbox_create)
+    res = inbox.add_parser("resolve", help="resolve the whole thread an item is in")
+    res.add_argument("id", type=int)
+    res.add_argument("--json", action="store_true", help="print the ids and the state as JSON")
+    res.set_defaults(func=cmd_inbox_resolve)
+    th = inbox.add_parser("threads", help="conversations, one row per thread, latest change first")
+    th.add_argument("--status", default="active", choices=["active", *fb.STATUSES, "all"])
+    th.add_argument("--from-here", action="store_true", help="only threads the project this runs in started")
+    th.add_argument("--limit", type=int, default=20)
+    th.add_argument("--json", action="store_true")
+    _target_args(th)
+    th.set_defaults(func=cmd_inbox_threads)
 
     projects = sub.add_parser("projects", help="the project registry").add_subparsers(
         dest="action", required=True

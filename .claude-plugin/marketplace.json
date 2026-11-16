@@ -11,7 +11,7 @@
       "name": "archeion",
       "source": "./plugins/archeion",
       "description": "Archeion in every project session: the project's feedback inbox, its place in the system, the ports in use, and a way to report changes back.",
-      "version": "0.1.2"
+      "version": "0.2.0"
     }
   ]
 }
