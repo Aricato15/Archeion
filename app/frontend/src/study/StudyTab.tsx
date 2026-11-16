@@ -23,7 +23,7 @@ import {
   Title,
 } from '@mantine/core'
 import { IconMicroscope, IconSearch } from '@tabler/icons-react'
-import { useMemo, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useSnapshot, useSnapshots, useStudyDiff } from '../api/queries'
 import { normalizeModel, type SnapshotRow, type StudyModel } from '../api/study'
@@ -38,6 +38,7 @@ import { StartStudyButton } from './StartStudy'
 import { activity, componentMap, erDiagram, erNames, sequence, stateDiagram } from './mermaid'
 import type { LabelActions } from '../docs/DiagramFrame'
 import { componentGraph, foldedAtDepth } from './graph'
+import { SchemaLegend } from './SchemaLegend'
 import { LazyGraph } from '../graph/LazyGraph'
 
 const VIEWS = [
@@ -53,6 +54,9 @@ const VIEWS = [
   ['changes', 'Changes'],
 ] as const
 type View = (typeof VIEWS)[number][0]
+
+// React Flow is its own chunk, loaded by the first schema shown (ADR 0015).
+const SchemaView = lazy(() => import('./SchemaView'))
 
 const SEVERITY_COLOR = { info: 'blue', warn: 'orange', risk: 'red' } as const
 
@@ -618,21 +622,45 @@ function StatesView({ model, ...rest }: ViewProps) {
 // --- data -------------------------------------------------------------------------------------
 
 function DataView({ model }: ViewProps) {
+  const [mode, setMode] = useState<'schema' | 'er'>('schema')
   const stores = new Map(model.components.map((c) => [c.id, c.name]))
+  const jump = (id: string) =>
+    document.getElementById(`entity-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   const code = useMemo(() => erDiagram(model.entities), [model])
   const labels = Object.fromEntries(
     [...erNames(model.entities)].map(([id, name]) => [
       name,
-      () => document.getElementById(`entity-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      () => jump(id),
     ]),
   )
   return (
     <Stack gap="md">
       <Card withBorder radius="md">
-        <MermaidBlock code={code} labels={labels} title="Data" />
-        <Text size="xs" c="dimmed" mt={4}>
-          Click a table's name to jump to its fields and sources below.
-        </Text>
+        <Group justify="space-between" mb="xs" align="flex-start">
+          {mode === 'schema' ? (
+            <SchemaLegend entities={model.entities} />
+          ) : (
+            <Text size="xs" c="dimmed">
+              Click a table's name to jump to its fields and sources below.
+            </Text>
+          )}
+          <SegmentedControl
+            size="xs"
+            value={mode}
+            onChange={(v) => setMode(v as 'schema' | 'er')}
+            data={[
+              { value: 'schema', label: 'Schema' },
+              { value: 'er', label: 'ER diagram' },
+            ]}
+          />
+        </Group>
+        {mode === 'schema' ? (
+          <Suspense fallback={<Loader size="sm" />}>
+            <SchemaView entities={model.entities} storeNames={stores} onOpen={jump} />
+          </Suspense>
+        ) : (
+          <MermaidBlock code={code} labels={labels} title="Data" />
+        )}
       </Card>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         {model.entities.map((e) => (
