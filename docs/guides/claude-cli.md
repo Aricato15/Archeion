@@ -20,6 +20,7 @@ Start it at Archeion's root, not a subfolder: the session-start hook that announ
 | Command | What it does |
 |---|---|
 | `/inbox` | Works through the feedback left for Archeion and for every registered project. For a project's item it reads that project's `CLAUDE.md`, edits its files when its inbox edits are allowed, runs its tests, and leaves the changes uncommitted there |
+| `/study <project>` | Reads one registered project's code, read-only, and saves what it learns as a dated snapshot: components, libraries, calls, web calls, tables, flows, logic and states, each with the code it came from. Shows its plan first (skip with `--yes`). `--refresh` rereads only what changed since the last snapshot. The project page's **Study** tab draws it ([ADR 0019](../decisions/0019-code-studies.md)) |
 | `/loop 10m /inbox` | Checks the inbox every 10 minutes while the terminal is open, so items you send from the viewer get picked up without you asking. The viewer can run this for you: **Settings → Inbox terminal** starts, stops and restarts it in its own window, and the header badge shows whether it's running |
 | `/workspace-core:commit` | Reviews the staged changes, proposes a Conventional Commits message, and asks before committing |
 | `/workspace-core:handoff` | Writes a handoff note to `docs/notes/` for the next session |
@@ -48,6 +49,11 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
 | `projects inbox-edits <name> on\|off\|auto` | Allow or forbid Archeion's `/inbox` editing a project's files (auto: allowed, or as its project for a module) |
 | `projects ports` | Every recorded port, with clashes marked |
+| `study scan <name>` | A read-only inventory of a project's code (Python and TS/JS): manifests, entry points, import graph, routes, outgoing HTTP calls, SQL tables, env var names, ports |
+| `study list [<name>]` | Study snapshots, and how many commits behind the project each is |
+| `study show <name> [<snapshot>]` | One snapshot's counts, problems and folder |
+| `study changes <name>` | Files changed since the latest snapshot (what `/study --refresh` rereads) |
+| `study validate --file <f>` / `study save <name> --file <f>` | Check a study model, or store it as a new snapshot (`/study` does this) |
 | `password set` | Changes the admin password and logs out every session |
 
 ## Tips

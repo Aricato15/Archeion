@@ -20,8 +20,8 @@ The examples use made-up projects: `example-api`, a service, and `example-web`, 
 
 ### Once: register it
 1. **Viewer, Settings:** add the folder that holds your projects as a root, if it isn't one yet. Then click **Register** next to `example-api`. This creates a stub page in `registry/projects/`.
-2. **Archeion's session:** fill in the page from the real project. Today, ask: *"Read `example-api` and fill in its registry page: kind, status, ports, depends_on, group."* Claude reads the project read-only, fills in the frontmatter and sets `verified`. **(planned)** `/study example-api` does the same and lists the evidence for each field.
-3. **Viewer, Projects:** check the page and the map. If something's wrong, comment on the registry page. That reaches Archeion's inbox, and `/inbox` fixes it.
+2. **Archeion's session:** fill in the page from the real project. Run `/study example-api`. Claude scans the project's code read-only, shows its plan and the registry changes it proposes (ports, `depends_on`, kind, status), and after you agree saves a dated study snapshot, fills in the frontmatter and sets `verified`. From the viewer, the project page's **Study** tab has **Ask Claude to study** for the same request through the inbox.
+3. **Viewer, Projects:** check the page and the map. The **Study** tab shows the project's insides: its components and how they connect, a sequence diagram for each key flow, its tables, state machines and endpoints, and findings against the workspace rules, each with the lines of code it came from. If something's wrong, comment on the registry page. That reaches Archeion's inbox, and `/inbox` fixes it.
 
 ### Every day: work in the project
 4. **Project's session:** work as usual. When the session starts, it says whether the viewer has feedback waiting. `/archeion:context` shows how the project fits in, and `/archeion:ports` checks a port before you take one.
@@ -35,7 +35,7 @@ sequenceDiagram
   participant A as Archeion session
   participant P as Project session
   You->>V: Settings: add root, Register example-api
-  You->>A: fill in example-api's page (planned: /study)
+  You->>A: /study example-api
   A->>V: registry page + map updated
   You->>P: work on example-api
   P-->>V: its docs, live and read-only
@@ -93,7 +93,7 @@ sequenceDiagram
 2. **Viewer, Settings:** register it. It starts with a stub page, and its docs appear in the viewer.
 3. **The new project's session:** brainstorm in the terminal, where the back-and-forth is fast. Claude writes the outcome into the project itself: the spec and plan in `docs/`, decisions as ADRs in `docs/decisions/`, and `ROADMAP.md`. `/archeion:ports` gives it a free port, and `/archeion:context` shows the projects it will sit next to.
 4. **Viewer:** read the plan and diagrams. Comment on passages, and `/archeion:inbox` in the project's session revises them. Repeat until you're happy with the design.
-5. **Archeion's session:** fill in the page as in use case 1 (planned: `/study`), with `status: planned` until building starts.
+5. **Archeion's session:** fill in the page as in use case 1 (`/study`), with `status: planned` until building starts.
 
 ### b) Start inside Archeion
 Use this when the idea comes before the repo, or when it's mostly about how the project fits with the others.

@@ -41,9 +41,10 @@ Don't edit sibling projects from this repo, except to carry out a project's inbo
 - Install: `setup.bat`. Change settings: `configure.bat`. Run: `start.bat`, then open the frontend at port 20301 (the first time, it asks you to create the admin password). Reset the password: `scripts/archeion.ps1 password set`. Stop: `stop.bat`.
 - Backend (from `app/backend/`, with `UV_PROJECT_ENVIRONMENT=venv` set): `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`.
 - Frontend (from `app/frontend/`): `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`.
-- Backend CLI (from the root): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <serve|password ...|inbox ...|projects ...|version>`.
+- Backend CLI (from the root): `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <serve|password ...|inbox ...|projects ...|study ...|version>`.
 - Versions: the app with `scripts/bump-version.ps1 -Part major|minor|patch`, the plugin with `-Target plugin -Part ...`. They're independent (ADR 0005, ADR 0009).
 - Feedback: `/inbox` (project skill in `.claude/skills/inbox/`) works through what was written in the viewer.
+- Code studies: `/study <project>` (project skill in `.claude/skills/study/`, ADR 0019) reads a project's code read-only and saves a snapshot. CLI: `study scan|list|show|changes|validate|save`.
 - Docs: before finishing, check that relative links between docs resolve.
 
 ## Architecture
@@ -60,6 +61,7 @@ Don't edit sibling projects from this repo, except to carry out a project's inbo
 - `app/backend/app/services/runner.py` + `routers/runner.py` (ADR 0013): the inbox terminal, `claude "/loop <interval> /inbox"` in its own console window, started and stopped from the Settings page (`app/frontend/src/runner/`). It's tracked by PID plus process start time in the `runner` table, and starting it needs a loopback backend. It's the backend's only process besides git. `start.bat`/`stop.bat` don't touch it.
 - `app/frontend/src/projects/`: projects overview, group and project pages, and `map.ts`, which generates the Mermaid maps from the registry. `docs/links.ts` resolves links across sources.
 - Live updates: watchfiles (project roots without recursion, docs folders with recursion, restarted when the registry changes) and a `PRAGMA data_version` check on the feedback table publish to an in-process bus, which `GET /api/events` streams over SSE.
+- Code studies (ADR 0019): `registry/studies/<project>/<YYYY-MM-DD>-<commit7>/` holds `study.json` (the model, validated by `services/studies.py`) and `notes.md`. Snapshots are immutable, written only by `study save`, and pruned beyond `ARCHEION_STUDY_KEEP`. `services/study_scan.py` is the read-only code inventory, `routers/studies.py` the read API (`/api/studies`, `/api/system/links`). The frontend's `src/study/` generates every study diagram from the model (`mermaid.ts`), so never hand-draw them in a snapshot.
 - `.claude-plugin/marketplace.json` + `plugins/archeion/` (ADR 0009): the plugin for sessions in registered projects (`/archeion:inbox`, `context`, `ports`, `report`, a SessionStart hook), installed by the user at user scope. `plugins/archeion/scripts/archeion.ps1` finds Archeion and checks its minimum version (`$MinArcheion`). It has its own SemVer and changelog. Never copy its skills into projects.
 - `.githooks/pre-commit` runs `check-sensitive.ps1` (blocks commits with secrets, absolute paths or personal info) and `check-plugin-version.ps1` (blocks plugin changes without a plugin version change). Activated with `git config core.hooksPath .githooks`. Scan everything by hand with `powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All`.
 - `setup.bat`, `configure.bat`, `start.bat`, `stop.bat` (root) and `scripts/` (`common.ps1`, `setup.ps1`, `configure.ps1`, `settings.schema.json`, `start.ps1`, `stop.ps1`, `send-ctrl-c.ps1`, `archeion.ps1`, `inbox-count.ps1`, `bump-version.ps1`).
@@ -69,6 +71,7 @@ Don't edit sibling projects from this repo, except to carry out a project's inbo
 - One fact lives in one place; link to it rather than copying it.
 - A **project** has its own git repository, and a **module** is a part of one, inside its repository (ADR 0016). `type:` on a registry page overrides detection; set it with `projects type <name> project|module|auto` or from the viewer. A project's inbox includes its modules' items.
 - `inbox_edits:` on a registry page says whether Archeion's `/inbox` may edit that project (ADR 0017): allowed when left out, and a module follows its project. New pages for projects get `inbox_edits: true`. Switch it with `projects inbox-edits <name> on|off|auto` or on the project page.
+- A **study** is a generated, dated snapshot of a project's internals, kept only in the private `registry/` (ADR 0019 amends "facts stay in their home" for studies only). Never edit a snapshot; study again.
 - Each registry page records `verified:` (the date its frontmatter was last checked against the real project). Facts that belong to a project (endpoints, commands, internals) stay in that project's own docs, which the viewer shows live. Link to them, don't copy them.
 - New projects: the viewer's Settings page (roots and a Register button per folder), or `scripts/archeion.ps1 projects scan` (dry run), then `--write` for stub pages. `projects list` shows the tree and problems.
 - Use the workspace port ranges and database rules (`../CLAUDE.md`) as the baseline when describing or planning services.
