@@ -54,11 +54,29 @@ const MIN_WIDTH = 120
 const MAX_WIDTH = 280
 export const HEADER = 30
 
+let ctx: CanvasRenderingContext2D | null | undefined
+
+/** Width of `text` in the page's font, measured on a canvas. Falls back to a per-character guess
+ *  where there's no canvas (tests) so the layout still works. */
+export function textWidth(text: string, size = 14, weight = 500): number {
+  if (ctx === undefined) {
+    try {
+      ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+    } catch {
+      ctx = null
+    }
+  }
+  if (!ctx) return text.length * CHAR_WIDTH * (size / 14)
+  const family = typeof getComputedStyle === 'function' ? getComputedStyle(document.body).fontFamily : 'sans-serif'
+  ctx.font = `${weight} ${size}px ${family || 'sans-serif'}`
+  return ctx.measureText(text).width
+}
+
 /** Width and height of a leaf box, from its text. */
 export function leafSize(n: GraphNode): { width: number; height: number } {
-  const chars = Math.max(n.label.length, (n.sublabel ?? '').length * 0.85)
+  const text = Math.max(textWidth(n.label, 14, 500), n.sublabel ? textWidth(n.sublabel, 12, 400) : 0)
   return {
-    width: Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, chars * CHAR_WIDTH + 36))),
+    width: Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, text + 40))),
     height: n.sublabel ? LEAF_SUB_HEIGHT : LEAF_HEIGHT,
   }
 }
@@ -164,6 +182,21 @@ export function neighbours(graph: Graph, id: string): Set<string> {
 
 // --- ELK -----------------------------------------------------------------------------------------
 
+export type Point = { x: number; y: number }
+export type ElkLabel = { text: string; width?: number; height?: number; x?: number; y?: number }
+export type ElkEdge = {
+  id: string
+  sources: string[]
+  targets: string[]
+  labels?: ElkLabel[]
+  sections?: { startPoint: Point; endPoint: Point; bendPoints?: Point[] }[]
+}
+
+/** Above this many edges, labels are drawn only for the hovered box, and take no room in the layout. */
+export const LABEL_LIMIT = 40
+/** Above this many edges, lines are faint until a box is hovered. */
+export const DENSE_LIMIT = 60
+
 export type ElkNode = {
   id: string
   width?: number
@@ -171,7 +204,7 @@ export type ElkNode = {
   x?: number
   y?: number
   children?: ElkNode[]
-  edges?: { id: string; sources: string[]; targets: string[] }[]
+  edges?: ElkEdge[]
   layoutOptions?: Record<string, string>
   labels?: { text: string }[]
 }
@@ -209,10 +242,69 @@ export function toElk(graph: Graph, containers: Set<string>, direction: 'RIGHT' 
       'elk.spacing.nodeNode': '28',
       'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
       'elk.edgeRouting': 'ORTHOGONAL',
+      'org.eclipse.elk.json.edgeCoords': 'ROOT',
+      'elk.spacing.edgeNode': '18',
+      'elk.spacing.edgeEdge': '12',
+      'elk.layered.spacing.edgeNodeBetweenLayers': '22',
+      'elk.layered.spacing.edgeEdgeBetweenLayers': '14',
     },
     children: (kids.get(null) ?? []).map(build),
-    edges: graph.edges.map((e) => ({ id: e.id, sources: [e.from], targets: [e.to] })),
+    edges: graph.edges.map((e) => ({
+      id: e.id,
+      sources: [e.from],
+      targets: [e.to],
+      // Labels get room in the layout, so they don't land on boxes. Many edges: none, to stay readable.
+      labels:
+        e.label && graph.edges.length <= LABEL_LIMIT
+          ? [{ text: e.label, width: Math.round(textWidth(e.label, 11, 400)) + 10, height: 16 }]
+          : undefined,
+    })),
   }
+}
+
+export type Route = { points: Point[]; label?: { x: number; y: number } }
+
+/** The edges as ELK routed them, in absolute coordinates (every box's position is relative to its
+ *  container, but `edgeCoords: ROOT` gives the lines absolute ones). */
+export function routes(root: ElkNode): Map<string, Route> {
+  const out = new Map<string, Route>()
+  const walk = (n: ElkNode) => {
+    for (const e of n.edges ?? []) {
+      const sec = e.sections?.[0]
+      if (!sec) continue
+      const l = e.labels?.[0]
+      out.set(e.id, {
+        points: [sec.startPoint, ...(sec.bendPoints ?? []), sec.endPoint],
+        label: l && l.x !== undefined && l.y !== undefined ? { x: l.x + (l.width ?? 0) / 2, y: l.y + (l.height ?? 0) / 2 } : undefined,
+      })
+    }
+    n.children?.forEach(walk)
+  }
+  walk(root)
+  return out
+}
+
+/** A polyline as an SVG path with rounded corners. */
+export function roundedPath(points: Point[], radius = 8): string {
+  if (points.length < 2) return ''
+  let d = `M ${points[0].x} ${points[0].y}`
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1]
+    const cur = points[i]
+    const next = points[i + 1]
+    const a = Math.hypot(cur.x - prev.x, cur.y - prev.y)
+    const b = Math.hypot(next.x - cur.x, next.y - cur.y)
+    const r = Math.min(radius, a / 2, b / 2)
+    if (r < 1) {
+      d += ` L ${cur.x} ${cur.y}`
+      continue
+    }
+    const p1 = { x: cur.x + ((prev.x - cur.x) / a) * r, y: cur.y + ((prev.y - cur.y) / a) * r }
+    const p2 = { x: cur.x + ((next.x - cur.x) / b) * r, y: cur.y + ((next.y - cur.y) / b) * r }
+    d += ` L ${p1.x} ${p1.y} Q ${cur.x} ${cur.y} ${p2.x} ${p2.y}`
+  }
+  const last = points[points.length - 1]
+  return `${d} L ${last.x} ${last.y}`
 }
 
 /** Positions from ELK's result: relative to the parent box, as React Flow wants them. */

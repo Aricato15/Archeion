@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fold, type Graph, leafSize, neighbours, parents, positions, toElk } from './graph'
+import { fold, type Graph, leafSize, neighbours, parents, positions, roundedPath, routes, toElk } from './graph'
 
 const graph: Graph = {
   nodes: [
@@ -89,4 +89,37 @@ describe('elk', () => {
 
 it('neighbours are the nodes one edge away', () => {
   expect([...neighbours(graph, 'store')].sort()).toEqual(['db', 'routes', 'store'])
+})
+
+describe('routed edges', () => {
+  it('reads absolute routes and labels from ELK, and rounds the corners', () => {
+    const root = {
+      id: 'r',
+      edges: [
+        {
+          id: 'e',
+          sources: ['a'],
+          targets: ['b'],
+          labels: [{ text: 'x', x: 10, y: 20, width: 20, height: 10 }],
+          sections: [{ startPoint: { x: 0, y: 0 }, bendPoints: [{ x: 50, y: 0 }], endPoint: { x: 50, y: 40 } }],
+        },
+      ],
+    }
+    const r = routes(root).get('e')!
+    expect(r.points).toHaveLength(3)
+    expect(r.label).toEqual({ x: 20, y: 25 })
+    expect(roundedPath(r.points)).toBe('M 0 0 L 42 0 Q 50 0 50 8 L 50 40')
+  })
+
+  it('gives labels room in the layout only while the map is small', () => {
+    const nodes = [{ id: 'a', label: 'a' }, { id: 'b', label: 'b' }]
+    const few = toElk({ nodes, edges: [{ id: 'e', from: 'a', to: 'b', label: 'calls' }] }, new Set(), 'RIGHT')
+    expect(few.edges?.[0].labels?.[0].text).toBe('calls')
+    const many = toElk(
+      { nodes, edges: Array.from({ length: 41 }, (_, i) => ({ id: `e${i}`, from: 'a', to: 'b', label: 'calls' })) },
+      new Set(),
+      'RIGHT',
+    )
+    expect(many.edges?.[0].labels).toBeUndefined()
+  })
 })

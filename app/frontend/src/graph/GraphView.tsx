@@ -1,30 +1,40 @@
 import '@xyflow/react/dist/style.css'
-import { ActionIcon, Alert, Box, Loader, Text, useComputedColorScheme } from '@mantine/core'
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
+import { ActionIcon, Alert, Box, Loader, Text, TextInput, useComputedColorScheme } from '@mantine/core'
+import { IconChevronDown, IconChevronRight, IconSearch } from '@tabler/icons-react'
 import {
   Background,
+  BaseEdge,
   Controls,
   type Edge,
+  EdgeLabelRenderer,
+  type EdgeProps,
   Handle,
   MarkerType,
   MiniMap,
   type Node,
   type NodeProps,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
 } from '@xyflow/react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  DENSE_LIMIT,
   type EdgeStyle,
   fold,
   type Graph,
   type GraphNode,
   HEADER,
+  LABEL_LIMIT,
   neighbours,
   type NodeTone,
+  parents,
+  type Point,
   positions,
+  roundedPath,
+  routes,
   toElk,
 } from './graph'
 import { layoutGraph } from './layout'
@@ -47,13 +57,14 @@ type BoxData = {
   folded: boolean
   faded: boolean
   selected: boolean
+  match: boolean
   vertical: boolean
   onToggle: (id: string) => void
   onOpen?: (id: string) => void
 }
 
 const Box_ = memo(function BoxNode({ data }: NodeProps<Node<BoxData>>) {
-  const { node, container, canFold, folded, faded, selected, vertical, onToggle, onOpen } = data
+  const { node, container, canFold, folded, faded, selected, match, vertical, onToggle, onOpen } = data
   const accent = toneColor(node.tone)
   const radius = node.shape === 'round' ? 18 : node.shape === 'store' ? '12px / 18px' : 6
   const toggle = canFold && (
@@ -79,7 +90,11 @@ const Box_ = memo(function BoxNode({ data }: NodeProps<Node<BoxData>>) {
   const common = {
     opacity: faded ? 0.25 : node.dimmed ? 0.6 : 1,
     transition: 'opacity 120ms',
-    outline: selected ? '2px solid var(--mantine-color-blue-filled)' : undefined,
+    outline: selected
+      ? '2px solid var(--mantine-color-blue-filled)'
+      : match
+        ? '2px solid var(--mantine-color-yellow-filled)'
+        : undefined,
     outlineOffset: 2,
   }
   if (container) {
@@ -146,7 +161,41 @@ const Box_ = memo(function BoxNode({ data }: NodeProps<Node<BoxData>>) {
   )
 })
 
+type RoutedData = { points: Point[]; label?: { x: number; y: number }; text?: string; show: boolean }
+
+/** An edge drawn along the route ELK found for it, so it goes around boxes instead of through them. */
+const Routed = memo(function RoutedEdge({ id, data, style, markerEnd }: EdgeProps<Edge<RoutedData>>) {
+  if (!data || data.points.length < 2) return null
+  const mid = data.points[Math.floor(data.points.length / 2)]
+  const at = data.label ?? mid
+  return (
+    <>
+      <BaseEdge id={id} path={roundedPath(data.points)} style={style} markerEnd={markerEnd} />
+      {data.text && data.show && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${at.x}px, ${at.y}px)`,
+              fontSize: 11,
+              padding: '0 4px',
+              borderRadius: 3,
+              background: 'var(--mantine-color-body)',
+              pointerEvents: 'none',
+              opacity: style?.opacity,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {data.text}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  )
+})
+
 const nodeTypes = { box: Box_ }
+const edgeTypes = { routed: Routed }
 
 export type GraphViewProps = {
   graph: Graph
@@ -167,10 +216,48 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
   const [hover, setHover] = useState<string | null>(null)
   const [laid, setLaid] = useState<{ nodes: Node<BoxData>[]; edges: Edge[]; shown: Graph } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+  const fitTo = useRef<string[] | null>(null)
+  const foldedRef = useRef<Set<string>>(new Set())
   const vertical = direction === 'TB'
   // Laid out again only when the graph's content changes, not each time a parent re-renders it.
   const sig = JSON.stringify(given)
   const graph = useMemo(() => JSON.parse(sig) as Graph, [sig])
+
+  const matches = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return [] as string[]
+    return graph.nodes
+      .filter((n) => n.label.toLowerCase().includes(needle) || (n.sublabel ?? '').toLowerCase().includes(needle))
+      .map((n) => n.id)
+  }, [graph, query])
+
+  // A search opens the boxes that hide a match; the layout that follows zooms to the matches.
+  useEffect(() => {
+    if (matches.length === 0) return
+    const parentOf = parents(graph.nodes)
+    const open = new Set<string>()
+    for (const id of matches) {
+      let cur = parentOf.get(id) ?? null
+      while (cur) {
+        open.add(cur)
+        cur = parentOf.get(cur) ?? null
+      }
+    }
+    const hidden = [...open].some((o) => foldedRef.current.has(o))
+    if (hidden) {
+      fitTo.current = matches
+      setFolded((prev) => new Set([...prev].filter((f) => !open.has(f))))
+    } else {
+      requestAnimationFrame(() =>
+        flow.fitView({ nodes: matches.map((id) => ({ id })), padding: 0.4, duration: 200, maxZoom: 1.2 }),
+      )
+    }
+  }, [matches, graph, flow])
+
+  useEffect(() => {
+    foldedRef.current = folded
+  }, [folded])
 
   useEffect(() => {
     let cancelled = false
@@ -202,26 +289,42 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
             folded: p.folded,
             faded: false,
             selected: false,
+            match: false,
             vertical,
             onToggle,
             onOpen,
           },
         }))
-        const edges: Edge[] = shown.edges.map((e) => ({
-          id: e.id,
-          source: e.from,
-          target: e.to,
-          label: e.label,
-          type: 'smoothstep',
-          zIndex: 2,
-          markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-          labelStyle: { fontSize: 11 },
-          labelBgStyle: { fill: 'var(--mantine-color-body)' },
-          data: { style: e.style ?? 'solid', tone: e.tone },
-        }))
+        const routed = routes(root)
+        const edges: Edge[] = shown.edges.flatMap((e) => {
+          const route = routed.get(e.id)
+          if (!route) return []
+          return [
+            {
+              id: e.id,
+              source: e.from,
+              target: e.to,
+              type: 'routed',
+              zIndex: 2,
+              markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+              data: { style: e.style ?? 'solid', tone: e.tone, points: route.points, label: route.label, text: e.label },
+            },
+          ]
+        })
         setLaid({ nodes, edges, shown })
         setError(null)
-        requestAnimationFrame(() => flow.fitView({ padding: 0.12, duration: 200 }))
+        const target = fitTo.current
+        fitTo.current = null
+        requestAnimationFrame(() =>
+          target?.length
+            ? flow.fitView({
+                nodes: target.filter((id) => byId.has(id)).map((id) => ({ id })),
+                padding: 0.4,
+                duration: 200,
+                maxZoom: 1.2,
+              })
+            : flow.fitView({ padding: 0.12, duration: 200 }),
+        )
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
@@ -235,17 +338,26 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
   const view = useMemo(() => {
     if (!laid) return null
     const near = hover ? neighbours(laid.shown, hover) : null
+    const found = matches.length ? new Set(matches) : null
+    const dense = laid.shown.edges.length > DENSE_LIMIT
     const nodes = laid.nodes.map((n) => ({
       ...n,
       data: {
         ...n.data,
-        faded: near ? !near.has(n.id) && !n.data.container : false,
+        faded: near
+          ? !near.has(n.id) && !n.data.container
+          : found
+            ? !found.has(n.id) && !n.data.container
+            : false,
         selected: n.id === selected,
+        match: Boolean(found?.has(n.id)),
       },
     }))
     const edges = laid.edges.map((e) => {
-      const d = e.data as { style: EdgeStyle; tone?: NodeTone }
+      const d = e.data as RoutedData & { style: EdgeStyle; tone?: NodeTone }
       const lit = near ? e.source === hover || e.target === hover : true
+      // A dense map keeps its lines faint until a box is hovered, so the boxes stay readable.
+      const rest = dense && !near ? 0.3 : 1
       const color = d.tone ? toneColor(d.tone) : undefined
       return {
         ...e,
@@ -254,13 +366,14 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
           stroke: color,
           strokeWidth: d.style === 'thick' ? 2.5 : 1.4,
           strokeDasharray: DASH[d.style],
-          opacity: lit ? 1 : 0.15,
+          opacity: lit ? rest : 0.15,
         },
-        labelStyle: { ...e.labelStyle, opacity: lit ? 1 : 0.2 },
+        // Many edges: labels only for the hovered box's lines (and they took no room in the layout).
+        data: { ...d, show: laid.shown.edges.length <= LABEL_LIMIT || Boolean(near && lit) },
       }
     })
     return { nodes, edges }
-  }, [laid, hover, selected])
+  }, [laid, hover, selected, matches])
 
   if (error) return <Alert color="red">The graph couldn't be laid out: {error}</Alert>
   return (
@@ -275,6 +388,7 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
           nodes={view.nodes}
           edges={view.edges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           colorMode={scheme}
           nodesDraggable={false}
           nodesConnectable={false}
@@ -291,6 +405,24 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
         >
           <Background gap={20} size={1} />
           <Controls showInteractive={false} />
+          <Panel position="top-left">
+            <TextInput
+              size="xs"
+              w={200}
+              aria-label="Find in the map"
+              placeholder="Find a box"
+              leftSection={<IconSearch size={12} />}
+              value={query}
+              onChange={(e) => setQuery(e.currentTarget.value)}
+              rightSection={
+                query ? (
+                  <Text size="xs" c="dimmed">
+                    {matches.length}
+                  </Text>
+                ) : null
+              }
+            />
+          </Panel>
           {minimap && <MiniMap pannable zoomable />}
         </ReactFlow>
       )}
