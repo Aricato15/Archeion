@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import tempfile
+from datetime import date
 from pathlib import Path
 
 from . import designs as dz
@@ -186,6 +187,16 @@ def _design_entries(registry_root: Path, project: str) -> list[dict]:
     return out
 
 
+def _notes(manager: SourceManager, page: str) -> str:
+    """The body of a project's registry page, without its title line."""
+    try:
+        text = (manager.get(REGISTRY_ID).root / page).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    _, body, _ = split_frontmatter(text)
+    return re.sub(r"^\s*#[^\n]*\n", "", body, count=1).strip()
+
+
 def catalog(manager: SourceManager, registry_root: Path, project_id: str) -> list[dict]:
     """Every section a report of this project can hold. A section with no source is listed with
     `available: false` and the reason, never left out."""
@@ -194,12 +205,7 @@ def catalog(manager: SourceManager, registry_root: Path, project_id: str) -> lis
         raise KeyError(project_id)
     out: list[dict] = [_entry("overview.facts", "overview", "Summary and facts", "text")]
 
-    page = manager.get(REGISTRY_ID).root / project.page
-    try:
-        _, body, _ = split_frontmatter(page.read_text(encoding="utf-8", errors="replace"))
-    except OSError:
-        body = ""
-    notes = re.sub(r"^\s*#[^\n]*\n", "", body, count=1).strip()
+    notes = _notes(manager, project.page)
     out.append(
         _entry("overview.notes", "overview", "Cross-project notes", "text", bool(notes), "no notes written")
     )
@@ -455,4 +461,100 @@ def preflight(
         "unavailable": [{"id": e["id"], "reason": e["reason"]} for e in entries if not e["available"]],
         "problems": problems,
         "ok": not problems,
+    }
+
+
+# --- content ----------------------------------------------------------------------------
+
+
+def _design_markdown(registry_root: Path, project: str, section: str) -> str:
+    folder, _ = design_folder(registry_root, project)
+    if folder is None:
+        return ""
+    files = dz.read_files(folder)
+    if section == "design.decisions":
+        prefix = f"{dz.DECISIONS_DIR}/"
+        parts = [v.strip() for k, v in sorted(files.items()) if k.startswith(prefix) and v.strip()]
+        return "\n\n---\n\n".join(parts)
+    names = {"design.brief": "brief.md", "design.architecture": "architecture.md", "design.plan": "plan.md"}
+    return files.get(names[section], "").strip()
+
+
+def _sourced(manager: SourceManager, registry_root: Path, project, sid: str, notes: str, model: dict) -> dict:
+    """One catalog section resolved to the data the print route draws it from."""
+    if sid == "overview.facts":
+        return {"type": "facts"}
+    if sid == "overview.notes":
+        return {"type": "markdown", "markdown": _notes(manager, project.page)}
+    if sid.startswith("docs:"):
+        rel = sid[len("docs:") :]
+        path = manager.get(project.id).resolve(rel, allowed={".md"})
+        return {
+            "type": "markdown",
+            "markdown": path.read_text(encoding="utf-8", errors="replace"),
+            "path": rel,
+        }
+    if sid == "study.map" or sid.startswith("study.sub:"):
+        return {"type": "diagram", "diagram": "map", "focus": sid.partition(":")[2] or None}
+    for prefix, kind in (("study.flow:", "flow"), ("study.activity:", "activity"), ("study.state:", "state")):
+        if sid.startswith(prefix):
+            return {"type": "diagram", "diagram": kind, "ref": sid[len(prefix) :]}
+    if sid == "study.schema":
+        return {"type": "diagram", "diagram": "schema"}
+    if sid == "study.interfaces":
+        interfaces = model.get("interfaces") or {}
+        return {
+            "type": "interfaces",
+            "exposes": interfaces.get("exposes", []),
+            "calls": interfaces.get("calls", []),
+        }
+    if sid == "study.findings":
+        return {"type": "findings", "items": model.get("findings", [])}
+    if sid == "study.notes":
+        return {"type": "markdown", "markdown": notes}
+    if sid.startswith("design."):
+        return {"type": "markdown", "markdown": _design_markdown(registry_root, project.id, sid)}
+    if sid == "glossary.terms":
+        return {"type": "glossary", "terms": gl.load(registry_root, project.id)}
+    if sid == "system.group":
+        return {"type": "diagram", "diagram": "group", "group": project.group}
+    if sid == "system.dependencies":
+        return {"type": "dependencies", "depends_on": project.depends_on, "used_by": project.used_by}
+    raise ReportError(f"no way to build the section '{sid}'")
+
+
+def content(manager: SourceManager, registry_root: Path, project_id: str, preset: dict) -> dict:
+    """Everything the print route needs to draw a preset: the project, the study model its
+    diagrams come from, and each section resolved to its data, in the preset's order. The preset
+    is checked against the catalog again, so a source that went away since it was saved is refused."""
+    entries = catalog(manager, registry_root, project_id)
+    preset = validate_preset(preset, entries)
+    project = manager.registry.projects[project_id]
+    by_id = {e["id"]: e for e in entries}
+    snaps = st.snapshots(registry_root, project_id)
+    study = None
+    model: dict = {}
+    notes = ""
+    if snaps and any(s["id"].startswith("study.") for s in preset["sections"]):
+        model, _ = st.load(snaps[0])
+        notes = st.load_notes(snaps[0])
+        meta = model.get("meta", {})
+        study = {"id": snaps[0].id, "date": meta.get("date"), "commit": meta.get("commit"), "model": model}
+    sections = []
+    for s in preset["sections"]:
+        sid = s["id"]
+        if sid.startswith(AUTHORED_PREFIX):
+            cites = [{"id": c, "title": by_id[c]["title"]} for c in s["cites"]]
+            sections.append(
+                {"id": sid, "title": s["title"], "type": "authored", "markdown": s["body"], "cites": cites}
+            )
+            continue
+        body = _sourced(manager, registry_root, project, sid, notes, model)
+        sections.append({"id": sid, "title": by_id[sid]["title"], **body})
+    return {
+        "project": project.public(),
+        "preset": preset,
+        "generated": date.today().isoformat(),
+        "study": study,
+        "sections": sections,
     }

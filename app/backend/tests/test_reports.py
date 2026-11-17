@@ -199,3 +199,95 @@ def test_cli(settings, capsys, tmp_path):
     capsys.readouterr()
     assert main(["report", "preflight", "alpha", "--json"], settings) in (0, 1)
     assert json.loads(capsys.readouterr().out)["project"] == "alpha"
+
+
+def test_content_resolves_each_section_in_order(manager, settings, repo):
+    (repo.parent / "alpha" / "README.md").write_text("# Alpha\n\nHello.\n", encoding="utf-8")
+    manager.reload()
+    st.save(settings.registry_root, st.parse(model()), notes="# Notes\n\nStudy body.\n")
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    wanted = [
+        "study.sub:api",
+        "overview.facts",
+        "docs:README.md",
+        "study.flow:read",
+        "study.interfaces",
+        "study.notes",
+        "system.dependencies",
+    ]
+    preset = rp.validate_preset(standard(entries, *wanted), entries)
+    out = rp.content(manager, settings.registry_root, "alpha", preset)
+    assert [s["id"] for s in out["sections"]] == wanted
+    sections = {s["id"]: s for s in out["sections"]}
+    assert sections["study.sub:api"]["focus"] == "api" and sections["study.sub:api"]["diagram"] == "map"
+    assert sections["study.flow:read"]["ref"] == "read"
+    assert "Hello." in sections["docs:README.md"]["markdown"]
+    assert sections["study.interfaces"]["exposes"][0]["id"] == "get-items"
+    assert "Study body." in sections["study.notes"]["markdown"]
+    assert sections["system.dependencies"]["depends_on"] == ["beta"]
+    assert out["study"]["model"]["meta"]["project"] == "alpha" and out["project"]["id"] == "alpha"
+
+
+def test_content_has_no_study_when_no_section_uses_it(manager, settings):
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    preset = rp.validate_preset(standard(entries, "overview.facts"), entries)
+    assert rp.content(manager, settings.registry_root, "alpha", preset)["study"] is None
+
+
+def test_content_labels_authored_sections_with_their_sources(manager, settings):
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    authored = {
+        "id": "authored:summary",
+        "title": "Summary",
+        "body": "Alpha owns items.",
+        "cites": ["overview.facts"],
+    }
+    preset = rp.validate_preset(guided(authored), entries)
+    section = rp.content(manager, settings.registry_root, "alpha", preset)["sections"][0]
+    assert section["type"] == "authored" and section["cites"] == [
+        {"id": "overview.facts", "title": "Summary and facts"}
+    ]
+
+
+def test_content_refuses_a_preset_whose_source_went_away(manager, settings):
+    st.save(settings.registry_root, st.parse(model()))
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    preset = rp.validate_preset(standard(entries, "study.map"), entries)
+    for snap in st.snapshots(settings.registry_root, "alpha"):
+        import shutil
+
+        shutil.rmtree(snap.folder)
+    with pytest.raises(rp.ReportError, match="unavailable"):
+        rp.content(manager, settings.registry_root, "alpha", preset)
+
+
+ORIGIN = {"Origin": "http://testserver:20301"}
+
+
+def test_api_needs_login(client):
+    assert client.get("/api/reports/alpha/catalog").status_code == 401
+    assert client.get("/api/reports/alpha/presets/full/content").status_code == 401
+
+
+def test_api_round_trip(authed):
+    catalog = authed.get("/api/reports/alpha/catalog").json()
+    assert any(e["id"] == "overview.facts" and e["available"] for e in catalog)
+    body = {
+        "name": "full",
+        "mode": "standard",
+        "sections": [{"id": "overview.facts"}, {"id": "overview.notes"}],
+    }
+    assert authed.put("/api/reports/alpha/presets", json=body, headers=ORIGIN).status_code == 200
+    assert [p["name"] for p in authed.get("/api/reports/alpha/presets").json()] == ["full"]
+    shown = authed.get("/api/reports/alpha/presets/full/content").json()
+    assert [s["id"] for s in shown["sections"]] == ["overview.facts", "overview.notes"]
+    bad = {"name": "x", "sections": [{"id": "nope"}]}
+    assert authed.put("/api/reports/alpha/presets", json=bad, headers=ORIGIN).status_code == 422
+    assert authed.delete("/api/reports/alpha/presets/full", headers=ORIGIN).status_code == 204
+    assert authed.delete("/api/reports/alpha/presets/full", headers=ORIGIN).status_code == 404
+    assert authed.get("/api/reports/alpha/presets/full/content").status_code == 404
+
+
+def test_api_unknown_project_and_preflight(authed):
+    assert authed.get("/api/reports/nope/catalog").status_code == 404
+    assert "browser" in authed.get("/api/reports/alpha/preflight").json()

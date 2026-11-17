@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 import { LoginPage } from './auth/LoginPage'
 import { RequireAuth } from './auth/RequireAuth'
+import { PrintReport } from './report/PrintReport'
 import { DocPage } from './docs/DocPage'
 import { FeedbackPage } from './feedback/FeedbackPage'
 import { ThreadPage } from './feedback/ThreadPage'
@@ -19,6 +20,8 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      // The report's print page has no shell: it is what becomes the PDF (ADR 0025).
+      { path: 'print/report/:project', element: <PrintReport /> },
       {
         element: <Shell />,
         children: [

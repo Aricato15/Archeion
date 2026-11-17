@@ -1,6 +1,7 @@
 import { Alert, Code, Loader, Stack, Text, useComputedColorScheme } from '@mantine/core'
-import { useEffect, useId, useState } from 'react'
+import { useContext, useEffect, useId, useState } from 'react'
 import { DiagramFrame, type LabelActions } from './DiagramFrame'
+import { PrintContext } from './PrintContext'
 
 type State = { svg: string; error: null } | { svg: null; error: string } | { svg: null; error: null }
 
@@ -33,12 +34,21 @@ function loadMermaid(): Promise<Mermaid> {
 /** Renders a Mermaid diagram. mermaid is loaded only when the first diagram appears. */
 /** `labels` makes labels with that exact text clickable (see DiagramFrame). */
 export function MermaidBlock({ code, labels, title }: { code: string; labels?: LabelActions; title?: string }) {
-  const scheme = useComputedColorScheme('light')
+  const computed = useComputedColorScheme('light')
+  const print = useContext(PrintContext)
+  // A printed report is always light, whatever the viewer's theme (ADR 0025).
+  const scheme = print ? 'light' : computed
   const reactId = useId()
   const [state, setState] = useState<State>({ svg: null, error: null })
 
   useEffect(() => {
     let cancelled = false
+    const done = print?.track()
+    let settled = false
+    const finish = (ok: boolean) => {
+      if (!settled) done?.(ok)
+      settled = true
+    }
     const id = `mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, '')}`
     loadMermaid()
       .then(async (mermaid) => {
@@ -50,17 +60,20 @@ export function MermaidBlock({ code, labels, title }: { code: string; labels?: L
         await mermaid.parse(code)
         const { svg } = await mermaid.render(id, code)
         if (!cancelled) setState({ svg, error: null })
+        finish(true)
       })
       .catch((err: unknown) => {
         // mermaid leaves its scratch element behind when rendering fails.
         document.getElementById(`d${id}`)?.remove()
         document.getElementById(id)?.remove()
         if (!cancelled) setState({ svg: null, error: err instanceof Error ? err.message : String(err) })
+        finish(false)
       })
     return () => {
       cancelled = true
+      finish(true) // a run that was replaced isn't a failure
     }
-  }, [code, scheme, reactId])
+  }, [code, scheme, reactId, print])
 
   if (state.error !== null) {
     return (
@@ -75,5 +88,13 @@ export function MermaidBlock({ code, labels, title }: { code: string; labels?: L
     )
   }
   if (state.svg === null) return <Loader size="sm" my="md" aria-label="Rendering diagram" />
+  if (print) {
+    return (
+      <figure className="print-diagram">
+        <div dangerouslySetInnerHTML={{ __html: state.svg }} />
+        {title && <figcaption>{title}</figcaption>}
+      </figure>
+    )
+  }
   return <DiagramFrame svg={state.svg} labels={labels} title={title} />
 }
