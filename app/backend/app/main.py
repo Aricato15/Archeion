@@ -71,12 +71,7 @@ class OriginGuard:
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 message.setdefault("headers", [])
-                # A route may set one of these itself (the report preview frames its own PDF).
-                present = {name.lower() for name, _ in message["headers"]}
-                message["headers"] = [
-                    *message["headers"],
-                    *(h for h in SECURITY_HEADERS if h[0] not in present),
-                ]
+                message["headers"] = [*message["headers"], *SECURITY_HEADERS]
             await send(message)
 
         await self.app(scope, receive, send_with_headers)

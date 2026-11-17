@@ -1,9 +1,7 @@
 import { ActionIcon, Alert, Badge, Group, Loader, Stack, Table, Text, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconCertificate, IconDownload, IconEye, IconTrash } from '@tabler/icons-react'
-import { useState } from 'react'
 import { checkReportFile, reportFileUrl, useDeleteReportFile, useReportFiles } from '../api/reports'
-import { PdfPreview } from './PdfPreview'
 
 const KB = 1024
 
@@ -16,7 +14,6 @@ const when = (iso: string | undefined) => (iso ? iso.replace('T', ' ').replace('
 export function ReportTab({ project }: { project: string }) {
   const files = useReportFiles(project)
   const remove = useDeleteReportFile(project)
-  const [preview, setPreview] = useState<string | null>(null)
 
   const verify = async (file: string) => {
     try {
@@ -80,8 +77,15 @@ export function ReportTab({ project }: { project: string }) {
               <Table.Td>{size(f.bytes)}</Table.Td>
               <Table.Td>
                 <Group gap={4} justify="flex-end" wrap="nowrap">
-                  <Tooltip label="Preview">
-                    <ActionIcon variant="subtle" aria-label={`Preview ${f.file}`} onClick={() => setPreview(f.file)}>
+                  <Tooltip label="Open in a new tab">
+                    <ActionIcon
+                      variant="subtle"
+                      aria-label={`Preview ${f.file}`}
+                      component="a"
+                      href={reportFileUrl(project, f.file, true)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <IconEye size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -120,7 +124,6 @@ export function ReportTab({ project }: { project: string }) {
           ))}
         </Table.Tbody>
       </Table>
-      <PdfPreview project={project} file={preview} onClose={() => setPreview(null)} />
     </Stack>
   )
 }

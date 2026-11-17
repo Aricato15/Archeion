@@ -115,7 +115,10 @@ describe('ReportDialog', () => {
     })
     expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/presets/full/build'))).toBe(true)
     expect(screen.getByText(/2026-11-18-full.pdf: 5 pages, 3 sections/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Preview/ })).toBeTruthy()
+    const open = screen.getByRole('link', { name: /Open/ })
+    expect(open.getAttribute('href')).toBe('/api/reports/alpha/files/2026-11-18-full.pdf?inline=true')
+    expect(open.getAttribute('target')).toBe('_blank')
+    expect(document.querySelector('iframe')).toBeNull()
   })
 
   it('shows why a report cannot be built and does not offer to generate it', async () => {
@@ -169,6 +172,9 @@ describe('ReportTab', () => {
     expect(screen.getByText('1.4 MB')).toBeTruthy()
     expect(screen.getByText('guided')).toBeTruthy()
     expect(screen.getByText('2 diagram(s) failed')).toBeTruthy()
+    const preview = screen.getByLabelText('Preview old.pdf')
+    expect(preview.getAttribute('href')).toBe('/api/reports/alpha/files/old.pdf?inline=true')
+    expect(preview.getAttribute('target')).toBe('_blank')
     expect(screen.getByLabelText('Download old.pdf').getAttribute('href')).toBe('/api/reports/alpha/files/old.pdf')
   })
 })

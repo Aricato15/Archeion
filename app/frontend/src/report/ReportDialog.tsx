@@ -43,7 +43,6 @@ import {
   toggle,
   toggleGroup,
 } from './config'
-import { PdfPreview } from './PdfPreview'
 import { SortableSections } from './SortableSections'
 
 /** The standard report (ADR 0025): choose and order sections, set the page, generate a PDF. No Claude. */
@@ -81,7 +80,6 @@ function StandardReport({ project }: { project: string }) {
   useEffect(() => {
     if (status === 'done') qc.invalidateQueries({ queryKey: ['report-files', project] })
   }, [status, qc, project])
-  const [preview, setPreview] = useState<string | null>(null)
 
   const busy = start.isPending || savePreset.isPending || status === 'running'
   const canGenerate = selection.length > 0 && NAME_PATTERN.test(name) && !busy && preflight.data?.ok !== false
@@ -294,8 +292,15 @@ function StandardReport({ project }: { project: string }) {
               {job.data.result.failed ? `, ${job.data.result.failed} diagram(s) failed to draw` : ''}.
             </Text>
             <Group gap="xs">
-              <Button size="xs" leftSection={<IconEye size={14} />} onClick={() => setPreview(job.data!.result!.file)}>
-                Preview
+              <Button
+                size="xs"
+                component="a"
+                href={reportFileUrl(project, job.data.result.file, true)}
+                target="_blank"
+                rel="noopener noreferrer"
+                leftSection={<IconEye size={14} />}
+              >
+                Open
               </Button>
               <Button
                 size="xs"
@@ -318,7 +323,6 @@ function StandardReport({ project }: { project: string }) {
         </Button>
       </Group>
 
-      <PdfPreview project={project} file={preview} onClose={() => setPreview(null)} />
     </Stack>
   )
 }

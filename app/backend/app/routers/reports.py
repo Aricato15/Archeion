@@ -137,8 +137,6 @@ def download(
         media_type="application/pdf",
         filename=filename,
         content_disposition_type="inline" if inline else "attachment",
-        # The viewer shows an inline report in its own preview frame, and nowhere else.
-        headers={"X-Frame-Options": "SAMEORIGIN"} if inline else None,
     )
 
 
