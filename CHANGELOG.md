@@ -7,6 +7,9 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **A home page** (the Home link, and the Archeion logo). It opens on **What's changed in Archeion**: every release in Archeion's own `CHANGELOG.md`, newest first (Unreleased notes first). It shows the file as written, from the commit that's checked out, so it follows the branch you're on. New read-only endpoint `GET /api/changelog` reads the repo's root `CHANGELOG.md`, because the docs source is `docs/` only. A switch changes it to **Projects**, which lists the releases of every registered project that keeps a `CHANGELOG.md`, newest first, with a project filter. Projects without a changelog are skipped. It used to open on the README.
+
 ## [1.2.0] - 2026-11-17
 
 ### Changed

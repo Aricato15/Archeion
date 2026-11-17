@@ -9,6 +9,7 @@ import { GroupPage } from './projects/GroupPage'
 import { ProjectPage } from './projects/ProjectPage'
 import { ProjectsPage } from './projects/ProjectsPage'
 import { DiagramsPage } from './pages/DiagramsPage'
+import { HomePage } from './pages/HomePage'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SearchRoute } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
       {
         element: <Shell />,
         children: [
-          { index: true, element: <Navigate to="/docs/README.md" replace /> },
+          { index: true, element: <HomePage /> },
           { path: 'docs/*', element: <DocPage /> },
           { path: 'p/:source/*', element: <DocPage /> },
           { path: 'projects', element: <ProjectsPage /> },

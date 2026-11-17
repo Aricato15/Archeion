@@ -149,6 +149,16 @@ def search(
     return docs_fs.search(sources, q)
 
 
+@extra.get("/changelog")
+def changelog(state: AppState = Depends(get_state)) -> dict:
+    """Archeion's own CHANGELOG.md, read from the repo root (the docs source is docs/, so it
+    can't serve it). It's the file of whichever commit is checked out. Read-only."""
+    path = state.settings.repo_root / "CHANGELOG.md"
+    if not path.is_file():
+        raise HTTPException(404, "this checkout has no CHANGELOG.md")
+    return {"content": path.read_text(encoding="utf-8")}
+
+
 @extra.get("/sources")
 def sources(state: AppState = Depends(get_state)) -> list[dict]:
     return [s.public() for s in state.sources.all()]

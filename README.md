@@ -47,7 +47,8 @@ flowchart LR
    - Archeion's own session handles Archeion and registry items. The [Archeion plugin](#archeion-plugin-for-your-projects) gives every other project's session the same loop, plus its place in the system.
 5. **Studies and designs.** `/study <project>` reads a project's code and saves a dated snapshot, and `/design <project>` works out a project's brief, architecture and plan. The project page's **Study** and **Design** tabs show them as interactive diagrams: the component map, flows as sequence diagrams, activities, states and data. Click a box to open its side panel without leaving the diagram, and switch any diagram to Mermaid. See [ADR 0019](docs/decisions/0019-code-studies.md), [ADR 0022](docs/decisions/0022-design-and-plan-a-project.md) and [ADR 0024](docs/decisions/0024-interactive-study-views.md).
 6. **Glossary.** Each project page has a **Glossary** tab for the project's terms and jargon, with a case-insensitive search. You edit it in the viewer, and Claude fills it with `glossary set` ([ADR 0023](docs/decisions/0023-project-glossaries.md)). It's kept in the private registry.
-7. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
+7. **Home page.** The viewer opens on **What's changed in Archeion**, the releases from Archeion's own `CHANGELOG.md`, newest first. A switch shows the registered projects' changelogs instead.
+8. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
 
 ## What stays private
 This repo is meant to be published, so nothing in it describes a specific project:

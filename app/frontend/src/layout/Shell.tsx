@@ -19,6 +19,7 @@ import { useDisclosure, useHotkeys, useLocalStorage } from '@mantine/hooks'
 import {
   IconBooks,
   IconBox,
+  IconHome,
   IconChartDots3,
   IconLogout,
   IconMessages,
@@ -44,6 +45,7 @@ import { GuidePanel } from './GuidePanel'
 import { ProjectTree } from './ProjectTree'
 
 const NAV = [
+  { to: '/', label: 'Home', icon: IconHome },
   { to: '/projects', label: 'Projects', icon: IconBox },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad },
   { to: '/diagrams', label: 'Diagrams', icon: IconChartDots3 },

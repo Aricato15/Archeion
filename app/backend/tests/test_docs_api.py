@@ -165,3 +165,15 @@ def test_search(authed):
     ]
     assert authed.get("/api/search", params={"q": "haystack"}).json()[0]["source"] == "alpha"
     assert authed.get("/api/search", params={"q": "x"}).status_code == 422
+
+
+def test_changelog_is_read_from_the_repo_root(authed, settings):
+    assert authed.get("/api/changelog").status_code == 404
+    (settings.repo_root / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## [1.0.0] - 2026-01-01\n", encoding="utf-8"
+    )
+    assert "## [1.0.0]" in authed.get("/api/changelog").json()["content"]
+
+
+def test_changelog_needs_login(client):
+    assert client.get("/api/changelog").status_code == 401

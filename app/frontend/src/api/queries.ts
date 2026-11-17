@@ -437,3 +437,7 @@ export function useDeleteTerm(project: string) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['glossary', project] }),
   })
 }
+
+/** Archeion's own CHANGELOG.md, of the commit that's checked out. */
+export const useChangelog = () =>
+  useQuery({ queryKey: ['changelog'], queryFn: () => api<{ content: string }>('/changelog'), retry: false })
