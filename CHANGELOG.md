@@ -7,6 +7,14 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-18
+
+### Changed
+- **The plugin's `/archeion:report` is now `/archeion:notify`** (plugin 0.4.0). Archeion has its own `/report` now, which makes a PDF of a project ([ADR 0025](docs/decisions/0025-project-pdf-reports.md)), and the two names meant different things. The skill is unchanged apart from its name: it tells Archeion about a change, or asks it a question, in its inbox, and carries on a thread. Update the plugin and open a new session in each project ([the update guide](docs/guides/update_archeion_and_plugin.md)). The docs, the use cases and the CLI guide use the new name.
+
+### Fixed
+- The use cases guide was committed with Windows line endings while every other file uses Unix ones, which made its diff look like a rewrite of the whole file. It now matches the rest, so `git blame` and diffs show only real changes.
+
 ## [1.3.0] - 2026-11-18
 
 ### Added
