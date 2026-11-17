@@ -390,7 +390,7 @@ def _where(item: dict) -> str:
     anchor = item["anchor"] or {}
     task = anchor.get("task")
     if task:
-        adr = "ADR 0022" if task["type"] != "study" else "ADR 0020"
+        adr = {"study": "ADR 0020", "report": "ADR 0025"}.get(task["type"], "ADR 0022")
         design = f" '{task['slug']}'" if task.get("slug") else ""
         where = f"a {task['type']} of {task['project']}{design} ({adr})"
     study = anchor.get("study")

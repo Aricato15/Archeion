@@ -370,6 +370,12 @@ def cmd_inbox_show(settings: Settings, args: argparse.Namespace) -> int:
             state = f"draft in registry/studies/{task['project']}/draft/" if draft else "no draft yet"
             print(f"       task: a {task['type']} of {task['project']} (ADR 0020); {state}")
             print("       follow the study skill's conversation mode for this round")
+        elif task["type"] == "report":
+            found = rp.get_plan(settings.registry_root, task["project"])
+            plan = found["plan"] if found else None
+            state = f"plan with {len(plan['sections'])} sections" if plan else "no plan yet"
+            print(f"       task: a report of {task['project']} (ADR 0025); {state}")
+            print("       follow the report-guided skill's conversation mode for this round")
         else:
             slug = task.get("slug") or dz.DEFAULT_SLUG
             try:
@@ -1619,6 +1625,76 @@ def cmd_report_verify(settings: Settings, args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+def cmd_report_read(settings: Settings, args: argparse.Namespace) -> int:
+    """The content of catalog sections, for planning and writing a guided report."""
+    manager = _report_project(settings, args.project)
+    sections = rp.read_sections(manager, settings.registry_root, args.project, args.ids)
+    for s in sections:
+        text = s.get("markdown")
+        if isinstance(text, str) and len(text) > args.limit:
+            cut = len(text) - args.limit
+            s["markdown"] = text[: args.limit] + "\n\n[truncated: " + str(cut) + " more characters]"
+    _print_json(sections)
+    return 0
+
+
+def cmd_report_plan_save(settings: Settings, args: argparse.Namespace) -> int:
+    _, entries = _report_catalog(settings, args.project)
+    data = rp.save_plan(
+        settings.registry_root, args.project, _read_preset_file(args.file), entries, thread=args.thread
+    )
+    plan = data["plan"]
+    authored = sum(1 for s in plan["sections"] if s["id"].startswith(rp.AUTHORED_PREFIX))
+    print(
+        f"Saved the plan of {args.project}: {len(plan['sections'])} sections ({authored} written by Claude)"
+        + (f", thread #{data['thread']}." if data["thread"] else ".")
+    )
+    return 0
+
+
+def cmd_report_plan_show(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    data = rp.get_plan(settings.registry_root, args.project)
+    if data is None:
+        print(f"No plan in progress for {args.project}.")
+        return 1
+    if args.json:
+        _print_json(data)
+        return 0
+    plan = data["plan"]
+    print(
+        f"Plan '{plan['name']}' for {args.project} "
+        f"(updated {data['updated']}, thread {data['thread'] or 'none'})"
+    )
+    print(f"  prompt: {plan.get('prompt') or '-'}")
+    print(f"  outline: {plan.get('outline') or '-'}")
+    for i, s in enumerate(plan["sections"], 1):
+        label = f"authored: {s['title']}" if s["id"].startswith(rp.AUTHORED_PREFIX) else s["id"]
+        print(f"  {i}. {label}")
+    return 0
+
+
+def cmd_report_plan_discard(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    print(
+        "Discarded the plan."
+        if rp.discard_plan(settings.registry_root, args.project)
+        else "No plan to discard."
+    )
+    return 0
+
+
+def cmd_report_plan_approve(settings: Settings, args: argparse.Namespace) -> int:
+    """Turns the plan into a saved preset (the user approves it in the viewer; this is for a terminal)."""
+    _, entries = _report_catalog(settings, args.project)
+    preset = rp.approve_plan(settings.registry_root, args.project, entries)
+    print(
+        f"Approved: saved the preset '{preset['name']}'. "
+        f"Build it with: report build {args.project} --preset {preset['name']}"
+    )
+    return 0
+
+
 def cmd_report_default(settings: Settings, args: argparse.Namespace) -> int:
     """A starting standard preset: every available section, in catalog order."""
     _, entries = _report_catalog(settings, args.project)
@@ -1895,6 +1971,31 @@ def build_parser() -> argparse.ArgumentParser:
     rvf.add_argument("file")
     rvf.add_argument("--json", action="store_true")
     rvf.set_defaults(func=cmd_report_verify)
+    rrd = report.add_parser("read", help="read catalog sections (JSON), to plan and write a guided report")
+    rrd.add_argument("project")
+    rrd.add_argument("ids", nargs="+")
+    rrd.add_argument("--limit", type=int, default=12000, help="characters of Markdown to show per section")
+    rrd.set_defaults(func=cmd_report_read)
+    plan = report.add_parser("plan", help="the guided report in progress").add_subparsers(
+        dest="plan_action", required=True
+    )
+    pls = plan.add_parser("save", help="validate a plan file and keep it as the project's draft")
+    pls.add_argument("project")
+    pls.add_argument("--file", required=True)
+    pls.add_argument("--thread", type=int, help="the inbox thread this plan belongs to")
+    pls.set_defaults(func=cmd_report_plan_save)
+    plw = plan.add_parser("show", help="the draft plan")
+    plw.add_argument("project")
+    plw.add_argument("--json", action="store_true")
+    plw.set_defaults(func=cmd_report_plan_show)
+    pld = plan.add_parser("discard", help="drop the draft plan")
+    pld.add_argument("project")
+    pld.set_defaults(func=cmd_report_plan_discard)
+    pla = plan.add_parser(
+        "approve", help="turn the draft into a saved preset (the user approves, not Claude)"
+    )
+    pla.add_argument("project")
+    pla.set_defaults(func=cmd_report_plan_approve)
     rva = report.add_parser("validate", help="check a preset file against the catalog without saving it")
     rva.add_argument("project")
     rva.add_argument("--file", required=True)

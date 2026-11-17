@@ -266,3 +266,81 @@ def test_study_sections_survive_a_build(settings, manager, ready):
     info = rr.build(settings, manager, "alpha", "study", renderer=FakeRenderer())
     assert info["sections"] == 3 and info["study"]
     assert isinstance(Path(settings.registry_root / "reports" / "alpha" / info["file"]), Path)
+
+
+def test_api_plan_edit_approve_and_build(authed, settings, manager, ready, monkeypatch):
+    monkeypatch.setattr(rr, "render_pdf", FakeRenderer())
+    assert authed.get("/api/reports/alpha/plan").json() is None
+    assert authed.post("/api/reports/alpha/plan/approve", headers=ORIGIN).status_code == 404
+    plan = {
+        "name": "exec",
+        "mode": "guided",
+        "prompt": "For executives",
+        "sections": [
+            {
+                "id": "authored:summary",
+                "title": "Summary",
+                "body": "Alpha owns items.",
+                "cites": ["overview.facts"],
+            },
+            {"id": "overview.facts"},
+            {"id": "overview.notes"},
+        ],
+    }
+    # Claude saves the plan through the CLI (with its thread); the reader edits it through the API.
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    rp.save_plan(settings.registry_root, "alpha", plan, entries, thread=9)
+    got = authed.get("/api/reports/alpha/plan").json()
+    assert got["thread"] == 9 and len(got["plan"]["sections"]) == 3
+    edited = {**got["plan"], "sections": [got["plan"]["sections"][1], got["plan"]["sections"][0]]}
+    saved = authed.put("/api/reports/alpha/plan", json=edited, headers=ORIGIN)
+    assert saved.status_code == 200 and saved.json()["thread"] == 9
+    assert [s["id"] for s in saved.json()["plan"]["sections"]] == ["overview.facts", "authored:summary"]
+    bad = {**edited, "sections": [{"id": "authored:x", "title": "T", "body": "B", "cites": []}]}
+    assert authed.put("/api/reports/alpha/plan", json=bad, headers=ORIGIN).status_code == 422
+
+    r = authed.post("/api/reports/alpha/plan/approve", headers=ORIGIN)
+    assert r.status_code == 202
+    done = wait_for(authed, "alpha", r.json()["id"])
+    assert (
+        done["status"] == "done" and done["result"]["mode"] == "guided" and done["result"]["preset"] == "exec"
+    )
+    assert authed.get("/api/reports/alpha/plan").json() is None  # the draft became the preset
+    assert [p["name"] for p in authed.get("/api/reports/alpha/presets").json()] == ["exec"]
+
+
+def test_api_discard_plan(authed, settings, manager):
+    entries = rp.catalog(manager, settings.registry_root, "alpha")
+    rp.save_plan(
+        settings.registry_root, "alpha", {"mode": "guided", "sections": [{"id": "overview.facts"}]}, entries
+    )
+    assert authed.delete("/api/reports/alpha/plan", headers=ORIGIN).status_code == 204
+    assert authed.delete("/api/reports/alpha/plan", headers=ORIGIN).status_code == 404
+
+
+def test_a_report_thread_is_a_task_for_archeions_inbox(authed):
+    body = {
+        "kind": "prompt",
+        "source": "archeion",
+        "body": "Make a report for executives.",
+        "anchor": {"task": {"type": "report", "project": "alpha"}},
+    }
+    r = authed.post("/api/feedback", json=body, headers=ORIGIN)
+    assert r.status_code == 201, r.text
+    task = r.json()["anchor"]["task"]
+    assert task["type"] == "report" and task["project"] == "alpha"
+    bad = {**body, "anchor": {"task": {"type": "report", "project": "nope"}}}
+    assert authed.post("/api/feedback", json=bad, headers=ORIGIN).status_code == 400
+
+
+def test_inbox_show_names_the_report_task(authed, settings, capsys):
+    body = {
+        "kind": "prompt",
+        "body": "Make a report.",
+        "anchor": {"task": {"type": "report", "project": "alpha"}},
+    }
+    item = authed.post("/api/feedback", json=body, headers=ORIGIN).json()
+    assert main(["inbox", "show", str(item["id"])], settings) == 0
+    out = capsys.readouterr().out
+    assert "task: a report of alpha (ADR 0025); no plan yet" in out
+    assert "report-guided skill" in out

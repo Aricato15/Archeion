@@ -14,7 +14,7 @@ import os
 import re
 import shutil
 import tempfile
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from . import designs as dz
@@ -565,3 +565,109 @@ def content(manager: SourceManager, registry_root: Path, project_id: str, preset
         "study": study,
         "sections": sections,
     }
+
+
+# --- the guided plan --------------------------------------------------------------------
+
+PLAN_FILE = "plan.json"
+DEFAULT_PLAN_NAME = "guided"
+
+
+def _now() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def get_plan(registry_root: Path, project: str) -> dict | None:
+    """The guided report in progress (ADR 0025): {plan, thread, updated}, or None.
+    The plan has the shape of a preset, with `mode: guided`, the prompt, the outline and any
+    authored sections."""
+    path = _folder(registry_root, project) / PLAN_FILE
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("plan"), dict) else None
+
+
+def _write_plan(registry_root: Path, project: str, data: dict) -> None:
+    folder = _folder(registry_root, project)
+    folder.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=folder, prefix=".plan-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        os.replace(tmp, folder / PLAN_FILE)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def save_plan(
+    registry_root: Path, project: str, raw: object, entries: list[dict], *, thread: int | None = None
+) -> dict:
+    """Validates a guided plan against the catalog and keeps it as the project's draft. Claude
+    saves one each round; the reader may reorder or drop sections from the viewer. The thread
+    stays what it was unless a new one is given."""
+    if not isinstance(raw, dict):
+        raise ReportError("a plan is an object")
+    if raw.get("mode", "guided") != "guided":
+        raise ReportError("a plan is for a guided report (mode: guided)")
+    plan = validate_preset({**raw, "mode": "guided", "name": raw.get("name") or DEFAULT_PLAN_NAME}, entries)
+    previous = get_plan(registry_root, project)
+    data = {
+        "plan": plan,
+        "thread": thread if thread is not None else (previous or {}).get("thread"),
+        "updated": _now(),
+    }
+    _write_plan(registry_root, project, data)
+    return data
+
+
+def discard_plan(registry_root: Path, project: str) -> bool:
+    path = _folder(registry_root, project) / PLAN_FILE
+    existed = path.is_file()
+    path.unlink(missing_ok=True)
+    return existed
+
+
+def approve_plan(registry_root: Path, project: str, entries: list[dict]) -> dict:
+    """Turns the draft into a saved preset (checking it against the catalog once more, since
+    sources may have gone since it was drafted) and removes the draft. Returns the preset."""
+    found = get_plan(registry_root, project)
+    if found is None:
+        raise PresetNotFound("plan")
+    preset = save_preset(registry_root, project, found["plan"], entries)
+    discard_plan(registry_root, project)
+    return preset
+
+
+def _element(section: dict, model: dict) -> object:
+    """What a diagram section is drawn from, for Claude to read."""
+    kind = section.get("diagram")
+    if kind == "map":
+        focus = section.get("focus")
+        components = [c for c in model.get("components", []) if (c.get("parent") or None) == focus]
+        ids = {c["id"] for c in components}
+        relations = [r for r in model.get("relations", []) if r.get("from") in ids or r.get("to") in ids]
+        return {"components": components, "relations": relations}
+    key = {"flow": "flows", "activity": "activities", "state": "states"}.get(kind or "")
+    if key:
+        return next((x for x in model.get(key, []) if x.get("id") == section.get("ref")), None)
+    if kind == "schema":
+        return model.get("entities", [])
+    return {"group": section.get("group")}
+
+
+def read_sections(manager: SourceManager, registry_root: Path, project_id: str, ids: list[str]) -> list[dict]:
+    """The content of catalog sections, as Claude reads them to plan and write a guided report.
+    A diagram section carries the model element it's drawn from."""
+    entries = catalog(manager, registry_root, project_id)
+    probe = validate_preset(
+        {"name": "read", "mode": "standard", "sections": [{"id": i} for i in ids]}, entries
+    )
+    out = content(manager, registry_root, project_id, probe)
+    model = (out["study"] or {}).get("model", {})
+    for s in out["sections"]:
+        if s["type"] == "diagram":
+            s["element"] = _element(s, model)
+    return out["sections"]

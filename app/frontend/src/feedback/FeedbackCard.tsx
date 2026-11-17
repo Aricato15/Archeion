@@ -8,6 +8,9 @@ import { projectUrl } from '../docs/links'
 import { timeAgo } from '../lib/format'
 import { KIND_LABEL, STATUS_COLOR, STATUS_LABEL, docLink } from './labels'
 
+/** The project page tab a task's thread is about. */
+const taskTab = (type: string) => (type === 'report' ? 'reports' : type === 'study' ? 'study' : 'design')
+
 export function StatusBadge({ item }: { item: Pick<FeedbackItem, 'status'> }) {
   return (
     <Badge color={STATUS_COLOR[item.status]} variant="light" size="sm">
@@ -92,7 +95,7 @@ export function FeedbackCard({ item, showDoc = true }: { item: FeedbackThread; s
         )}
         {item.anchor?.task && (
           <Text size="xs" c="dimmed">
-            <Anchor component={Link} to={`/projects/${encodeURIComponent(item.anchor.task.project)}?tab=study`} size="xs">
+            <Anchor component={Link} to={`/projects/${encodeURIComponent(item.anchor.task.project)}?tab=${taskTab(item.anchor.task.type)}`} size="xs">
               {describeAnchor(item.anchor)}
             </Anchor>
           </Text>

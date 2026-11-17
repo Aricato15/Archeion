@@ -291,3 +291,113 @@ def test_api_round_trip(authed):
 def test_api_unknown_project_and_preflight(authed):
     assert authed.get("/api/reports/nope/catalog").status_code == 404
     assert "browser" in authed.get("/api/reports/alpha/preflight").json()
+
+
+# --- the guided plan ---------------------------------------------------------------------
+
+
+def authored(slug="summary", cites=("overview.facts",), body="Alpha owns items."):
+    return {"id": f"authored:{slug}", "title": slug.title(), "body": body, "cites": list(cites)}
+
+
+def a_plan(*sections, **extra):
+    return {"name": "exec", "mode": "guided", "prompt": "For executives", "sections": list(sections), **extra}
+
+
+def test_save_plan_keeps_a_draft_with_its_thread(manager, settings):
+    root = settings.registry_root
+    entries = rp.catalog(manager, root, "alpha")
+    assert rp.get_plan(root, "alpha") is None
+    data = rp.save_plan(root, "alpha", a_plan(authored(), {"id": "overview.facts"}), entries, thread=7)
+    assert data["thread"] == 7 and data["plan"]["prompt"] == "For executives"
+    # The reader's edit from the viewer sends no thread: it stays.
+    again = rp.save_plan(root, "alpha", a_plan({"id": "overview.facts"}), entries)
+    assert again["thread"] == 7 and [s["id"] for s in again["plan"]["sections"]] == ["overview.facts"]
+    assert rp.get_plan(root, "alpha")["plan"]["name"] == "exec"
+
+
+def test_a_plan_is_guided_and_named_by_default(manager, settings):
+    root = settings.registry_root
+    entries = rp.catalog(manager, root, "alpha")
+    unnamed = {"mode": "guided", "sections": [{"id": "overview.facts"}]}
+    assert rp.save_plan(root, "alpha", unnamed, entries)["plan"]["name"] == "guided"
+    with pytest.raises(rp.ReportError, match="guided"):
+        rp.save_plan(
+            root, "alpha", {"mode": "standard", "name": "x", "sections": [{"id": "overview.facts"}]}, entries
+        )
+    with pytest.raises(rp.ReportError, match="cites at least one"):
+        rp.save_plan(root, "alpha", a_plan(authored(cites=())), entries)
+    with pytest.raises(rp.ReportError):
+        rp.save_plan(root, "alpha", "not a plan", entries)
+
+
+def test_approve_turns_the_plan_into_a_preset_and_removes_the_draft(manager, settings):
+    root = settings.registry_root
+    entries = rp.catalog(manager, root, "alpha")
+    with pytest.raises(rp.PresetNotFound):
+        rp.approve_plan(root, "alpha", entries)
+    rp.save_plan(root, "alpha", a_plan(authored(), {"id": "overview.notes"}), entries, thread=3)
+    preset = rp.approve_plan(root, "alpha", entries)
+    assert preset["name"] == "exec" and preset["mode"] == "guided"
+    assert rp.get_preset(root, "alpha", "exec")["sections"][0]["id"] == "authored:summary"
+    assert rp.get_plan(root, "alpha") is None
+
+
+def test_approve_refuses_a_plan_whose_source_went_away(manager, settings):
+    root = settings.registry_root
+    st.save(root, st.parse(model()))
+    entries = rp.catalog(manager, root, "alpha")
+    rp.save_plan(root, "alpha", a_plan({"id": "study.map"}), entries)
+    import shutil
+
+    for snap in st.snapshots(root, "alpha"):
+        shutil.rmtree(snap.folder)
+    with pytest.raises(rp.ReportError, match="unavailable"):
+        rp.approve_plan(root, "alpha", rp.catalog(manager, root, "alpha"))
+    assert rp.get_plan(root, "alpha") is not None  # kept, so it can be fixed
+
+
+def test_discard_plan(manager, settings):
+    root = settings.registry_root
+    assert rp.discard_plan(root, "alpha") is False
+    rp.save_plan(root, "alpha", a_plan({"id": "overview.facts"}), rp.catalog(manager, root, "alpha"))
+    assert rp.discard_plan(root, "alpha") is True and rp.get_plan(root, "alpha") is None
+
+
+def test_read_sections_gives_claude_the_content_and_the_model_element(manager, settings, repo):
+    (repo.parent / "alpha" / "README.md").write_text("# Alpha\n\nHello.\n", encoding="utf-8")
+    manager.reload()
+    st.save(settings.registry_root, st.parse(model()))
+    out = rp.read_sections(
+        manager, settings.registry_root, "alpha", ["docs:README.md", "study.sub:api", "study.flow:read"]
+    )
+    by_id = {s["id"]: s for s in out}
+    assert "Hello." in by_id["docs:README.md"]["markdown"]
+    parts = {c["id"] for c in by_id["study.sub:api"]["element"]["components"]}
+    assert parts == {"routes"}  # the children of api
+    assert by_id["study.flow:read"]["element"]["title"] == "Read an item"
+    with pytest.raises(rp.ReportError, match="no section"):
+        rp.read_sections(manager, settings.registry_root, "alpha", ["nope"])
+
+
+def test_plan_cli(settings, capsys, tmp_path):
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(a_plan(authored(), {"id": "overview.facts"})), encoding="utf-8")
+    assert main(["report", "plan", "show", "alpha"], settings) == 1
+    assert main(["report", "plan", "save", "alpha", "--file", str(path), "--thread", "5"], settings) == 0
+    assert "1 written by Claude" in capsys.readouterr().out
+    assert main(["report", "plan", "show", "alpha"], settings) == 0
+    shown = capsys.readouterr().out
+    assert "thread 5" in shown and "authored: Summary" in shown and "2. overview.facts" in shown
+    assert main(["report", "plan", "show", "alpha", "--json"], settings) == 0
+    assert json.loads(capsys.readouterr().out)["thread"] == 5
+    assert (
+        main(["report", "read", "alpha", "overview.facts", "overview.notes", "--limit", "10"], settings) == 0
+    )
+    read = json.loads(capsys.readouterr().out)
+    assert [s["id"] for s in read] == ["overview.facts", "overview.notes"] and "[truncated" in read[1][
+        "markdown"
+    ]
+    assert main(["report", "plan", "approve", "alpha"], settings) == 0
+    assert main(["report", "plan", "discard", "alpha"], settings) == 0
+    assert "No plan" in capsys.readouterr().out

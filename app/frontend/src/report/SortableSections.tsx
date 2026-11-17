@@ -22,10 +22,12 @@ import type { CatalogEntry } from '../api/reports'
 function Row({
   index,
   entry,
+  byClaude,
   onRemove,
 }: {
   index: number
   entry: CatalogEntry
+  byClaude: boolean
   onRemove: (id: string) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id })
@@ -61,6 +63,11 @@ function Row({
         <Text size="sm" style={{ flex: 1, minWidth: 0 }} truncate="end" title={entry.title}>
           {entry.title}
         </Text>
+        {byClaude && (
+          <Badge size="xs" variant="light" color="violet">
+            Claude
+          </Badge>
+        )}
         {entry.kind === 'diagram' && (
           <Badge size="xs" variant="light" color="grape">
             diagram
@@ -85,10 +92,13 @@ export function SortableSections({
   selection,
   byId,
   onChange,
+  authored,
 }: {
   selection: string[]
   byId: Map<string, CatalogEntry>
   onChange: (next: string[]) => void
+  /** Ids of sections Claude wrote (guided reports), marked with a badge. */
+  authored?: Set<string>
 }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -109,7 +119,13 @@ export function SortableSections({
       <SortableContext items={rows.map((r) => r.id)} strategy={verticalListSortingStrategy}>
         <Stack gap={4}>
           {rows.map((r) => (
-            <Row key={r.id} index={r.i} entry={r.entry} onRemove={(id) => onChange(selection.filter((s) => s !== id))} />
+            <Row
+              key={r.id}
+              index={r.i}
+              entry={r.entry}
+              byClaude={authored?.has(r.id) ?? false}
+              onRemove={(id) => onChange(selection.filter((s) => s !== id))}
+            />
           ))}
         </Stack>
       </SortableContext>

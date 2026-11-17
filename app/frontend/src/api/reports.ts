@@ -1,6 +1,7 @@
 /** Project PDF reports (ADR 0025): the section catalog, presets and the content a report is drawn from. */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { api } from './client'
 import type { Exposed, Finding, Outgoing, StudyModel } from './study'
 import type { Project } from './types'
@@ -181,3 +182,55 @@ export function useDeleteReportFile(project: string) {
 
 export const checkReportFile = (project: string, file: string) =>
   api<ReportCheck>(`/reports/${enc(project)}/files/${enc(file)}/verify`)
+
+/** The guided report in progress (ADR 0025): the plan Claude drafted, and the thread it belongs to. */
+export type ReportPlan = { plan: ReportPreset; thread: number | null; updated: string }
+
+export const useReportPlan = (project: string, poll = true) =>
+  useQuery({
+    queryKey: ['report-plan', project],
+    queryFn: () => api<ReportPlan | null>(`/reports/${enc(project)}/plan`),
+    // Claude saves the plan from another process, so look again now and then.
+    refetchInterval: poll ? 3000 : false,
+  })
+
+/** The reader's edits to the plan: reordering and dropping sections. The thread is kept. */
+export function useSaveReportPlan(project: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (plan: ReportPreset) =>
+      api<ReportPlan>(`/reports/${enc(project)}/plan`, { method: 'PUT', json: plan }),
+    onSuccess: (saved) => qc.setQueryData(['report-plan', project], saved),
+  })
+}
+
+export function useDiscardReportPlan(project: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<void>(`/reports/${enc(project)}/plan`, { method: 'DELETE' }),
+    onSuccess: () => qc.setQueryData(['report-plan', project], null),
+  })
+}
+
+/** Approves the plan (it becomes a saved preset) and starts building it. */
+export function useApproveReportPlan(project: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<BuildJob>(`/reports/${enc(project)}/plan/approve`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.setQueryData(['report-plan', project], null)
+      qc.invalidateQueries({ queryKey: ['report-presets', project] })
+    },
+  })
+}
+
+/** Follows a build until it finishes, and tells the Reports tab when a new PDF exists. */
+export function useFollowBuild(project: string, jobId: string | null) {
+  const qc = useQueryClient()
+  const job = useBuildJob(project, jobId)
+  const status = job.data?.status
+  useEffect(() => {
+    if (status === 'done') qc.invalidateQueries({ queryKey: ['report-files', project] })
+  }, [status, qc, project])
+  return job.data
+}

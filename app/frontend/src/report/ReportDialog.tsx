@@ -8,6 +8,7 @@ import {
   Loader,
   Modal,
   ScrollArea,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -15,14 +16,12 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
-import { useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { IconDownload, IconEye, IconFileTypePdf } from '@tabler/icons-react'
-import { useEffect, useMemo, useState } from 'react'
+import { IconFileTypePdf } from '@tabler/icons-react'
+import { useMemo, useState } from 'react'
 import {
-  reportFileUrl,
-  useBuildJob,
   useDeleteReportPreset,
+  useFollowBuild,
   useReportCatalog,
   useReportPreflight,
   useReportPresets,
@@ -43,19 +42,35 @@ import {
   toggle,
   toggleGroup,
 } from './config'
+import { BuildBanner } from './BuildBanner'
+import { GuidedReport } from './GuidedReport'
 import { SortableSections } from './SortableSections'
 
-/** The standard report (ADR 0025): choose and order sections, set the page, generate a PDF. No Claude. */
+/**
+ * A project's PDF report (ADR 0025), made one of two ways. Standard: choose and order sections and
+ * generate, with no Claude. Guided: give a prompt and Claude plans the report with you.
+ */
 export function ReportDialog({ project, opened, onClose }: { project: string; opened: boolean; onClose: () => void }) {
+  const [mode, setMode] = useState<'standard' | 'guided'>('standard')
   return (
-    <Modal opened={opened} onClose={onClose} title="Standard report" size="xl" keepMounted={false}>
-      <StandardReport project={project} />
+    <Modal opened={opened} onClose={onClose} title={`Report: ${project}`} size="xl" keepMounted={false}>
+      <Stack>
+        <SegmentedControl
+          value={mode}
+          onChange={(v) => setMode(v as 'standard' | 'guided')}
+          data={[
+            { value: 'standard', label: 'Standard: pick the sections' },
+            { value: 'guided', label: 'Guided: describe what you need' },
+          ]}
+          fullWidth
+        />
+        {mode === 'standard' ? <StandardReport project={project} /> : <GuidedReport project={project} onClose={onClose} />}
+      </Stack>
     </Modal>
   )
 }
 
 function StandardReport({ project }: { project: string }) {
-  const qc = useQueryClient()
   const catalog = useReportCatalog(project)
   const presets = useReportPresets(project)
   const preflight = useReportPreflight(project)
@@ -75,11 +90,8 @@ function StandardReport({ project }: { project: string }) {
   const name = slugName(nameText)
 
   const [jobId, setJobId] = useState<string | null>(null)
-  const job = useBuildJob(project, jobId)
-  const status = job.data?.status
-  useEffect(() => {
-    if (status === 'done') qc.invalidateQueries({ queryKey: ['report-files', project] })
-  }, [status, qc, project])
+  const job = useFollowBuild(project, jobId)
+  const status = job?.status
 
   const busy = start.isPending || savePreset.isPending || status === 'running'
   const canGenerate = selection.length > 0 && NAME_PATTERN.test(name) && !busy && preflight.data?.ok !== false
@@ -279,43 +291,7 @@ function StandardReport({ project }: { project: string }) {
         </Button>
       </Group>
 
-      {status === 'error' && (
-        <Alert color="red" title="The report wasn't built">
-          {job.data?.error}
-        </Alert>
-      )}
-      {status === 'done' && job.data?.result && (
-        <Alert color={job.data.result.failed ? 'orange' : 'green'} title="Report built">
-          <Group justify="space-between">
-            <Text size="sm">
-              {job.data.result.file}: {job.data.result.pages} pages, {job.data.result.sections} sections
-              {job.data.result.failed ? `, ${job.data.result.failed} diagram(s) failed to draw` : ''}.
-            </Text>
-            <Group gap="xs">
-              <Button
-                size="xs"
-                component="a"
-                href={reportFileUrl(project, job.data.result.file, true)}
-                target="_blank"
-                rel="noopener noreferrer"
-                leftSection={<IconEye size={14} />}
-              >
-                Open
-              </Button>
-              <Button
-                size="xs"
-                variant="default"
-                component="a"
-                href={reportFileUrl(project, job.data.result.file)}
-                download={job.data.result.file}
-                leftSection={<IconDownload size={14} />}
-              >
-                Download
-              </Button>
-            </Group>
-          </Group>
-        </Alert>
-      )}
+      <BuildBanner project={project} job={job} />
 
       <Group justify="flex-end">
         <Button leftSection={<IconFileTypePdf size={16} />} onClick={generate} disabled={!canGenerate} loading={busy}>

@@ -160,3 +160,45 @@ def delete_file(
         rr.delete_report(state.settings.registry_root, project, filename)
     except rp.PresetNotFound as exc:
         raise HTTPException(404, "no such report") from exc
+
+
+@router.get("/{project}/plan")
+def get_plan(project: str = ProjectParam, state: AppState = Depends(get_state)) -> dict | None:
+    """The guided report in progress, or null."""
+    _check(state, project)
+    return rp.get_plan(state.settings.registry_root, project)
+
+
+@router.put("/{project}/plan")
+def save_plan(body: PresetBody, project: str = ProjectParam, state: AppState = Depends(get_state)) -> dict:
+    """The reader's edits to the plan (reordering, dropping sections); the thread is kept."""
+    _check(state, project)
+    entries = rp.catalog(state.sources, state.settings.registry_root, project)
+    try:
+        return rp.save_plan(state.settings.registry_root, project, body.model_dump(), entries)
+    except rp.ReportError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@router.delete("/{project}/plan", status_code=204)
+def discard_plan(project: str = ProjectParam, state: AppState = Depends(get_state)) -> None:
+    _check(state, project)
+    if not rp.discard_plan(state.settings.registry_root, project):
+        raise HTTPException(404, "no plan in progress")
+
+
+@router.post("/{project}/plan/approve", status_code=202)
+def approve_plan(project: str = ProjectParam, state: AppState = Depends(get_state)) -> dict:
+    """Approves the plan (it becomes a saved preset) and starts building it."""
+    _check(state, project)
+    entries = rp.catalog(state.sources, state.settings.registry_root, project)
+    try:
+        preset = rp.approve_plan(state.settings.registry_root, project, entries)
+        name = preset["name"]
+        return state.report_jobs.start(
+            project, name, lambda: rr.build(state.settings, state.sources, project, name)
+        )
+    except rp.PresetNotFound as exc:
+        raise HTTPException(404, "no plan in progress") from exc
+    except rp.ReportError as exc:
+        raise HTTPException(409, str(exc)) from exc

@@ -33,7 +33,7 @@ class TaskAnchor(BaseModel):
     """A job the thread is about, such as studying a project (ADR 0020). Handled by
     Archeion's own inbox, whatever the project."""
 
-    type: Literal["study", "design", "handoff-design"]
+    type: Literal["study", "design", "handoff-design", "report"]
     project: str = Field(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
     # A design task is about one design of the project (ADR 0022); a handoff names a revision.
     slug: str | None = Field(None, max_length=40, pattern=r"^[a-z0-9][a-z0-9-]*$")

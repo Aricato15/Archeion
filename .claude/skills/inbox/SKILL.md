@@ -72,6 +72,15 @@ If the command says the backend environment is missing, tell the user to run `se
         **Handoff tasks**. Run `design preflight <project> --for handoff`, then `design package` copies the
         revision into the project's `.archeion/designs/<slug>/`. That is a plain copy and the only thing
         written there; it needs `inbox_edits` allowed. Never commit in the project.
+      - **A report conversation** (`inbox show` prints `task: a report of <project>`, ADR 0025), or any
+        request for a report that comes with a prompt, an audience or an outline ("write an executive
+        report of X"): follow the `report-guided` skill (`.claude/skills/report-guided/SKILL.md`) in its
+        **conversation mode**. Each message is one round: read the draft plan first (the user may have
+        edited it in the viewer), change only what they asked, save it, and reply. You write only the
+        authored sections, each citing its sources. The user approves and builds, you don't, unless they
+        say to. A plain request for a PDF of a project with no prompt ("make a report of X", "build the
+        full report") is the deterministic one: follow the `report` skill instead. Reports are read-only on
+        the project, so `inbox_edits` doesn't restrict them.
       If the request is ambiguous, risky, or reaches outside the target project, don't guess. Reply with
       your question or concern instead. The user answers in the same thread.
    4. Write the reply to a temporary file in your scratchpad directory and send it with

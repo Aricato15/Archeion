@@ -156,7 +156,7 @@ export type Anchor = {
   lines?: [number, number]
   quote?: string
   /** A job the thread is about, such as studying a project (ADR 0020). Needs no doc. */
-  task?: { type: 'study' | 'design' | 'handoff-design'; project: string; slug?: string; revision?: number }
+  task?: { type: 'study' | 'design' | 'handoff-design' | 'report'; project: string; slug?: string; revision?: number }
   /** An element of a code study (ADR 0019), for a question about it. Needs no doc. */
   study?: { project: string; snapshot: string; element: string; kind: StudyElementKind }
 }
