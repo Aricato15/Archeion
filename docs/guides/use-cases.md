@@ -21,7 +21,7 @@ The examples use made-up projects: `example-api`, a service, and `example-web`, 
 ### Once: register it
 1. **Viewer, Settings:** add the folder that holds your projects as a root, if it isn't one yet. Then click **Register** next to `example-api`. This creates a stub page in `registry/projects/`.
 2. **Archeion's session:** fill in the page from the real project. Run `/study example-api`. Claude scans the project's code read-only, shows its plan and the registry changes it proposes (ports, `depends_on`, kind, status), and after you agree saves a dated study snapshot, fills in the frontmatter and sets `verified`. From the viewer, **Ask Claude to study** on the project page's **Study** tab starts the same study as a conversation: Claude reports its findings and questions in a thread, keeps a draft you can look at on the Study tab, and saves the study once you say it's done. With **On-demand Claude** switched on in Settings, each round is answered as soon as you reply.
-3. **Viewer, Projects:** check the page and the map. The **Study** tab shows the project's insides: its components and how they connect, a sequence diagram for each key flow, its tables, state machines and endpoints, and findings against the workspace rules, each with the lines of code it came from. If something's wrong, comment on the registry page. That reaches Archeion's inbox, and `/inbox` fixes it.
+3. **Viewer, Projects:** check the page and the map. The **Study** tab shows the project's insides as interactive diagrams: its components and how they connect, a sequence diagram for each key flow, its logic, state machines and tables, plus its endpoints and findings against the workspace rules, each with the lines of code it came from. Use the **Interactive / Mermaid** switch to see the plain Mermaid drawing. If something's wrong, comment on the registry page. That reaches Archeion's inbox, and `/inbox` fixes it.
 
 ### Every day: work in the project
 4. **Project's session:** work as usual. When the session starts, it says whether the viewer has feedback waiting. `/archeion:context` shows how the project fits in, and `/archeion:ports` checks a port before you take one.
@@ -146,4 +146,28 @@ sequenceDiagram
   P->>P: build
   P->>A: /archeion:report (departs from the design)
   A->>V: thread on the Design tab
+```
+
+---
+
+## 5. Find your way around a project, and learn its terms
+
+**Goal:** a project has dozens or hundreds of components and its own jargon. You want to see where it starts, drill into the part you care about, and look up a word you don't know, without reading the code.
+
+1. **Viewer, the project's Study tab, Components:** the map opens at the top level, so you can see where the project starts. Open a box with its arrow to see what's inside, or use **Find a box** to search: it opens the boxes that hide a match and zooms to it. Hover a box to light up what it's linked to. (If the tree is flat, ask Claude for `/study <project> --refresh`: it now groups components into named sub-groups.)
+2. **Flows:** pick a flow. Hover a participant to see only its messages, hover a message to see the full text, and search for a step. **Click a participant** to open its details in the side panel without leaving the flow.
+3. **From the panel:** **Show in the component map** opens the map around that component, highlighted. **Show its insides** (when it contains others) zooms the map into it. **Ask Claude about this** sends a prompt about exactly that component.
+4. **Logic and States:** click a step or a state to see what leads into it and out of it.
+5. **Glossary tab:** type in the search box (it ignores case and also finds a term by an alias or by words in its meaning). **Add term** records a word you just learned.
+6. **Archeion's session:** when a study turns up jargon, ask Claude to add it. It runs `glossary set <project> "<term>" "<meaning>"` for each. The terms are stored in the private registry, so nothing about the project is committed.
+
+```mermaid
+flowchart LR
+  top[Study tab:<br/>component map at the top level] --> drill[Open a box,<br/>or Find a box]
+  drill --> flow[Flows: click a participant]
+  flow --> panel[Side panel:<br/>details, insides, ask Claude]
+  panel --> map[Show in the component map]
+  panel --> word{An unknown word?}
+  word -- yes --> gloss[Glossary tab:<br/>search, add a term]
+  word -- no --> done([Back to the flow])
 ```

@@ -35,7 +35,7 @@ flowchart LR
 1. **The registry.** Every project and sub-project gets a page in `registry/projects/`, and every group of related projects a page in `registry/groups/`.
    - YAML frontmatter records the structural facts: `path`, `parent`, `group`, `status`, `kind`, `ports`, `depends_on`. The page body holds cross-project notes only.
    - `projects scan --write` finds workspace folders that don't have a page yet and creates stub pages for them.
-2. **Generated maps.** The backend checks the registry and reports problems (unknown references, missing paths, cycles) as warnings. The frontend draws Mermaid maps from the frontmatter (one for everything, one per group, one around each project), so the maps can't drift from the pages.
+2. **Generated maps.** The backend checks the registry and reports problems (unknown references, missing paths, cycles) as warnings. The frontend draws interactive maps from the frontmatter (one for everything, one per group, one around each project): boxes fold and unfold, hovering lights up what a box links to, and a **Find a box** search zooms to a match. A Mermaid version is one click away. The maps can't drift from the pages.
 3. **Live, read-only project docs.** For each registered project, the backend serves its `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md` and `docs/` folder straight from disk, and nothing else.
    - It never writes to a project.
    - History and diffs come from that project's own git repo.
@@ -45,7 +45,9 @@ flowchart LR
    - In a Claude Code session, `/inbox` lists the open items through a local command-line interface (there's no unauthenticated API), claims one, does the work and replies.
    - The reply shows up in the browser within seconds.
    - Archeion's own session handles Archeion and registry items. The [Archeion plugin](#archeion-plugin-for-your-projects) gives every other project's session the same loop, plus its place in the system.
-5. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
+5. **Studies and designs.** `/study <project>` reads a project's code and saves a dated snapshot, and `/design <project>` works out a project's brief, architecture and plan. The project page's **Study** and **Design** tabs show them as interactive diagrams: the component map, flows as sequence diagrams, activities, states and data. Click a box to open its side panel without leaving the diagram, and switch any diagram to Mermaid. See [ADR 0019](docs/decisions/0019-code-studies.md), [ADR 0022](docs/decisions/0022-design-and-plan-a-project.md) and [ADR 0024](docs/decisions/0024-interactive-study-views.md).
+6. **Glossary.** Each project page has a **Glossary** tab for the project's terms and jargon, with a case-insensitive search. You edit it in the viewer, and Claude fills it with `glossary set` ([ADR 0023](docs/decisions/0023-project-glossaries.md)). It's kept in the private registry.
+7. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
 
 ## What stays private
 This repo is meant to be published, so nothing in it describes a specific project:
@@ -180,7 +182,7 @@ Then update the plugin (`/plugin`, or `claude plugin update archeion@archeion`) 
 Bump it with `scripts/bump-version.ps1 -Target plugin -Part major|minor|patch`. The commit hook refuses plugin changes without a version change, and a test checks that `plugin.json`, the marketplace entry and the plugin's changelog agree.
 
 ## Repository layout
-- `app/backend/`: the FastAPI service and its CLI (`python -m app serve | password | inbox | projects`).
+- `app/backend/`: the FastAPI service and its CLI (`python -m app serve | password | inbox | projects | study | design | glossary`).
 - `app/frontend/`: the React viewer.
 - `registry.example/`: the empty template for your private `registry/`.
 - `docs/`: Archeion's own roadmap, decisions (ADRs) and session notes.

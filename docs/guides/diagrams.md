@@ -7,6 +7,8 @@ Besides plain Mermaid, the viewer has two extras for system design:
 - **The ELK layout**, for flowcharts with nested boxes. It routes arrows and spaces groups better than the default layout. Turn it on per diagram with `layout: elk` in the diagram's frontmatter. The project maps on the Projects page always use it.
 - **Icon packs** for architecture diagrams and flowchart icon nodes: `logos:` (products and technologies, e.g. `logos:postgresql`, `logos:redis`, `logos:kafka-icon`, `logos:nginx`) and `mdi:` (generic Material Design icons, e.g. `mdi:server`, `mdi:database`, `mdi:account`, `mdi:tray-full`). Find icon names at icones.js.org. Mermaid's own `cloud`, `database`, `disk`, `internet` and `server` work without a prefix.
 
+Every Mermaid diagram in the viewer can be zoomed with the wheel and panned by dragging. A **Find** box above it highlights labels that match (ignoring case) and dims the rest, **Enter** pans to the first match, and hovering a label lights up every label with the same text. For a study's or design's diagrams, a switch shows an interactive version instead ([ADR 0024](../decisions/0024-interactive-study-views.md)).
+
 Which diagram to use:
 
 | To show | Use |
