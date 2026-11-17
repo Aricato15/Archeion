@@ -34,7 +34,8 @@ import {
 import { SELF } from '../api/types'
 import { MarkdownView } from '../docs/MarkdownView'
 import { BuildBanner } from './BuildBanner'
-import { DEFAULT_OPTIONS } from './config'
+import { DEFAULT_OPTIONS, defaultSelection } from './config'
+import { SectionChecklist } from './SectionChecklist'
 import { SortableSections } from './SortableSections'
 
 const isAuthored = (id: string) => id.startsWith('authored:')
@@ -80,12 +81,24 @@ function AskClaude({ project, onClose }: { project: string; onClose: () => void 
   const [outline, setOutline] = useState('')
   const create = useCreateFeedback()
   const responder = useResponder()
+  const catalog = useReportCatalog(project)
   const navigate = useNavigate()
   const onDemand = responder.data?.enabled ?? false
+
+  // Which sections Claude may use. Until the reader changes it, all of them.
+  const entries = catalog.data ?? []
+  const everything = defaultSelection(entries)
+  const [chosen, setChosen] = useState<string[] | null>(null)
+  const scope = chosen ?? everything
+  const narrowed = scope.length < everything.length
 
   const submit = () => {
     const parts = [`Write a report of ${project}.`, `What I need:\n${prompt.trim()}`]
     if (outline.trim()) parts.push(`The structure I'd like:\n${outline.trim()}`)
+    if (narrowed)
+      parts.push(
+        `Use only these sections (catalog ids), and don't read or cite any others:\n${scope.map((id) => `- ${id}`).join('\n')}`,
+      )
     create.mutate(
       {
         kind: 'prompt',
@@ -140,6 +153,27 @@ function AskClaude({ project, onClose }: { project: string; onClose: () => void 
         value={outline}
         onChange={(e) => setOutline(e.currentTarget.value)}
       />
+      <Accordion variant="contained">
+        <Accordion.Item value="scope">
+          <Accordion.Control>
+            Which sections can Claude use?{' '}
+            <Text span size="sm" c="dimmed">
+              {catalog.isPending ? '' : narrowed ? `${scope.length} of ${everything.length} chosen` : 'all of them'}
+            </Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <Text size="sm" c="dimmed" mb="xs">
+              Claude plans only from the sections you tick, and cites them. It still writes its own sections (such as the
+              summary), but only from these.
+            </Text>
+            {catalog.isPending ? (
+              <Loader size="sm" />
+            ) : (
+              <SectionChecklist entries={entries} selection={scope} onChange={setChosen} height={260} />
+            )}
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
       {!onDemand && (
         <Alert color="gray" variant="light">
           On-demand Claude is off, so the request waits for <code>/inbox</code> in Archeion's terminal. Switch it on in{' '}
@@ -155,7 +189,7 @@ function AskClaude({ project, onClose }: { project: string; onClose: () => void 
           leftSection={<IconSparkles size={16} />}
           onClick={submit}
           loading={create.isPending}
-          disabled={!prompt.trim()}
+          disabled={!prompt.trim() || scope.length === 0}
         >
           Ask Claude to plan the report
         </Button>
@@ -217,8 +251,9 @@ function ReviewPlan({
       notifications.show({ color: 'orange', title: 'A report needs a section', message: 'Discard the plan instead.' })
       return
     }
+    // A section that isn't in the plan yet was ticked in the checklist: a plain catalog section.
     const by = new Map(plan.sections.map((s) => [s.id, s]))
-    edit({ ...plan, sections: ids.flatMap((id) => (by.has(id) ? [by.get(id)!] : [])) })
+    edit({ ...plan, sections: ids.map((id) => by.get(id) ?? { id }) })
   }
   const setOptions = (options: ReportOptions) => edit({ ...plan, options })
   const options = { ...DEFAULT_OPTIONS, ...plan.options }
@@ -286,6 +321,24 @@ function ReviewPlan({
           {gone.map((s) => s.id).join(', ')}: building will be refused until they're dropped or their source is back.
         </Alert>
       )}
+
+      <Accordion variant="contained">
+        <Accordion.Item value="add">
+          <Accordion.Control>Add or remove sections</Accordion.Control>
+          <Accordion.Panel>
+            <Text size="sm" c="dimmed" mb="xs">
+              Tick a section to add it to the plan (at the end, or after its map), untick it to take it out. What Claude
+              wrote stays until you ask for it to change in the thread.
+            </Text>
+            <SectionChecklist
+              entries={catalog.data ?? []}
+              selection={plan.sections.map((s) => s.id)}
+              onChange={setSections}
+              height={240}
+            />
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
 
       <Grid gap="md">
         <Grid.Col span={{ base: 12, md: 7 }}>

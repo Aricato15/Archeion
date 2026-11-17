@@ -39,6 +39,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 - **No secrets, no absolute paths, no email addresses** in anything you write. Describe a credential by what it's for.
 - **The user approves, you don't.** Don't run `report plan approve` or `report build` unless the user said to build it (in the thread, or with `--yes` in the first message). They normally press **Approve and build** in the viewer.
 - **Read-only on the project**, and nothing about it goes into Archeion's committed files (ADR 0007). The plan and the PDF live in `registry/reports/<p>/` (gitignored).
+- **Stay inside the scope.** If the user's message lists sections ("Use only these sections (catalog ids), and don't read or cite any others"), that is the scope: read, plan and cite only those catalog ids, for sourced and authored sections alike. Sections the user adds to the plan in the viewer later are in scope too. If the ask can't be met inside the scope (the prompt wants the risks but `study.findings` isn't listed), say so in the reply and ask, rather than reaching outside it.
 - **Don't plan what has no source.** A catalog entry with `available: false` can't be in the plan; `report plan save` refuses it. Tell the user what's missing and what would fix it (a study, a design).
 
 ## Two ways to run
@@ -49,15 +50,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 
 1. **Resolve.** `projects show --project <p> --json`, and `report preflight <p>`. Problems with Edge or the frontend only block the build, not the plan: say so, and carry on planning.
 2. **Understand the ask.** Take the prompt and the outline from the thread's first message (or the argument). Work out the **audience** (who reads it, what they know), the **purpose** (decide, onboard, audit, hand over), the **emphasis** (what to stress or leave out) and the **tone**. If something that changes the report a lot is unclear, ask one short question and stop for the answer; otherwise state your reading of it in the reply and go on.
-3. **Freshness.** `study list <p>`. If the study is behind or missing, say so in the reply and offer `/study <p> --refresh`. Plan with what exists.
-4. **Read.** `report catalog <p> --json`, then `report read` the sections the ask needs. Start with the facts, the notes and the README, then the study (`study.notes`, `study.findings`, the top-level `study.map`, the interfaces), then the rest as the prompt requires. Read in batches, with `--limit` to keep it small. Note, per section, what you could use.
-5. **Plan the sections.** Build the ordered list:
+3. **Scope.** Look for the list of sections at the end of the first message. With none, every available catalog section is in scope. With one, you only ever `report read` and `report plan save` those ids (and any the user adds to the plan later), and you say how the scope shapes the report if it limits it.
+4. **Freshness.** `study list <p>`. If the study is behind or missing, say so in the reply and offer `/study <p> --refresh`. Plan with what exists.
+5. **Read.** `report catalog <p> --json`, then `report read` the sections the ask needs. Start with the facts, the notes and the README, then the study (`study.notes`, `study.findings`, the top-level `study.map`, the interfaces), then the rest as the prompt requires. Read in batches, with `--limit` to keep it small. Note, per section, what you could use.
+6. **Plan the sections.** Build the ordered list:
    - If the user gave an **outline**, follow its order and headings: each outline item becomes an authored section, a sourced section, or both (an authored introduction followed by the sourced diagram it talks about).
    - If not, open with an **executive summary** (authored, 150 to 250 words: what the project is, what it's for, how it's built, what a reader should know, the main risks), then the sourced sections that suit the audience in a sensible order, with a short authored lead-in only where it helps.
    - Sub-system diagrams (`study.sub:<id>`) come right after the map they belong to. For a technical audience include them all; for an executive one, the compact map and the findings are usually enough.
    - Keep an authored section short and plain: a few paragraphs, lists where they help, no filler. Write in the user's language and for their audience.
-6. **Write the plan** to `<scratchpad>/plan.json` (below), then `report plan save <p> --file <scratchpad>/plan.json --thread <thread id>`. Fix whatever it refuses and save again.
-7. **Reply** (or print, in the terminal). Keep it short:
+7. **Write the plan** to `<scratchpad>/plan.json` (below), then `report plan save <p> --file <scratchpad>/plan.json --thread <thread id>`. Fix whatever it refuses and save again.
+8. **Reply** (or print, in the terminal). Keep it short:
    1. your reading of the ask, in a sentence or two;
    2. the plan as a numbered list: each section's title, marked **sourced** or **written by Claude**, and why it's there;
    3. where the sources were thin, and anything you left out and why;
@@ -68,8 +70,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 
 Read the whole thread first (`inbox show <id>`), then the draft (`report plan show <p> --json`).
 
-- **First round** (no draft yet): steps 1 to 7.
-- **Next rounds**: the user replied, and may have **edited the plan in the viewer** (reordered, dropped sections). Always start from `report plan show <p> --json`, never from your memory of it. Apply their answers, keep their edits, and change only what they asked to change. Re-read sources only where the change needs it. Save the plan again (the thread is kept). Reply with what changed and the questions still open. Don't ask again what they already answered.
+- **First round** (no draft yet): steps 1 to 8.
+- **Next rounds**: the user replied, and may have **edited the plan in the viewer** (reordered, dropped sections). Always start from `report plan show <p> --json`, never from your memory of it. Apply their answers, keep their edits (including sections they added or took out with the checklist), and change only what they asked to change. Re-read sources only where the change needs it. Save the plan again (the thread is kept). Reply with what changed and the questions still open. Don't ask again what they already answered.
 - **Build**: when the user says to build it (or `--yes` was in the first message), run `report plan approve <p>`, then `report build <p> --preset <name>`, then `report verify <p> <file>`, and reply with the file name, the page count and any problem as it is. Otherwise leave **Approve and build** to them.
 - **Stop**: if they ask to drop it, run `report plan discard <p>` and say so.
 - Keep each reply short. The plan is what the viewer shows.

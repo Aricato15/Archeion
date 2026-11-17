@@ -188,9 +188,9 @@ flowchart LR
 
 ### b) The guided report: you say who it's for, Claude plans it
 
-1. **Report, Guided:** write what you need ("an overview for the executive team: what it does, how healthy it is, the risks"), and, if you want, the structure ("1. Overview, 2. How it connects, 3. Data and risks"). **Ask Claude to plan the report** opens a thread.
+1. **Report, Guided:** write what you need ("an overview for the executive team: what it does, how healthy it is, the risks"), and, if you want, the structure ("1. Overview, 2. How it connects, 3. Data and risks"). Under **Which sections can Claude use?** untick anything it should leave alone (everything is ticked by default). **Ask Claude to plan the report** opens a thread.
 2. **Archeion's session (or on-demand Claude):** reads the sources, then replies in the thread with the plan, a numbered list marking which sections are written by Claude and which are shown as they are, and any questions.
-3. **Viewer, Report, Guided:** the plan appears. Read the sections Claude wrote (each lists the sections it drew on), drop what you don't want, drag the rest into order. Reply in the thread to change the text or the structure: Claude changes only what you asked and keeps your edits.
+3. **Viewer, Report, Guided:** the plan appears. Read the sections Claude wrote (each lists the sections it drew on), drop what you don't want, drag the rest into order, and use **Add or remove sections** (the same checklist as the standard report) to put a section back or add another. Reply in the thread to change the text or the structure: Claude changes only what you asked and keeps your edits.
 4. **Approve and build.** The PDF is made, with "Written by Claude" on every section Claude wrote. Sections of the project's own docs and diagrams are never rewritten.
 
 ```mermaid

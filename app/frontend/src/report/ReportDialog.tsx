@@ -2,7 +2,6 @@ import {
   Alert,
   Badge,
   Button,
-  Checkbox,
   Grid,
   Group,
   Loader,
@@ -31,19 +30,15 @@ import {
 } from '../api/reports'
 import {
   DEFAULT_OPTIONS,
-  GROUP_TITLES,
   NAME_PATTERN,
   defaultSelection,
   fromPreset,
-  groupEntries,
-  groupState,
   slugName,
   toPreset,
-  toggle,
-  toggleGroup,
 } from './config'
 import { BuildBanner } from './BuildBanner'
 import { GuidedReport } from './GuidedReport'
+import { SectionChecklist } from './SectionChecklist'
 import { SortableSections } from './SortableSections'
 
 /**
@@ -156,43 +151,7 @@ function StandardReport({ project }: { project: string }) {
           <Title order={5} mb="xs">
             Sections
           </Title>
-          <ScrollArea h={380} type="auto" offsetScrollbars>
-            <Stack gap="md">
-              {groupEntries(entries).map(({ group, entries: items }) => {
-                const state = groupState(selection, entries, group)
-                const usable = items.some((i) => i.available)
-                return (
-                  <Stack key={group} gap={4}>
-                    <Checkbox
-                      label={GROUP_TITLES[group]}
-                      fw={600}
-                      styles={{ label: { fontWeight: 600 } }}
-                      checked={state === 'all'}
-                      indeterminate={state === 'some'}
-                      disabled={!usable}
-                      onChange={(e) => setChosen(toggleGroup(selection, entries, group, e.currentTarget.checked))}
-                    />
-                    {items.map((entry) => (
-                      <Group key={entry.id} gap="xs" ml={entry.parent ? 56 : 28} wrap="nowrap">
-                        <Checkbox
-                          size="xs"
-                          label={entry.title}
-                          checked={selection.includes(entry.id)}
-                          disabled={!entry.available}
-                          onChange={() => setChosen(toggle(selection, entry, entries))}
-                        />
-                        {!entry.available && (
-                          <Text size="xs" c="dimmed">
-                            {entry.reason}
-                          </Text>
-                        )}
-                      </Group>
-                    ))}
-                  </Stack>
-                )
-              })}
-            </Stack>
-          </ScrollArea>
+          <SectionChecklist entries={entries} selection={selection} onChange={setChosen} />
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, md: 6 }}>
