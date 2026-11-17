@@ -525,3 +525,20 @@ def test_a_study_request_is_a_thread_for_archeion(authed, settings, capsys):
     assert "a study of alpha" in capsys.readouterr().out
     assert main(["inbox", "list", "--project", "alpha"], settings) == 0
     assert "Study alpha." not in capsys.readouterr().out  # the project's own session never sees it
+
+
+def test_wide_levels_get_a_warning_not_an_error():
+    data = model()
+    data["components"] = [{"id": f"m{i}", "name": f"m{i}", "kind": "module"} for i in range(13)]
+    data["relations"] = []
+    data["interfaces"] = {"exposes": [], "calls": []}
+    data["entities"] = []
+    data["flows"] = []
+    data.pop("states", None)
+    data.pop("activities", None)
+    data["findings"] = []
+    study = st.parse(data)
+    assert "the top level holds 13 components" in st.structure_warnings(study)[0]
+    for c in data["components"][:3]:
+        c["parent"] = "m12"
+    assert st.structure_warnings(st.parse(data)) == []

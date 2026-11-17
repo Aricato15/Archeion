@@ -309,6 +309,28 @@ def _walk_steps(steps: list) -> list:
     return out
 
 
+MAX_SIBLINGS = 12
+
+
+def structure_warnings(study: Study) -> list[str]:
+    """Levels of the component tree that are too wide to read as one map. These don't stop a
+    save: the study is still valid, but Claude is told to group them into sub-groups."""
+    kids: dict[str | None, int] = {}
+    ids = {c.id for c in study.components}
+    for c in study.components:
+        parent = c.parent if c.parent in ids else None
+        kids[parent] = kids.get(parent, 0) + 1
+    out = []
+    for parent, n in sorted(kids.items(), key=lambda kv: -kv[1]):
+        if n > MAX_SIBLINGS:
+            where = f"'{parent}'" if parent else "the top level"
+            out.append(
+                f"{where} holds {n} components (more than {MAX_SIBLINGS}): group related ones "
+                f"under sub-groups (kind package or module, via parent) so each level stays readable"
+            )
+    return out
+
+
 def reference_problems(study: Study) -> list[str]:
     """Every reference must name an element that exists, and ids must be unique per section."""
     problems: list[str] = []
