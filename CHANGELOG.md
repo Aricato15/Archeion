@@ -7,6 +7,8 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-18
+
 ### Added
 - **PDF reports of a project** ([ADR 0025](docs/decisions/0025-project-pdf-reports.md), [the plan](docs/roadmap/2026-11-17-project-report-plan.md)). The **Report** button on a project page opens a dialog with two ways to make one, and a **Reports** tab lists what was built (open it in its own tab, download, check it against its build record, delete). Reports are kept in the private registry (`registry/reports/<project>/`) and never committed.
   - **Standard** (`/report <project>`): you pick the sections and drag them into order, with a checkbox per section and per sub-system diagram, a title, page size, orientation, cover page and contents, and saved presets. It needs no Claude and gives the same PDF for the same choices. Sections come from the project's registry page, docs, code study, design, glossary and place in its group. A section with no source is greyed out with the reason.
@@ -15,12 +17,10 @@ All notable changes to Archeion are recorded here. The format follows
   - **How it's built:** headless Edge prints the frontend's print page (`/print/report/:project`), with a session of its own that is deleted afterwards. It needs the frontend running (`start.bat`). New setting `ARCHEION_REPORT_BROWSER` for an Edge that isn't found on its own. New process: headless Edge, for the length of a build.
   - **CLI:** `report preflight|catalog|default|validate|read|build|list|verify`, `report preset list|show|save|delete`, `report plan save|show|discard|approve`. **API:** `/api/reports/{project}/...` (catalog, preflight, presets, plan, build, builds, files). A thread can now be anchored to a `report` task.
   - New dependencies: `@dnd-kit` for dragging sections into order, and `websockets` (already installed with uvicorn) for driving Edge.
+- **A home page** (the Home link, and the Archeion logo). It opens on **What's changed in Archeion**: every release in Archeion's own `CHANGELOG.md`, newest first (Unreleased notes first). It shows the file as written, from the commit that's checked out, so it follows the branch you're on. New read-only endpoint `GET /api/changelog` reads the repo's root `CHANGELOG.md`, because the docs source is `docs/` only. A switch changes it to **Projects**, which lists the releases of every registered project that keeps a `CHANGELOG.md`, newest first, with a project filter. Projects without a changelog are skipped. It used to open on the README.
 
 ### Changed
 - The interactive flow view now looks like the maps: a bordered canvas with the same dotted grid, zoom controls at the bottom left and the Find box at the top left, participants with a coloured edge by component kind, and `alt`/`loop` blocks drawn as tinted containers.
-
-### Added
-- **A home page** (the Home link, and the Archeion logo). It opens on **What's changed in Archeion**: every release in Archeion's own `CHANGELOG.md`, newest first (Unreleased notes first). It shows the file as written, from the commit that's checked out, so it follows the branch you're on. New read-only endpoint `GET /api/changelog` reads the repo's root `CHANGELOG.md`, because the docs source is `docs/` only. A switch changes it to **Projects**, which lists the releases of every registered project that keeps a `CHANGELOG.md`, newest first, with a project filter. Projects without a changelog are skipped. It used to open on the README.
 
 ## [1.2.0] - 2026-11-17
 
