@@ -7,7 +7,7 @@ Brings Archeion into every Claude Code session you run in a registered project (
 | `/archeion:inbox` | Picks up the feedback written for this project in the viewer, does the work and replies |
 | `/archeion:context` | Shows this project's group, what it depends on, what depends on it, its ports and notes |
 | `/archeion:ports` | Lists the ports the registry records, and flags clashes, before you pick a new one |
-| `/archeion:report` | Sends a change (a port, a dependency, a wrong fact) to Archeion's own inbox. Project sessions never edit the registry. |
+| `/archeion:notify` | Tells Archeion about a change (a port, a dependency, a wrong fact), or asks it a question, in its own inbox. Project sessions never edit the registry. |
 | `/archeion:consume-design` | Turns a design package that Archeion delivered into `.archeion/designs/` into this project's docs: the design, its decisions as ADRs, the plan in the roadmap and additions to `CLAUDE.md`. It does nothing when there's no package. |
 | SessionStart hook | Says how many feedback items are waiting for this project, and when a design package is waiting. It stays silent when neither is, outside registered projects and inside Archeion. |
 

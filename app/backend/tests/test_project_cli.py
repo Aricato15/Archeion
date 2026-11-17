@@ -107,7 +107,7 @@ def _answer(settings, item_id: int, text: str) -> None:
 
 
 def test_a_session_carries_on_a_thread(settings, monkeypatch, tmp_path, capsys):
-    """/archeion:report and /archeion:inbox add to a conversation, as a reply in the viewer does."""
+    """/archeion:notify and /archeion:inbox add to a conversation, as a reply in the viewer does."""
     note = tmp_path / "note.md"
     note.write_text("I moved to port 20105.\n", encoding="utf-8")
     _here(monkeypatch, settings.repo_root.parent / "alpha" / "docs")

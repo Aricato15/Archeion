@@ -17,6 +17,6 @@ This prints each recorded port with the projects that use it, and marks a port r
 1. Run `projects ports`, and `projects show --here` if you need this project's current ports.
 2. When picking a port, follow the port rules this project's `CLAUDE.md` points to (for example a workspace's port ranges by category). Choose one that isn't in the list.
 3. The registry only knows what it records. Also check this project's own config and the docs of the projects it runs next to before you commit to a port.
-4. After the port changes in this project, the registry is out of date: offer `/archeion:report` to tell Archeion. Never edit the registry from here.
+4. After the port changes in this project, the registry is out of date: offer `/archeion:notify` to tell Archeion. Never edit the registry from here.
 
 If the command can't find Archeion, says it's too old, or says this folder isn't registered, tell the user. The messages say what to do.

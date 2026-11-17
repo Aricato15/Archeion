@@ -4,6 +4,11 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+### Changed
+- **`/archeion:report` is now `/archeion:notify`.** The old name clashed with Archeion's own `/report`, which makes a PDF report of a project (Archeion's ADR 0025). The skill does what it did: it tells Archeion about a change, or asks it a question, in Archeion's inbox, and carries on a thread when there is one. Only the name and its wording changed. `/archeion:context` and `/archeion:ports` now offer `/archeion:notify`. Update the plugin and open a new session: a session that is already running keeps the old name until then.
+
 ## [0.3.0] - 2026-11-17
 
 ### Added

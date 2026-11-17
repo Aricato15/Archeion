@@ -222,7 +222,7 @@ def list_threads(
         sql += " AND r.doc_path = ?"
         args.append(doc_path)
     sql += _sources_sql(source, "r.source", args)
-    # The project a session-started thread came from (/archeion:report) is its root's origin.
+    # The project a session-started thread came from (/archeion:notify) is its root's origin.
     sql += _sources_sql(origin, "r.origin", args)
     if kind:
         sql += " AND r.kind = ?"

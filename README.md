@@ -168,7 +168,7 @@ From a terminal, the same is `claude plugin marketplace add <path to Archeion>` 
 | `/archeion:inbox` | Picks up the feedback written for this project in the viewer, does the work and replies |
 | `/archeion:context` | Shows this project's group, what it depends on, what depends on it, and its ports |
 | `/archeion:ports` | Lists the ports already in use before you pick a new one |
-| `/archeion:report` | Sends a change, like a new port or dependency, to Archeion's inbox. Project sessions never edit the registry themselves. |
+| `/archeion:notify` | Tells Archeion about a change, like a new port or dependency, or asks it a question, in its inbox. Project sessions never edit the registry themselves. |
 | SessionStart hook | Announces waiting feedback when a session starts in a registered project |
 
 Archeion's own `.claude/settings.json` turns the plugin off here, because Archeion's session has its own `/inbox`.

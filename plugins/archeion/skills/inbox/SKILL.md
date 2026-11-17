@@ -50,7 +50,7 @@ When you answer an item, end its summary in the chat with both numbers ("#14, th
       - **review:** feedback on the doc as a whole.
       - **prompt:** a task. It may touch several files, or none.
 
-      If the request is ambiguous or risky, don't guess: reply with your question, and the user answers in the same thread. If it really belongs to another project or to the system view, say so in the reply instead of editing outside this project. `/archeion:report` can pass it to Archeion.
+      If the request is ambiguous or risky, don't guess: reply with your question, and the user answers in the same thread. If it really belongs to another project or to the system view, say so in the reply instead of editing outside this project. `/archeion:notify` can pass it to Archeion.
    4. Write the reply to a temporary file in your scratchpad directory and send it with `inbox reply <id> --file <file>`. Keep it short Markdown: what you did, which files changed (relative paths), and anything the user needs to decide. If you changed nothing, say why.
    5. If you can't finish an item, `inbox release <id>` and tell the user why in the chat.
 3. Sum up in the chat: each item handled (id, one line each) and the files changed. Don't commit on your own: offer the project's usual commit flow.

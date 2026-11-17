@@ -30,7 +30,7 @@ Copying skills into each project isn't an option:
    | `skills/inbox` (`/archeion:inbox`) | The current `project-inbox`: list, claim, do, reply |
    | `skills/context` (`/archeion:context`) | This project's group, its dependencies in both directions, its ports and its registry notes |
    | `skills/ports` (`/archeion:ports`) | The ports the registry already uses, checked before a new port is picked |
-   | `skills/report` (`/archeion:report`) | Sends a change, like a new port or a new dependency, to Archeion's own inbox |
+   | `skills/report` (`/archeion:report`, renamed `skills/notify`, see the note at the end) | Sends a change, like a new port or a new dependency, to Archeion's own inbox |
    | `hooks/hooks.json` | At SessionStart, runs `inbox count --here` and announces waiting feedback |
 
    The CLI gains what these need: `projects show --here [--json]`, `projects ports [--json]`, `inbox create [--to <project>] --file <path>` (default `--to archeion`; migration 4 adds an `origin` column, so the item records which project sent it) and `version`.
@@ -57,3 +57,7 @@ Copying skills into each project isn't an option:
 - The plugin's version says exactly when to update. A commit can't change the plugin without bumping it.
 - The plugin is in the public repo, so it stays generic: no project names, no paths. The commit hook already checks this.
 - Each release of the plugin gets a short entry in `plugins/archeion/CHANGELOG.md`, and app releases mention it when they need a newer plugin.
+
+## Amended 2026-11-18: `report` is now `notify`
+
+The plugin's `report` skill (`/archeion:report`) was renamed `notify` (`/archeion:notify`) in plugin 0.4.0. Archeion gained its own `/report`, which makes a PDF report of a project ([ADR 0025](0025-project-pdf-reports.md)), and two commands with that name did different things. The skill still sends a change or a question to Archeion's inbox and carries on a thread ([ADR 0018](0018-feedback-threads.md)). Later ADRs and notes that say `/archeion:report` mean it.

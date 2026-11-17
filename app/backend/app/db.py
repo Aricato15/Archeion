@@ -110,7 +110,7 @@ def _m3_feedback_source(conn: sqlite3.Connection) -> None:
 
 
 def _m4_feedback_origin(conn: sqlite3.Connection) -> None:
-    # Which registered project sent an item from its own session (/archeion:report,
+    # Which registered project sent an item from its own session (/archeion:notify,
     # ADR 0009). NULL: written in the viewer. A plain id, like source.
     _exec_all(conn, "ALTER TABLE feedback ADD COLUMN origin TEXT")
 

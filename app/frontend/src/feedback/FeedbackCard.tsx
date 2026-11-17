@@ -35,7 +35,7 @@ export function ProjectBadge({ id }: { id: string }) {
   )
 }
 
-/** Which project's own session sent an item (/archeion:report, ADR 0009). */
+/** Which project's own session sent an item (/archeion:notify, ADR 0009). */
 export function OriginBadge({ id }: { id: string }) {
   return (
     <Badge variant="light" size="sm" color="teal" component={Link} to={projectUrl(id)} style={{ cursor: 'pointer' }}>

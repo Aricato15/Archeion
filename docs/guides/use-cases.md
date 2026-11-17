@@ -26,7 +26,7 @@ The examples use made-up projects: `example-api`, a service, and `example-web`, 
 ### Every day: work in the project
 4. **Project's session:** work as usual. When the session starts, it says whether the viewer has feedback waiting. `/archeion:context` shows how the project fits in, and `/archeion:ports` checks a port before you take one.
 5. The project's `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md` and docs folder appear in the viewer **live and read-only**. Nothing is synced: whatever the project's session writes is what the viewer shows, with each doc's git history and diffs.
-6. **When a structural fact changes** (a port, a dependency, the status), run `/archeion:report` in the project's session. The report reaches Archeion's inbox, `/inbox` updates the registry page, and the map follows.
+6. **When a structural fact changes** (a port, a dependency, the status), run `/archeion:notify` in the project's session. The notice reaches Archeion's inbox, `/inbox` updates the registry page, and the map follows.
 
 ```mermaid
 sequenceDiagram
@@ -39,7 +39,7 @@ sequenceDiagram
   A->>V: registry page + map updated
   You->>P: work on example-api
   P-->>V: its docs, live and read-only
-  P->>A: /archeion:report (port changed)
+  P->>A: /archeion:notify (port changed)
   A->>V: /inbox: registry page updated
 ```
 
@@ -50,7 +50,7 @@ sequenceDiagram
 **Goal:** when `example-api` changes something `example-web` relies on, you see it, review it, and the right session acts on it.
 
 ### The change is reported
-1. **`example-api`'s session:** before changing an endpoint, `/archeion:context` lists who uses it (here `example-web`). After the change, `/archeion:report` says what changed and who's affected. If you ask, it can also send the item straight to `example-web`'s inbox (`--to example-web`).
+1. **`example-api`'s session:** before changing an endpoint, `/archeion:context` lists who uses it (here `example-web`). After the change, `/archeion:notify` says what changed and who's affected. If you ask, it can also send the item straight to `example-web`'s inbox (`--to example-web`).
 
 ### Review it in the viewer
 2. **Feedback:** the report shows up marked *from example-api*. The header badge counts what's waiting.
@@ -72,7 +72,7 @@ sequenceDiagram
   participant API as example-api session
   participant A as Archeion session
   participant WEB as example-web session
-  API->>A: /archeion:report (endpoint changed, used by example-web)
+  API->>A: /archeion:notify (endpoint changed, used by example-web)
   A-->>V: shows in Feedback, "from example-api"
   You->>V: review the diff, prompt on example-web's page
   V-->>WEB: item in example-web's inbox
@@ -126,7 +126,7 @@ flowchart LR
 4. **Move through the stages**, yourself: **brief** (purpose, users, scope, non-goals), **architecture** (components, interfaces, data, flows, ports and `depends_on` drawn from the model), **plan** (phases with dates, decisions as ADRs). Comment on any passage or diagram, and Claude revises. The **impact list** shows what the design asks of other projects, such as an endpoint a neighbour doesn't expose yet, with a button to send that neighbour an item.
 5. **Approve.** The viewer shows which lines of the project's registry page will change (the design's ports and `depends_on` are added to what's there, and its group and kind filled in when the page has none) and freezes a dated revision. Nothing else in the page changes.
 6. **Hand off.** **Hand off to the project** sends a design package to the project. Archeion's skill checks the setup first: if the project's `inbox_edits` is off, it offers to switch it on. Then `/inbox` copies the package into the project's `.archeion/designs/<slug>/`. In the project's session, run `/archeion:consume-design`. If there's no package, it says so and stops. Otherwise it reads the package and the project's `CLAUDE.md`, shows what it will write, and on your yes writes the design, ADRs, roadmap and `CLAUDE.md` additions in the project's own way, runs its checks, and leaves a small receipt. It doesn't commit. Then it offers to start building, with `/archeion:ports` and `/archeion:context` as usual.
-7. **While it builds,** `/archeion:report` says where the build departs from the design (its slug and revision, what it said and what the project does now), and Archeion's session updates the design or the registry. After a `/study`, the tab shows **built vs designed**. The project's own docs now hold the facts, and the registry keeps the revision as history.
+7. **While it builds,** `/archeion:notify` says where the build departs from the design (its slug and revision, what it said and what the project does now), and Archeion's session updates the design or the registry. After a `/study`, the tab shows **built vs designed**. The project's own docs now hold the facts, and the registry keeps the revision as history.
 
 ```mermaid
 sequenceDiagram
@@ -144,7 +144,7 @@ sequenceDiagram
   A-->>P: package in .archeion/designs (after checking inbox_edits)
   P->>P: /archeion:consume-design: docs, ADRs, roadmap, CLAUDE.md
   P->>P: build
-  P->>A: /archeion:report (departs from the design)
+  P->>A: /archeion:notify (departs from the design)
   A->>V: thread on the Design tab
 ```
 

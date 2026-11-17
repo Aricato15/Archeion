@@ -21,7 +21,7 @@ If the command can't find Archeion, says Archeion is too old, or says this folde
 1. Run `projects show --here`.
 2. Give the user the short version: what the project is part of, what it depends on and what depends on it, its ports, and anything in the notes that bears on what they're doing now.
 3. When a change in this session affects the projects listed under "used by" (an endpoint, a data format, a port), say so plainly. Their code is outside this project, so don't edit it.
-4. If the registry disagrees with this project (a port, a dependency, its status), the registry is out of date. Offer `/archeion:report` to tell Archeion; never edit Archeion's registry from here.
+4. If the registry disagrees with this project (a port, a dependency, its status), the registry is out of date. Offer `/archeion:notify` to tell Archeion; never edit Archeion's registry from here.
 
 ## Notes
 

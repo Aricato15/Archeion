@@ -469,7 +469,7 @@ def _caller_origin(settings: Settings, manager: SourceManager) -> str | None:
 
 
 def cmd_inbox_create(settings: Settings, args: argparse.Namespace) -> int:
-    """A new item, written from a session rather than the viewer (/archeion:report). It
+    """A new item, written from a session rather than the viewer (/archeion:notify). It
     records which registered project the caller is in as its origin (ADR 0009).
 
     With --in, it's the next message in that thread instead (ADR 0018), as a reply typed in
@@ -531,7 +531,7 @@ ACTIVE = ("open", "in_progress", "answered")
 
 def cmd_inbox_threads(settings: Settings, args: argparse.Namespace) -> int:
     """Conversations, one row per thread, most recently changed first (as the viewer lists them).
-    --from-here narrows to the threads this project started (/archeion:report), so a session
+    --from-here narrows to the threads this project started (/archeion:notify), so a session
     can find the conversation it's carrying on."""
     source = _target(settings, args)
     origin = None
