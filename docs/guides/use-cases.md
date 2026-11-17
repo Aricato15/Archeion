@@ -170,7 +170,7 @@ flowchart LR
   panel --> word{An unknown word?}
   word -- yes --> gloss[Glossary tab:<br/>search, add a term]
   word -- no --> done([Back to the flow])
-```
+```
 
 ---
 
