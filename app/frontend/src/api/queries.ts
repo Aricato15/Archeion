@@ -404,3 +404,36 @@ export const useBuiltVsDesigned = (project: string, slug: string) =>
     queryKey: ['designs', project, 'built', slug],
     queryFn: () => api<BuiltVsDesigned>(`${designPath(project, slug)}/built`),
   })
+
+// --- glossary (ADR 0023) ------------------------------------------------------------------
+
+export type GlossaryTerm = { id: string; term: string; aliases: string[]; definition: string }
+export type GlossaryInput = { term: string; definition: string; aliases: string[] }
+
+export const useGlossary = (project: string) =>
+  useQuery({
+    queryKey: ['glossary', project],
+    queryFn: () => api<GlossaryTerm[]>(`/glossary/${encodeURIComponent(project)}`),
+  })
+
+/** Add a term, or change the one with id `replace`. */
+export function useSaveTerm(project: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ replace, ...json }: GlossaryInput & { replace?: string }) =>
+      api<GlossaryTerm>(`/glossary/${encodeURIComponent(project)}${replace ? `/${encodeURIComponent(replace)}` : ''}`, {
+        method: replace ? 'PUT' : 'POST',
+        json,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['glossary', project] }),
+  })
+}
+
+export function useDeleteTerm(project: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      api<void>(`/glossary/${encodeURIComponent(project)}/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['glossary', project] }),
+  })
+}

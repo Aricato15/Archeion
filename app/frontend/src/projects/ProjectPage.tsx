@@ -40,6 +40,7 @@ import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
 import { DesignTab } from '../design/DesignTab'
 import { StudyTab } from '../study/StudyTab'
+import { GlossaryTab } from '../glossary/GlossaryTab'
 
 /** One of the project's own files, read-only, with a link to the full doc view. */
 function SourceDoc({ source, path }: { source: SourceId; path: string }) {
@@ -301,6 +302,7 @@ export function ProjectPage() {
           <Tabs.Tab value="notes">Cross-project notes</Tabs.Tab>
           <Tabs.Tab value="study">Study</Tabs.Tab>
           <Tabs.Tab value="design">Design</Tabs.Tab>
+          <Tabs.Tab value="glossary">Glossary</Tabs.Tab>
           <Tabs.Tab value="readme" disabled={!available}>
             README
           </Tabs.Tab>
@@ -344,6 +346,9 @@ export function ProjectPage() {
         </Tabs.Panel>
         <Tabs.Panel value="design" pt="md">
           <DesignTab project={project.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="glossary" pt="md">
+          <GlossaryTab project={project.id} />
         </Tabs.Panel>
         <Tabs.Panel value="readme" pt="md">
           <SourceDoc source={id} path="README.md" />

@@ -21,6 +21,7 @@ from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import designs as dz
 from .services import docs_fs, git, study_scan
 from .services import feedback as fb
+from .services import glossary as gl
 from .services import studies as st
 from .services.registry import (
     REGISTRY_ID,
@@ -827,6 +828,12 @@ def cmd_study_scan(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _print_study(study: st.Study) -> None:
+    print(_study_counts(study))
+    for w in st.structure_warnings(study):
+        print(f"Warning: {w}.")
+
+
 def _study_counts(study: st.Study) -> str:
     m = study.meta
     return (
@@ -840,7 +847,7 @@ def _study_counts(study: st.Study) -> str:
 
 def cmd_study_validate(settings: Settings, args: argparse.Namespace) -> int:
     study = st.parse_text(_read_text_arg(args.file))
-    print(_study_counts(study))
+    _print_study(study)
     print("Valid.")
     return 0
 
@@ -860,7 +867,7 @@ def cmd_study_save(settings: Settings, args: argparse.Namespace) -> int:
         study = _study_for(p, args.file)
         notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
         snap, pruned = st.save(settings.registry_root, study, notes=notes, keep=settings.study_keep)
-        print(_study_counts(study))
+        _print_study(study)
     print(f"Saved snapshot {snap.id}: registry/{st.STUDIES_DIR}/{p.id}/{snap.id}/")
     if pruned:
         print(f"Pruned {len(pruned)} older snapshot(s) (keeping {settings.study_keep}): {', '.join(pruned)}")
@@ -881,7 +888,7 @@ def cmd_study_draft_save(settings: Settings, args: argparse.Namespace) -> int:
     notes = Path(args.notes).read_text(encoding="utf-8") if args.notes else None
     draft = st.save_draft(settings.registry_root, study, notes=notes, thread=args.thread)
     thread = draft.info().get("thread")
-    print(_study_counts(study))
+    _print_study(study)
     print(
         f"Saved the draft: registry/{st.STUDIES_DIR}/{p.id}/{st.DRAFT}/"
         + (f" (thread #{thread})" if thread else "")
@@ -1439,6 +1446,43 @@ def cmd_design_discard(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _glossary_project(settings: Settings, name: str) -> None:
+    if name not in _sources(settings).registry.projects:
+        raise ValueError(f"'{name}' isn't a registered project (see: projects list)")
+
+
+def cmd_glossary_list(settings: Settings, args: argparse.Namespace) -> int:
+    _glossary_project(settings, args.project)
+    terms = gl.load(settings.registry_root, args.project)
+    if args.json:
+        _print_json(terms)
+        return 0
+    for t in terms:
+        aka = f" (aka {', '.join(t['aliases'])})" if t["aliases"] else ""
+        print(f"{t['term']}{aka}: {t['definition']}")
+    if not terms:
+        print(f"No terms yet for {args.project}.")
+    return 0
+
+
+def cmd_glossary_set(settings: Settings, args: argparse.Namespace) -> int:
+    """Add a term, or replace the one with the same name."""
+    _glossary_project(settings, args.project)
+    existing = {t["id"] for t in gl.load(settings.registry_root, args.project)}
+    raw = {"term": args.term, "definition": args.definition, "aliases": args.alias or []}
+    replace = gl.slug(args.term) if gl.slug(args.term) in existing else None
+    entry = gl.upsert(settings.registry_root, args.project, raw, replace=replace)
+    print(f"{'Updated' if replace else 'Added'} '{entry['term']}' in {args.project}.")
+    return 0
+
+
+def cmd_glossary_remove(settings: Settings, args: argparse.Namespace) -> int:
+    _glossary_project(settings, args.project)
+    gl.remove(settings.registry_root, args.project, gl.slug(args.term))
+    print(f"Removed '{args.term}' from {args.project}.")
+    return 0
+
+
 def cmd_version(settings: Settings, _: argparse.Namespace) -> int:
     print(read_version(settings.repo_root))
     return 0
@@ -1654,6 +1698,24 @@ def build_parser() -> argparse.ArgumentParser:
     dco.add_argument("--revision", type=int, required=True)
     design_cmd("discard", "delete a design and its revisions", cmd_design_discard)
 
+    glossary = sub.add_parser("glossary", help="a project's terms and jargon (ADR 0023)").add_subparsers(
+        dest="action", required=True
+    )
+    gls = glossary.add_parser("list", help="a project's terms")
+    gls.add_argument("project")
+    gls.add_argument("--json", action="store_true")
+    gls.set_defaults(func=cmd_glossary_list)
+    gst = glossary.add_parser("set", help="add a term, or replace the one with the same name")
+    gst.add_argument("project")
+    gst.add_argument("term")
+    gst.add_argument("definition")
+    gst.add_argument("--alias", action="append", help="another name for it (repeatable)")
+    gst.set_defaults(func=cmd_glossary_set)
+    grm = glossary.add_parser("remove", help="remove a term")
+    grm.add_argument("project")
+    grm.add_argument("term")
+    grm.set_defaults(func=cmd_glossary_remove)
+
     sub.add_parser("version", help="Archeion's version").set_defaults(func=cmd_version)
     return parser
 
@@ -1673,6 +1735,9 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
         return args.func(settings or Settings(), args)
     except SourceNotFound as exc:
         print(f"No project named '{exc.args[0]}'.", file=sys.stderr)
+        return 1
+    except gl.TermNotFound as exc:
+        print(f"No term '{exc.args[0]}'. See: glossary list", file=sys.stderr)
         return 1
     except st.StudyNotFound as exc:
         print(f"No study snapshot '{exc.args[0]}'. See: study list", file=sys.stderr)

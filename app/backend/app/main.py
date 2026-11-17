@@ -17,7 +17,7 @@ from .config import Settings, read_version
 from .db import Database
 from .deps import AppState, require_session
 from .paths import DocNotFound, DocPathError
-from .routers import auth, designs, docs, events, feedback, manage, responder, runner, studies
+from .routers import auth, designs, docs, events, feedback, glossary, manage, responder, runner, studies
 from .security import LoginLimiter, local_only
 from .services import git
 from .services import responder as on_demand
@@ -190,6 +190,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     protected.include_router(responder.router)
     protected.include_router(designs.router)
     protected.include_router(studies.router)
+    protected.include_router(glossary.router)
     protected.include_router(studies.system)
     app.include_router(protected)
 
