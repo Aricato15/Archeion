@@ -1,4 +1,4 @@
-import type { StudyComponent, StudyModel } from '../api/study'
+import type { StudyActivity, StudyComponent, StudyModel, StudyStates } from '../api/study'
 import type { EdgeStyle, Graph, GraphNode, NodeTone } from '../graph/graph'
 
 /** A study's components as an interactive graph (GraphView): nested by parent, arrows from relations. */
@@ -133,4 +133,42 @@ export function foldedAtDepth(graph: Graph, depth: number): string[] {
     return n
   }
   return [...hasKids].filter((id) => level(id) >= depth)
+}
+
+// --- states and activities -------------------------------------------------------------------
+
+/** A state machine as a graph: states as rounded boxes, the initial one green and the final ones red. */
+export function stateGraph(m: StudyStates): Graph {
+  const finals = new Set(m.final ?? [])
+  const nodes: GraphNode[] = m.states.map((s) => ({
+    id: s.id,
+    label: s.label || s.id,
+    shape: 'round',
+    sublabel: s.id === m.initial ? 'initial' : finals.has(s.id) ? 'final' : undefined,
+    tone: s.id === m.initial ? 'green' : finals.has(s.id) ? 'red' : 'default',
+  }))
+  const ids = new Set(m.states.map((s) => s.id))
+  const edges = m.transitions
+    .filter((t) => ids.has(t.from) && ids.has(t.to))
+    .map((t, i) => ({ id: `t${i}`, from: t.from, to: t.to, label: t.label }))
+  return { nodes, edges }
+}
+
+/** An activity as a flowchart: start and end as round boxes, decisions in orange, actions plain. */
+export function activityGraph(a: StudyActivity): Graph {
+  const nodes: GraphNode[] = a.nodes.map((n) => {
+    const kind = n.kind ?? 'action'
+    return {
+      id: n.id,
+      label: n.label || (kind === 'start' ? 'Start' : kind === 'end' ? 'End' : n.id),
+      shape: kind === 'start' || kind === 'end' ? 'round' : 'box',
+      sublabel: kind === 'decision' ? 'decision' : undefined,
+      tone: kind === 'start' ? 'green' : kind === 'end' ? 'red' : kind === 'decision' ? 'orange' : 'default',
+    }
+  })
+  const ids = new Set(a.nodes.map((n) => n.id))
+  const edges = a.edges
+    .filter((e) => ids.has(e.from) && ids.has(e.to))
+    .map((e, i) => ({ id: `e${i}`, from: e.from, to: e.to, label: e.label }))
+  return { nodes, edges }
 }

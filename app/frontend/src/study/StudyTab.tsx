@@ -37,7 +37,10 @@ import { ComponentDetails } from './ComponentDetails'
 import { StartStudyButton } from './StartStudy'
 import { activity, componentMap, erDiagram, erNames, sequence, stateDiagram } from './mermaid'
 import type { LabelActions } from '../docs/DiagramFrame'
-import { componentGraph, foldedAtDepth } from './graph'
+import { activityGraph, componentGraph, foldedAtDepth, stateGraph } from './graph'
+import { ActivityNode, StateNode } from './NodeDetails'
+import { SequenceView } from './SequenceView'
+import { ViewSwitch } from './ViewSwitch'
 import { SchemaLegend } from './SchemaLegend'
 import { LazyGraph } from '../graph/LazyGraph'
 
@@ -222,7 +225,7 @@ export function StudyTab({ project }: { project: Project }) {
       <SegmentedControl
         size="xs"
         value={view}
-        onChange={(v) => set({ view: v === 'overview' ? null : v, item: null, focus: null })}
+        onChange={(v) => set({ view: v === 'overview' ? null : v, item: null, focus: null, show: null, node: null })}
         data={VIEWS.map(([value, text]) => ({
           value,
           label: countOf[value] !== undefined ? `${text} ${countOf[value]}` : text,
@@ -370,6 +373,14 @@ function OverviewView({ model, set }: ViewProps) {
 
 // --- components ------------------------------------------------------------------------------
 
+/** The folded boxes, minus the ones that hide `id`, so a component sent here from elsewhere is in view. */
+function openTo(folded: string[], id: string | null, byId: Map<string, { parent?: string | null }>): string[] {
+  if (!id) return folded
+  const open = new Set<string>()
+  for (let cur = byId.get(id)?.parent; cur && !open.has(cur); cur = byId.get(cur)?.parent) open.add(cur)
+  return folded.filter((f) => !open.has(f))
+}
+
 function ComponentsView({ model, params, set, ask }: ViewProps) {
   const [depth, setDepth] = useState(2)
   const [showImports, setShowImports] = useState(false)
@@ -377,6 +388,7 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
   const [mode, setMode] = useState<'graph' | 'diagram'>('graph')
   const focus = params.get('focus')
   const selected = params.get('item')
+  const shown = params.get('show')
   const byId = new Map(model.components.map((c) => [c.id, c]))
   const hideKinds = showImports ? [] : ['imports']
   const code = mode === 'diagram' ? componentMap(model, { focus, depth, hideKinds }) : ''
@@ -429,12 +441,12 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
         {mode === 'graph' ? (
           graph.nodes.length ? (
             <LazyGraph
-              key={`${focus ?? ''}|${depth}|${showImports}`}
+              key={`${focus ?? ''}|${depth}|${showImports}|${shown ?? ''}`}
               graph={graph}
               height={520}
               minimap
-              selected={selected}
-              initialFolded={foldedAtDepth(graph, depth)}
+              selected={selected ?? shown}
+              initialFolded={openTo(foldedAtDepth(graph, depth), shown, byId)}
               onSelect={(id) => set({ item: id })}
               onOpen={(id) => (hasKids.has(id) ? set({ focus: id, item: null }) : set({ item: id }))}
             />
@@ -502,6 +514,7 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
             id={selected}
             onSelect={(id) => set({ item: id })}
             onFocus={(id) => set({ focus: id, item: null })}
+            onShowInMap={(id) => set({ focus: byId.get(id)?.parent ?? null, item: null, show: id })}
             onAsk={(id) => ask(id, 'component')}
           />
         )}
@@ -539,6 +552,8 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
   draw,
   extra,
   labels,
+  interactive,
+  details,
 }: Pick<ViewProps, 'params' | 'set' | 'ask'> & {
   items: T[]
   what: StudyElementKind
@@ -546,13 +561,19 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
   extra?: (item: T) => React.ReactNode
   /** Labels in the diagram that act as links (e.g. a flow's participants). */
   labels?: (item: T) => LabelActions
+  /** The interactive drawing of an item; the Mermaid one is kept behind a switch. */
+  interactive?: (item: T, open: (id: string) => void, selected: string | null) => React.ReactNode
+  /** The side panel for a clicked box in the interactive view. */
+  details?: (item: T, id: string, open: (id: string) => void) => React.ReactNode
 }) {
   const current = items.find((i) => i.id === params.get('item')) ?? items[0]
   if (!current) return <Text c="dimmed">None in this study.</Text>
+  const node = params.get('node')
+  const open = (id: string) => set({ node: id })
   return (
     <SimpleGrid cols={{ base: 1, md: 4 }} spacing="md">
       <Card withBorder radius="md" padding="xs" style={{ gridColumn: 'span 1' }}>
-        <Picker items={items} selected={current.id} onSelect={(id) => set({ item: id })} />
+        <Picker items={items} selected={current.id} onSelect={(id) => set({ item: id, node: null })} />
       </Card>
       <Stack gap="sm" style={{ gridColumn: 'span 3' }}>
         <Group justify="space-between">
@@ -564,10 +585,21 @@ function DiagramList<T extends { id: string; title: string; summary?: string; ci
         {extra?.(current)}
         {current.summary && <Text size="sm">{current.summary}</Text>}
         <Card withBorder radius="md">
-          <MermaidBlock code={draw(current)} labels={labels?.(current)} title={current.title} />
+          {interactive ? (
+            <ViewSwitch
+              key={current.id}
+              interactive={interactive(current, open, node)}
+              mermaid={<MermaidBlock code={draw(current)} labels={labels?.(current)} title={current.title} />}
+            />
+          ) : (
+            <MermaidBlock code={draw(current)} labels={labels?.(current)} title={current.title} />
+          )}
         </Card>
         <Cites cites={current.cites} />
       </Stack>
+      <Drawer opened={Boolean(node && details)} onClose={() => set({ node: null })} position="right" size="md" title={what === 'flow' ? 'Component' : 'Details'}>
+        {node && details?.(current, node, open)}
+      </Drawer>
     </SimpleGrid>
   )
 }
@@ -579,11 +611,25 @@ function FlowsView({ model, ...rest }: ViewProps) {
       items={model.flows}
       what="flow"
       draw={(f) => sequence(f, model.components)}
+      // A click opens the component's panel here, and leaves the flow on screen.
+      interactive={(f, open) => <SequenceView flow={f} components={model.components} onOpen={open} />}
+      details={(_, id, open) => (
+        <ComponentDetails
+          model={model}
+          id={id}
+          onSelect={open}
+          onFocus={(x) => rest.set({ view: 'components', focus: x, item: null, node: null, show: null })}
+          onShowInMap={(x) => {
+            // The map around its parent, so the component is drawn among its neighbours, and highlighted.
+            const parent = model.components.find((c) => c.id === x)?.parent ?? null
+            rest.set({ view: 'components', focus: parent, item: null, node: null, show: x })
+          }}
+          onAsk={(x) => rest.ask(x, 'component')}
+        />
+      )}
       labels={(f) => {
         const names = new Map(model.components.map((c) => [c.id, c.name]))
-        return Object.fromEntries(
-          f.participants.map((id) => [names.get(id) ?? id, () => rest.set({ view: 'components', item: id, focus: null })]),
-        )
+        return Object.fromEntries(f.participants.map((id) => [names.get(id) ?? id, () => rest.set({ node: id })]))
       }}
       extra={(f) =>
         f.trigger && (
@@ -597,7 +643,18 @@ function FlowsView({ model, ...rest }: ViewProps) {
 }
 
 function LogicView({ model, ...rest }: ViewProps) {
-  return <DiagramList {...rest} items={model.activities} what="activity" draw={activity} />
+  return (
+    <DiagramList
+      {...rest}
+      items={model.activities}
+      what="activity"
+      draw={activity}
+      interactive={(a, open, sel) => (
+        <LazyGraph key={a.id} graph={activityGraph(a)} direction="TB" height={460} selected={sel} onSelect={open} />
+      )}
+      details={(a, id, open) => <ActivityNode a={a} id={id} onSelect={open} />}
+    />
+  )
 }
 
 function StatesView({ model, ...rest }: ViewProps) {
@@ -608,6 +665,10 @@ function StatesView({ model, ...rest }: ViewProps) {
       items={model.states}
       what="state machine"
       draw={stateDiagram}
+      interactive={(m, open, sel) => (
+        <LazyGraph key={m.id} graph={stateGraph(m)} direction="LR" height={420} selected={sel} onSelect={open} />
+      )}
+      details={(m, id, open) => <StateNode m={m} id={id} onSelect={open} />}
       extra={(m) =>
         m.entity && (
           <Text size="sm" c="dimmed">

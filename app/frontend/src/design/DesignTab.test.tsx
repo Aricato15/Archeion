@@ -142,6 +142,8 @@ describe('DesignTab', () => {
     expect(screen.getByText('draft')).toBeTruthy()
     expect(await screen.findByText(/Example keeps the items/)).toBeTruthy()
     fireEvent.click(screen.getByText('Architecture'))
+    // Interactive views first; Mermaid is behind a switch on each diagram.
+    fireEvent.click((await screen.findAllByText('Mermaid'))[0])
     const diagram = await screen.findByTestId('mermaid')
     expect(diagram.textContent).toContain('example.db')
     expect(screen.getByText('/api/items', { exact: false })).toBeTruthy()

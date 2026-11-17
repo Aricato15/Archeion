@@ -70,7 +70,10 @@ function renderTab(path = '/projects/example?tab=study') {
   )
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  localStorage.clear() // the Interactive / Mermaid choice is remembered
+})
 
 describe('StudyTab', () => {
   it('offers to ask for a study when there is none', async () => {
@@ -100,10 +103,33 @@ describe('StudyTab', () => {
   it('opens a flow as a sequence diagram and a component in the details drawer', async () => {
     mockApi([row])
     renderTab('/projects/example?tab=study&view=flows')
+    // The interactive view first, with Mermaid one click away.
+    expect(await screen.findByLabelText('Find in the flow')).toBeTruthy()
+    fireEvent.click(screen.getByText('Mermaid'))
     expect((await screen.findByTestId('mermaid')).textContent).toContain('sequenceDiagram')
     renderTab('/projects/example?tab=study&view=components&item=api')
     expect((await screen.findAllByText('Serves things.')).length).toBe(2) // the table and the drawer
     expect(screen.getByText('src/app.py:3')).toBeTruthy()
+  })
+
+  it('opens a participant panel on a flow without leaving the flow', async () => {
+    mockApi([row])
+    const { container } = renderTab('/projects/example?tab=study&view=flows')
+    await screen.findByLabelText('Find in the flow')
+    fireEvent.click(container.querySelector('[data-lane="api"]')!)
+    expect(await screen.findByText('Serves things.')).toBeTruthy()
+    expect(screen.getByLabelText('Find in the flow')).toBeTruthy()
+  })
+
+  it('sends a flow participant to the component map from its panel', async () => {
+    mockApi([row])
+    const { container } = renderTab('/projects/example?tab=study&view=flows')
+    await screen.findByLabelText('Find in the flow')
+    fireEvent.click(container.querySelector('[data-lane="api"]')!)
+    fireEvent.click(await screen.findByRole('button', { name: 'Show in the component map' }))
+    // The flow is gone and the component map (with its Find box) is showing.
+    await waitFor(() => expect(screen.queryByLabelText('Find in the flow')).toBeNull())
+    expect(await screen.findByLabelText('Find in the map')).toBeTruthy()
   })
 
   it('shows a study in progress with a link to its conversation', async () => {

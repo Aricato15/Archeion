@@ -48,6 +48,10 @@ import { REGISTRY, SELF } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { MermaidBlock } from '../docs/MermaidBlock'
+import { LazyGraph } from '../graph/LazyGraph'
+import { componentGraph } from '../study/graph'
+import { SequenceView } from '../study/SequenceView'
+import { ViewSwitch } from '../study/ViewSwitch'
 import { componentMap, erDiagram, sequence } from '../study/mermaid'
 
 const VIEWS = [
@@ -374,14 +378,20 @@ function Architecture({ design, base }: { design: DesignFull; base: string }) {
           {model.components.length > 0 && (
             <Stack gap="xs">
               <Title order={4}>Components</Title>
-              <MermaidBlock code={componentMap(model)} title="Components" />
+              <ViewSwitch
+                interactive={<LazyGraph graph={componentGraph(model)} height={520} minimap />}
+                mermaid={<MermaidBlock code={componentMap(model)} title="Components" />}
+              />
             </Stack>
           )}
           {model.flows.map((f) => (
             <Stack key={f.id} gap="xs">
               <Title order={4}>{f.title}</Title>
               {f.summary && <Text size="sm">{f.summary}</Text>}
-              <MermaidBlock code={sequence(f, model.components)} title={f.title} />
+              <ViewSwitch
+                interactive={<SequenceView flow={f} components={model.components} />}
+                mermaid={<MermaidBlock code={sequence(f, model.components)} title={f.title} />}
+              />
             </Stack>
           ))}
           {model.entities.length > 0 && (

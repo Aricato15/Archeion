@@ -10,12 +10,15 @@ export function ComponentDetails({
   id,
   onSelect,
   onFocus,
+  onShowInMap,
   onAsk,
 }: {
   model: StudyModel
   id: string
   onSelect: (id: string) => void
   onFocus?: (id: string) => void
+  /** Open the component map around this component, with it highlighted. */
+  onShowInMap?: (id: string) => void
   onAsk?: (id: string) => void
 }) {
   const byId = new Map(model.components.map((c) => [c.id, c]))
@@ -54,6 +57,11 @@ export function ComponentDetails({
         </Group>
       ) : null}
       <Group gap="xs">
+        {onShowInMap && (
+          <Button size="xs" variant="light" onClick={() => onShowInMap(id)}>
+            Show in the component map
+          </Button>
+        )}
         {onFocus && children.length > 0 && (
           <Button size="xs" variant="light" onClick={() => onFocus(id)}>
             Show its insides
