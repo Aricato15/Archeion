@@ -170,4 +170,39 @@ flowchart LR
   panel --> word{An unknown word?}
   word -- yes --> gloss[Glossary tab:<br/>search, add a term]
   word -- no --> done([Back to the flow])
+```
+
+---
+
+## 6. Hand someone a report of a project
+
+**Goal:** someone who can't open the viewer needs the whole picture of a project: what it is, how it's built, how it connects, and what to watch. You want one PDF with the diagrams in it.
+
+### a) The plain report: you decide what's in it
+
+1. **Viewer, the project's page:** if the study is out of date, run `/study <project> --refresh` in Archeion's session first (the report's diagrams are only as current as the study). Make sure the viewer is running (`start.bat`), because the PDF is printed from it.
+2. **Report, Standard:** tick the sections you want. Sections with no source (no design yet, no glossary) are greyed out with the reason. Drag the sections into the order you want. The sub-system diagrams sit under the component map, one per part.
+3. Set the title, page size and whether to have a cover and contents, **Save preset** if you'll want it again, and **Generate PDF**.
+4. **Open** it in its own tab or **Download** it. It's listed on the **Reports** tab. Wide diagrams are on landscape pages.
+5. From a terminal the same is `/report <project>`.
+
+### b) The guided report: you say who it's for, Claude plans it
+
+1. **Report, Guided:** write what you need ("an overview for the executive team: what it does, how healthy it is, the risks"), and, if you want, the structure ("1. Overview, 2. How it connects, 3. Data and risks"). **Ask Claude to plan the report** opens a thread.
+2. **Archeion's session (or on-demand Claude):** reads the sources, then replies in the thread with the plan, a numbered list marking which sections are written by Claude and which are shown as they are, and any questions.
+3. **Viewer, Report, Guided:** the plan appears. Read the sections Claude wrote (each lists the sections it drew on), drop what you don't want, drag the rest into order. Reply in the thread to change the text or the structure: Claude changes only what you asked and keeps your edits.
+4. **Approve and build.** The PDF is made, with "Written by Claude" on every section Claude wrote. Sections of the project's own docs and diagrams are never rewritten.
+
+```mermaid
+flowchart LR
+  fresh{Study up to date?} -- no --> refresh["/study --refresh"] --> mode
+  fresh -- yes --> mode{Who decides<br/>what's in it?}
+  mode -- you --> std[Report, Standard:<br/>tick, order, Generate PDF]
+  mode -- Claude, from your prompt --> ask[Report, Guided:<br/>Ask Claude to plan]
+  ask --> thread[Thread: plan and questions]
+  thread --> review[Review the plan:<br/>reorder, drop, ask for changes]
+  review --> approve[Approve and build]
+  std --> pdf[(PDF in registry/reports)]
+  approve --> pdf
+  pdf --> open[Reports tab:<br/>open, download, check]
 ```

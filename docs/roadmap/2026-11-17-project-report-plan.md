@@ -1,6 +1,6 @@
 # Plan: project PDF reports
 
-_Written 2026-11-17. Implements [ADR 0025](../decisions/0025-project-pdf-reports.md), planned for 1.3.0. Branch: `feat/project-pdf-report`. Status: planned, nothing built._
+_Written 2026-11-17. Implements [ADR 0025](../decisions/0025-project-pdf-reports.md), planned for 1.3.0. Branch: `feat/project-pdf-report`. Status (2026-11-18): all six phases are built, with tests, and checked by building real reports and driving the viewer in Edge. Released in 1.3.0. What changed from the plan is in [ADR 0025](../decisions/0025-project-pdf-reports.md): a session of its own for the renderer instead of a one-time token, and no iframe (a report opens in its own tab)._
 
 ```mermaid
 flowchart LR
