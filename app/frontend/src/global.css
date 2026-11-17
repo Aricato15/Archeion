@@ -60,10 +60,42 @@
   color: var(--mantine-color-blue-filled);
 }
 .diagram-frame .diagram-toolbar {
-  opacity: 0.55;
+  opacity: 1;
   transition: opacity 120ms;
 }
 .diagram-frame:hover .diagram-toolbar,
 .diagram-frame:focus-within .diagram-toolbar {
   opacity: 1;
+}
+
+/* DiagramFrame: search hits and hover highlights, on Mermaid's output. */
+.mermaid-block text.diagram-hit,
+.mermaid-block tspan.diagram-hit,
+.mermaid-block text.diagram-hover,
+.mermaid-block tspan.diagram-hover {
+  paint-order: stroke;
+  stroke: var(--mantine-color-yellow-filled);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.mermaid-block span.diagram-hit,
+.mermaid-block div.diagram-hit,
+.mermaid-block p.diagram-hit,
+.mermaid-block span.diagram-hover,
+.mermaid-block div.diagram-hover,
+.mermaid-block p.diagram-hover {
+  background: color-mix(in srgb, var(--mantine-color-yellow-filled) 55%, transparent);
+  border-radius: 3px;
+}
+.mermaid-block .diagram-hit-node,
+.mermaid-block .diagram-hover-node {
+  filter: drop-shadow(0 0 4px var(--mantine-color-yellow-filled));
+}
+.mermaid-block.diagram-searching .node:not(.diagram-hit-node):not(:has(.diagram-hit)),
+.mermaid-block.diagram-searching .cluster:not(.diagram-hit-node):not(:has(.diagram-hit)),
+.mermaid-block.diagram-searching text:not(.diagram-hit):not(.diagram-hit-node):not(:has(.diagram-hit)) {
+  opacity: 0.25;
+}
+.mermaid-block.diagram-hovering .node:not(.diagram-hover-node):not(:has(.diagram-hover)) {
+  opacity: 0.5;
 }

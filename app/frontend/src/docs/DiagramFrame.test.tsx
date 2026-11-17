@@ -17,7 +17,7 @@ function show(labels = {}) {
 }
 
 describe('DiagramFrame', () => {
-  it('zooms with the buttons and Ctrl+wheel, but lets a plain wheel scroll the page', () => {
+  it('zooms with the buttons and the wheel', () => {
     const { inner } = show()
     expect(screen.getByText('100%')).toBeTruthy()
     fireEvent.click(screen.getByLabelText('Zoom in'))
@@ -27,9 +27,9 @@ describe('DiagramFrame', () => {
     expect(inner.style.transform).toContain('scale(1)')
     const viewport = inner.parentElement!
     fireEvent.wheel(viewport, { deltaY: -100 })
-    expect(screen.getByText('100%')).toBeTruthy()
-    fireEvent.wheel(viewport, { deltaY: -100, ctrlKey: true })
     expect(screen.getByText('112%')).toBeTruthy()
+    fireEvent.wheel(viewport, { deltaY: 100 })
+    expect(screen.getByText('100%')).toBeTruthy()
   })
 
   it('pans by dragging', () => {
@@ -73,4 +73,25 @@ it('bindLabels binds the innermost match only and cleans up', () => {
   expect(f).toHaveBeenCalledTimes(1)
   off()
   expect(root.querySelectorAll('.diagram-link')).toHaveLength(0)
+})
+
+describe('diagram search and hover', () => {
+  it('highlights matching labels ignoring case, and clears them', () => {
+    const { inner } = show()
+    fireEvent.change(screen.getByLabelText('Find in the diagram'), { target: { value: 'ROUT' } })
+    expect(inner.querySelectorAll('.diagram-hit')).toHaveLength(1)
+    expect(inner.classList.contains('diagram-searching')).toBe(true)
+    fireEvent.change(screen.getByLabelText('Find in the diagram'), { target: { value: '' } })
+    expect(inner.querySelectorAll('.diagram-hit')).toHaveLength(0)
+    expect(inner.classList.contains('diagram-searching')).toBe(false)
+  })
+
+  it('lights up every label with the same text on hover', () => {
+    const { inner } = show()
+    const label = inner.querySelector('text')!
+    fireEvent.mouseOver(label)
+    expect(inner.querySelectorAll('.diagram-hover')).toHaveLength(1)
+    fireEvent.mouseLeave(inner)
+    expect(inner.querySelectorAll('.diagram-hover')).toHaveLength(0)
+  })
 })
