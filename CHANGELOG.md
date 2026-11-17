@@ -7,6 +7,18 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-17
+
+### Changed
+- **Maps are easier to read** (proposal: [keeping the maps readable](docs/roadmap/2026-11-17-diagram-scaling-proposal.md)). Lines now follow the routes ELK finds around the boxes instead of cutting through them, edge labels get room in the layout, and box widths are measured from the real font. Past 40 edges the labels show only for the hovered box, and past 60 the lines are faint until you hover. Every map has a **Find a box** search that opens the boxes hiding a match and zooms to it.
+- **Interactive flows, logic and states, with a Mermaid switch** ([ADR 0024](docs/decisions/0024-interactive-study-views.md)). In the Study tab (and the Design tab's components and flows) each of these opens as an interactive view, and an **Interactive / Mermaid** switch (remembered) shows the Mermaid drawing instead. Flows are an interactive sequence diagram: hover a participant to see only its messages, hover a message for who it joins and its full text, click a participant to open the component, search, zoom and pan. Logic and states are graphs like the component maps (hover, search, zoom). Clicking a box opens a side panel in place and stays on the diagram: a participant opens its component's details (with a **Show in the component map** button that opens the map around that component, highlighted), a state or an activity step shows what leads into it and out of it. The Find and zoom controls of a Mermaid diagram now sit above it instead of over its labels.
+- **Mermaid diagrams are interactive.** Every one (flows, activities, ER, states, and the diagrams in docs and in the Design tab) has a **Find** box that highlights matching labels (ignoring case) and dims the rest, **Enter** pans the first match to the middle and **Esc** clears it. Hovering a box or label lights up every label with the same text, such as a participant's name at the top and bottom of a sequence diagram. Dragging no longer selects the text.
+- The wheel zooms every Mermaid diagram (flows, ER, states) when the pointer is over it. It used to need Ctrl inline and scrolled the page.
+- `study validate`, `study save` and `study draft save` warn when a level of the component tree holds more than 12 components, and the `/study` and `/design` skills now tell Claude to shape the tree top-down with named sub-groups of about 5 to 9.
+
+### Added
+- **A Glossary tab on each project page** ([ADR 0023](docs/decisions/0023-project-glossaries.md)). It keeps the project's terms and jargon with what they mean, and its search box matches names, aliases and meanings, ignoring case. Add, edit and delete terms in the viewer. They're kept in the private registry (`registry/glossary/<project>.json`). Claude fills it with the CLI `glossary list|set|remove <project>`. API: `GET`/`POST /api/glossary/{project}`, `PUT`/`DELETE /api/glossary/{project}/{term}`.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added
