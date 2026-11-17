@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     registry_dir: str = "registry"
     # Code study snapshots kept per project in registry/studies/ (ADR 0019).
     study_keep: int = 10
+    # The Edge executable that renders PDF reports (ADR 0025); empty: look in the usual places.
+    report_browser: str = ""
 
     # Not meant for .env: tests point these at a temporary repo.
     repo_root: Path = REPO_ROOT

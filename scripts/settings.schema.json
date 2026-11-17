@@ -54,6 +54,13 @@
           "default": "10",
           "min": 1,
           "description": "How many code study snapshots to keep per project in registry/studies/ (ADR 0019). Saving a new study prunes the oldest beyond this."
+        },
+        {
+          "name": "ARCHEION_REPORT_BROWSER",
+          "type": "string",
+          "optional": true,
+          "default": "",
+          "description": "Optional: the Edge executable that renders PDF reports (ADR 0025), if it isn't found on its own. Leave empty to look for it in the usual places."
         }
       ]
     },

@@ -22,6 +22,7 @@ from .services import designs as dz
 from .services import docs_fs, git, study_scan
 from .services import feedback as fb
 from .services import glossary as gl
+from .services import reports as rp
 from .services import studies as st
 from .services.registry import (
     REGISTRY_ID,
@@ -1483,6 +1484,112 @@ def cmd_glossary_remove(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def _report_project(settings: Settings, name: str) -> SourceManager:
+    manager = _sources(settings)
+    if name not in manager.registry.projects:
+        raise ValueError(f"'{name}' isn't a registered project (see: projects list)")
+    return manager
+
+
+def _report_catalog(settings: Settings, name: str) -> tuple[SourceManager, list[dict]]:
+    manager = _report_project(settings, name)
+    return manager, rp.catalog(manager, settings.registry_root, name)
+
+
+def cmd_report_preflight(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _report_project(settings, args.project)
+    result = rp.preflight(manager, settings.registry_root, args.project, settings.report_browser)
+    if args.json:
+        _print_json(result)
+        return 0 if result["ok"] else 1
+    print(f"{args.project}: {result['available']} of {result['sections']} sections have a source.")
+    print(f"  renderer (headless Edge): {'found' if result['browser'] else 'NOT found'}")
+    print(f"  latest study: {result['study'] or 'none'}")
+    for u in result["unavailable"]:
+        print(f"  unavailable: {u['id']} ({u['reason']})")
+    for problem in result["problems"]:
+        print(f"  problem: {problem}")
+    return 0 if result["ok"] else 1
+
+
+def cmd_report_catalog(settings: Settings, args: argparse.Namespace) -> int:
+    _, entries = _report_catalog(settings, args.project)
+    if args.json:
+        _print_json(entries)
+        return 0
+    group = None
+    for e in entries:
+        if e["group"] != group:
+            group = e["group"]
+            print(rp.GROUP_TITLES[group])
+        mark = " " if e["available"] else "x"
+        why = "" if e["available"] else f"  ({e['reason']})"
+        print(f"  [{mark}] {e['id']}: {e['title']}{why}")
+    return 0
+
+
+def _read_preset_file(path: str) -> object:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"{path} isn't valid JSON: {exc}") from exc
+
+
+def cmd_report_validate(settings: Settings, args: argparse.Namespace) -> int:
+    _, entries = _report_catalog(settings, args.project)
+    preset = rp.validate_preset(_read_preset_file(args.file), entries)
+    print(f"OK: '{preset['name']}' ({preset['mode']}) holds {len(preset['sections'])} sections.")
+    return 0
+
+
+def cmd_report_preset_save(settings: Settings, args: argparse.Namespace) -> int:
+    _, entries = _report_catalog(settings, args.project)
+    preset = rp.save_preset(settings.registry_root, args.project, _read_preset_file(args.file), entries)
+    print(f"Saved the preset '{preset['name']}' of {args.project}: {len(preset['sections'])} sections.")
+    return 0
+
+
+def cmd_report_preset_list(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    presets = rp.list_presets(settings.registry_root, args.project)
+    if args.json:
+        _print_json(presets)
+        return 0
+    for p in presets:
+        print(f"{p['name']} ({p['mode']}): {len(p['sections'])} sections")
+    if not presets:
+        print(f"No presets yet for {args.project}.")
+    return 0
+
+
+def cmd_report_preset_show(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    _print_json(rp.get_preset(settings.registry_root, args.project, args.name))
+    return 0
+
+
+def cmd_report_preset_delete(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    rp.delete_preset(settings.registry_root, args.project, args.name)
+    print(f"Deleted the preset '{args.name}' of {args.project}.")
+    return 0
+
+
+def cmd_report_default(settings: Settings, args: argparse.Namespace) -> int:
+    """A starting standard preset: every available section, in catalog order."""
+    _, entries = _report_catalog(settings, args.project)
+    _print_json(
+        {
+            "name": args.name,
+            "mode": "standard",
+            "title": "",
+            "options": rp.DEFAULT_OPTIONS,
+            "sections": [{"id": i} for i in rp.default_sections(entries)],
+        }
+    )
+    return 0
+
+
 def cmd_version(settings: Settings, _: argparse.Namespace) -> int:
     print(read_version(settings.repo_root))
     return 0
@@ -1716,6 +1823,45 @@ def build_parser() -> argparse.ArgumentParser:
     grm.add_argument("term")
     grm.set_defaults(func=cmd_glossary_remove)
 
+    report = sub.add_parser("report", help="PDF reports of a project (ADR 0025)").add_subparsers(
+        dest="action", required=True
+    )
+    rpf = report.add_parser("preflight", help="what a report of the project can use, and what is missing")
+    rpf.add_argument("project")
+    rpf.add_argument("--json", action="store_true")
+    rpf.set_defaults(func=cmd_report_preflight)
+    rct = report.add_parser("catalog", help="every section a report of the project can hold")
+    rct.add_argument("project")
+    rct.add_argument("--json", action="store_true")
+    rct.set_defaults(func=cmd_report_catalog)
+    rdf = report.add_parser("default", help="print a starting standard preset (every available section)")
+    rdf.add_argument("project")
+    rdf.add_argument("--name", default="full")
+    rdf.set_defaults(func=cmd_report_default)
+    rva = report.add_parser("validate", help="check a preset file against the catalog without saving it")
+    rva.add_argument("project")
+    rva.add_argument("--file", required=True)
+    rva.set_defaults(func=cmd_report_validate)
+    preset = report.add_parser("preset", help="saved presets of a project").add_subparsers(
+        dest="preset_action", required=True
+    )
+    rpl = preset.add_parser("list", help="a project's presets")
+    rpl.add_argument("project")
+    rpl.add_argument("--json", action="store_true")
+    rpl.set_defaults(func=cmd_report_preset_list)
+    rps = preset.add_parser("show", help="one preset, as JSON")
+    rps.add_argument("project")
+    rps.add_argument("name")
+    rps.set_defaults(func=cmd_report_preset_show)
+    rpv = preset.add_parser("save", help="validate a preset file and store it")
+    rpv.add_argument("project")
+    rpv.add_argument("--file", required=True)
+    rpv.set_defaults(func=cmd_report_preset_save)
+    rpd = preset.add_parser("delete", help="delete a preset")
+    rpd.add_argument("project")
+    rpd.add_argument("name")
+    rpd.set_defaults(func=cmd_report_preset_delete)
+
     sub.add_parser("version", help="Archeion's version").set_defaults(func=cmd_version)
     return parser
 
@@ -1735,6 +1881,9 @@ def main(argv: list[str] | None = None, settings: Settings | None = None) -> int
         return args.func(settings or Settings(), args)
     except SourceNotFound as exc:
         print(f"No project named '{exc.args[0]}'.", file=sys.stderr)
+        return 1
+    except rp.PresetNotFound as exc:
+        print(f"No preset '{exc.args[0]}'. See: report preset list", file=sys.stderr)
         return 1
     except gl.TermNotFound as exc:
         print(f"No term '{exc.args[0]}'. See: glossary list", file=sys.stderr)
