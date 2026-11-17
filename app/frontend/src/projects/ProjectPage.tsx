@@ -16,7 +16,7 @@ import {
   Text,
   Title,
 } from '@mantine/core'
-import { IconExternalLink, IconFileText, IconMessagePlus } from '@tabler/icons-react'
+import { IconExternalLink, IconFileText, IconFileTypePdf, IconMessagePlus } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
@@ -41,6 +41,8 @@ import { RegistryMap } from './RegistryMap'
 import { DesignTab } from '../design/DesignTab'
 import { StudyTab } from '../study/StudyTab'
 import { GlossaryTab } from '../glossary/GlossaryTab'
+import { ReportDialog } from '../report/ReportDialog'
+import { ReportTab } from '../report/ReportTab'
 
 /** One of the project's own files, read-only, with a link to the full doc view. */
 function SourceDoc({ source, path }: { source: SourceId; path: string }) {
@@ -210,6 +212,7 @@ export function ProjectPage() {
   const tree = useTree(id, available && tab === 'docs')
   const feedback = useFeedbackList({ source: id }, available)
   const [draft, setDraft] = useState<FeedbackDraft | null>(null)
+  const [reportOpen, setReportOpen] = useState(false)
 
   if (registry.isPending) return <Loader />
   if (!registry.data || !project) {
@@ -249,6 +252,14 @@ export function ProjectPage() {
               Prompt for {project.id}
             </Button>
           )}
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<IconFileTypePdf size={14} />}
+            onClick={() => setReportOpen(true)}
+          >
+            Report
+          </Button>
           <Button
             size="xs"
             variant="default"
@@ -303,6 +314,7 @@ export function ProjectPage() {
           <Tabs.Tab value="study">Study</Tabs.Tab>
           <Tabs.Tab value="design">Design</Tabs.Tab>
           <Tabs.Tab value="glossary">Glossary</Tabs.Tab>
+          <Tabs.Tab value="reports">Reports</Tabs.Tab>
           <Tabs.Tab value="readme" disabled={!available}>
             README
           </Tabs.Tab>
@@ -350,6 +362,9 @@ export function ProjectPage() {
         <Tabs.Panel value="glossary" pt="md">
           <GlossaryTab project={project.id} />
         </Tabs.Panel>
+        <Tabs.Panel value="reports" pt="md">
+          <ReportTab project={project.id} />
+        </Tabs.Panel>
         <Tabs.Panel value="readme" pt="md">
           <SourceDoc source={id} path="README.md" />
         </Tabs.Panel>
@@ -383,6 +398,7 @@ export function ProjectPage() {
         </Tabs.Panel>
       </Tabs>
       <FeedbackForm draft={draft} onClose={() => setDraft(null)} />
+      <ReportDialog project={project.id} opened={reportOpen} onClose={() => setReportOpen(false)} />
     </Stack>
   )
 }

@@ -222,6 +222,10 @@ def test_api_build_download_verify_delete(authed, settings, manager, ready, monk
     assert "attachment" in pdf.headers["content-disposition"]
     inline = authed.get(f"/api/reports/alpha/files/{name}", params={"inline": "true"})
     assert "inline" in inline.headers["content-disposition"]
+    # Only the inline PDF may be framed (by the viewer itself); everything else keeps DENY.
+    assert inline.headers["x-frame-options"] == "SAMEORIGIN"
+    assert pdf.headers["x-frame-options"] == "DENY"
+    assert authed.get("/api/reports/alpha/files").headers["x-frame-options"] == "DENY"
     assert authed.get(f"/api/reports/alpha/files/{name}/verify").json()["ok"]
     assert authed.delete(f"/api/reports/alpha/files/{name}", headers=ORIGIN).status_code == 204
     assert authed.get(f"/api/reports/alpha/files/{name}").status_code == 404
