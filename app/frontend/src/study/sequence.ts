@@ -11,7 +11,7 @@ const BLOCK_TOP = 26
 const BLOCK_END = 12
 const DIVIDER = 24
 
-export type Lane = { id: string; name: string; lines: string[]; x: number }
+export type Lane = { id: string; name: string; kind?: string; lines: string[]; x: number }
 
 export type Placed =
   | { kind: 'msg'; n: number; y: number; from: number; to: number; label: string; reply: boolean; async: boolean }
@@ -49,11 +49,12 @@ export function wrapName(name: string, max = 20): string[] {
 
 export function layoutFlow(flow: StudyFlow, components: StudyComponent[]): SequenceLayout {
   const names = new Map(components.map((c) => [c.id, c.name]))
+  const kinds = new Map(components.map((c) => [c.id, c.kind]))
   const index = new Map<string, number>()
   const lanes: Lane[] = flow.participants.map((id, i) => {
     index.set(id, i)
     const name = names.get(id) ?? id
-    return { id, name, lines: wrapName(name), x: PAD + i * COL + COL / 2 }
+    return { id, name, kind: kinds.get(id), lines: wrapName(name), x: PAD + i * COL + COL / 2 }
   })
   // A step may name a participant the flow didn't list; give it a lane so nothing is lost.
   const lane = (id: string): number => {
@@ -62,7 +63,7 @@ export function layoutFlow(flow: StudyFlow, components: StudyComponent[]): Seque
       i = lanes.length
       index.set(id, i)
       const name = names.get(id) ?? id
-      lanes.push({ id, name, lines: wrapName(name), x: PAD + i * COL + COL / 2 })
+      lanes.push({ id, name, kind: kinds.get(id), lines: wrapName(name), x: PAD + i * COL + COL / 2 })
     }
     return i
   }

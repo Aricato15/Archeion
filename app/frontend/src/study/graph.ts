@@ -14,6 +14,9 @@ const TONE: Partial<Record<StudyComponent['kind'], NodeTone>> = {
   library: 'green',
 }
 
+/** The colour a component kind gets on the maps, and on the flow view's participants. */
+export const toneOf = (kind: string | undefined): NodeTone | undefined => TONE[kind as StudyComponent['kind']]
+
 const SHAPE: Partial<Record<StudyComponent['kind'], GraphNode['shape']>> = {
   database: 'store',
   store: 'store',

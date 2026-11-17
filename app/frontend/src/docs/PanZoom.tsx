@@ -1,16 +1,20 @@
-import { ActionIcon, Box, Group, Text, Tooltip } from '@mantine/core'
+import { ActionIcon, Box, Stack, Tooltip } from '@mantine/core'
 import { IconFocusCentered, IconZoomIn, IconZoomOut } from '@tabler/icons-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 /**
- * A pan and zoom surface for content the page draws itself (the interactive flow view). The wheel
- * zooms around the pointer and dragging pans, as in DiagramFrame. `children` gets `moved()`, which
- * says whether the last pointer gesture was a drag, so a click after a drag isn't taken as a click.
+ * A pan and zoom canvas for content the page draws itself (the interactive flow view). It looks
+ * like the maps (`GraphView`): a bordered box with a dotted grid, zoom controls at the bottom left
+ * and `toolbar` (the Find box) at the top left. The wheel zooms around the pointer and dragging
+ * pans. `children` gets `moved()`, which says whether the last pointer gesture was a drag, so a
+ * click after a drag isn't taken as a click.
  */
 
 const MIN = 0.3
 const MAX = 6
 const STEP = 1.25
+/** Room above the content for the toolbar, so it doesn't sit on the first row. */
+const TOP = 48
 
 type View = { scale: number; x: number; y: number }
 const FIT: View = { scale: 1, x: 0, y: 0 }
@@ -22,7 +26,6 @@ export function PanZoom({
 }: {
   children: (moved: () => boolean) => ReactNode
   height?: number | string
-  /** Extra controls, shown left of the zoom buttons. */
   toolbar?: ReactNode
 }) {
   const outer = useRef<HTMLDivElement>(null)
@@ -51,39 +54,33 @@ export function PanZoom({
   }, [])
 
   const zoom = (f: number) => setView((v) => ({ ...v, scale: Math.min(MAX, Math.max(MIN, v.scale * f)) }))
+  const control = (label: string, onClick: () => void, icon: ReactNode) => (
+    <Tooltip label={label} position="right">
+      <ActionIcon size="md" variant="default" aria-label={label} onClick={onClick}>
+        {icon}
+      </ActionIcon>
+    </Tooltip>
+  )
+
   return (
-    <Box>
-      <Group gap={4} justify="flex-end" mb={4} wrap="nowrap">
-        {toolbar}
-        <Tooltip label="Zoom out">
-          <ActionIcon size="sm" variant="default" aria-label="Zoom out" onClick={() => zoom(1 / STEP)}>
-            <IconZoomOut size={14} />
-          </ActionIcon>
-        </Tooltip>
-        <Text size="xs" c="dimmed" w={38} ta="center">
-          {Math.round(view.scale * 100)}%
-        </Text>
-        <Tooltip label="Zoom in">
-          <ActionIcon size="sm" variant="default" aria-label="Zoom in" onClick={() => zoom(STEP)}>
-            <IconZoomIn size={14} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Fit">
-          <ActionIcon size="sm" variant="default" aria-label="Fit" onClick={() => setView(FIT)}>
-            <IconFocusCentered size={14} />
-          </ActionIcon>
-        </Tooltip>
-      </Group>
+    <Box
+      pos="relative"
+      style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 8, overflow: 'hidden' }}
+    >
       <Box
         ref={outer}
+        h={height}
         style={{
           position: 'relative',
           overflow: 'hidden',
-          height,
           cursor: dragging ? 'grabbing' : 'grab',
           touchAction: 'none',
           userSelect: 'none',
           WebkitUserSelect: 'none',
+          // The same dotted grid as the maps.
+          backgroundImage:
+            'radial-gradient(color-mix(in srgb, var(--mantine-color-dimmed) 40%, transparent) 1px, transparent 1px)',
+          backgroundSize: '20px 20px',
         }}
         onPointerDown={(e) => {
           if (e.button !== 0) return
@@ -111,6 +108,7 @@ export function PanZoom({
       >
         <div
           style={{
+            paddingTop: TOP,
             transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
             transformOrigin: '0 0',
             transition: dragging ? undefined : 'transform 80ms ease-out',
@@ -120,6 +118,14 @@ export function PanZoom({
           {children(moved)}
         </div>
       </Box>
+      <Box pos="absolute" top={8} left={8} style={{ zIndex: 2 }}>
+        {toolbar}
+      </Box>
+      <Stack gap={2} pos="absolute" bottom={8} left={8} style={{ zIndex: 2 }}>
+        {control('Zoom in', () => zoom(STEP), <IconZoomIn size={16} />)}
+        {control('Zoom out', () => zoom(1 / STEP), <IconZoomOut size={16} />)}
+        {control('Fit', () => setView(FIT), <IconFocusCentered size={16} />)}
+      </Stack>
     </Box>
   )
 }

@@ -3,6 +3,7 @@ import { IconSearch } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import type { StudyComponent, StudyFlow } from '../api/study'
 import { PanZoom } from '../docs/PanZoom'
+import { toneOf } from './graph'
 import { COL, HEAD, involves, layoutFlow, type Placed } from './sequence'
 
 /**
@@ -14,6 +15,12 @@ import { COL, HEAD, involves, layoutFlow, type Placed } from './sequence'
 const LINE = 'var(--mantine-color-dimmed)'
 const TEXT = 'var(--mantine-color-text)'
 const HIT = 'var(--mantine-color-yellow-filled)'
+
+/** A participant's colour, by what it is, as on the maps. */
+const accent = (kind: string | undefined) => {
+  const tone = toneOf(kind)
+  return tone && tone !== 'default' ? `var(--mantine-color-${tone}-filled)` : LINE
+}
 
 function clip(text: string, room: number): string {
   const max = Math.max(8, Math.floor(room / 6))
@@ -85,6 +92,8 @@ export function SequenceView({
           stroke={lane === l.id ? 'var(--mantine-color-blue-filled)' : LINE}
           strokeWidth={lane === l.id ? 2 : 1}
         />
+        {/* The coloured left edge the maps give a box, by kind. */}
+        <rect x={l.x - COL / 2 + 12} y={y} width={5} height={HEAD - 8} rx={2} fill={accent(l.kind)} />
         {l.lines.map((t, i) => (
           <text
             key={i}
@@ -136,18 +145,6 @@ export function SequenceView({
               <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke={LINE} strokeWidth={1.5} />
             </marker>
           </defs>
-          {lanes.map((l) => (
-            <line
-              key={l.id}
-              x1={l.x}
-              x2={l.x}
-              y1={HEAD - 8}
-              y2={layout.footer}
-              stroke={LINE}
-              strokeWidth={lane === l.id ? 1.6 : 0.8}
-              opacity={laneFaded(l.id) ? 0.2 : 0.6}
-            />
-          ))}
           {items
             .filter((i) => i.kind === 'block')
             .map((b, k) => {
@@ -156,8 +153,16 @@ export function SequenceView({
               const w = lanes[b.to].x - lanes[b.from].x + COL - 12
               return (
                 <g key={`b${k}`} opacity={0.9}>
-                  <rect x={x} y={b.y} width={w} height={b.h} fill="none" stroke={LINE} strokeDasharray="4 3" rx={3} />
-                  <rect x={x} y={b.y} width={Math.max(38, b.type.length * 8 + 14)} height={18} fill={LINE} opacity={0.25} rx={3} />
+                  <rect
+                    x={x}
+                    y={b.y}
+                    width={w}
+                    height={b.h}
+                    rx={10}
+                    fill="color-mix(in srgb, var(--mantine-color-default-hover) 55%, transparent)"
+                    stroke="var(--mantine-color-default-border)"
+                  />
+                  <rect x={x} y={b.y} width={Math.max(38, b.type.length * 8 + 14)} height={18} fill={LINE} opacity={0.25} rx={5} />
                   <text x={x + 6} y={b.y + 13} fontSize={11} fontWeight={600} fill={TEXT}>
                     {b.type}
                   </text>
@@ -179,6 +184,18 @@ export function SequenceView({
                 </g>
               )
             })}
+          {lanes.map((l) => (
+            <line
+              key={l.id}
+              x1={l.x}
+              x2={l.x}
+              y1={HEAD - 8}
+              y2={layout.footer}
+              stroke={LINE}
+              strokeWidth={lane === l.id ? 1.6 : 0.8}
+              opacity={laneFaded(l.id) ? 0.2 : 0.6}
+            />
+          ))}
           {items.map((it) => {
             if (it.kind === 'block') return null
             const lit = matches(it)
