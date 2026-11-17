@@ -48,5 +48,7 @@ export const heading = (index: number, section: { title: string }) => `${index +
 export function pageCss(options: { page_size: string; orientation: string }): string {
   const size = options.page_size === 'Letter' ? 'Letter' : 'A4'
   const orientation = options.orientation === 'landscape' ? 'landscape' : 'portrait'
-  return `@page { size: ${size} ${orientation}; margin: 16mm 14mm 18mm; }`
+  // Wide diagrams go on pages of the other orientation (`page: wide` in print.css).
+  const margin = 'margin: 16mm 14mm 18mm;'
+  return `@page { size: ${size} ${orientation}; ${margin} } @page wide { size: ${size} landscape; ${margin} }`
 }

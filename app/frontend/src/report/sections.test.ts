@@ -69,4 +69,8 @@ describe('page', () => {
     expect(pageCss({ page_size: 'Letter', orientation: 'landscape' })).toContain('size: Letter landscape')
     expect(pageCss({ page_size: 'x', orientation: 'y' })).toContain('size: A4 portrait')
   })
+
+  it('has a landscape page for wide diagrams, whatever the base orientation', () => {
+    expect(pageCss({ page_size: 'A4', orientation: 'portrait' })).toContain('@page wide { size: A4 landscape')
+  })
 })

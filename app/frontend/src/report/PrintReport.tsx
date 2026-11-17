@@ -105,13 +105,16 @@ export function PrintReport() {
   )
 }
 
+/** A summary is plain text in a header or a table, so its Markdown emphasis marks are dropped. */
+const plain = (text: string) => text.replace(/^[_*]+|[_*]+$/g, '').replace(/`/g, '').trim()
+
 function Cover({ data }: { data: ReportContent }) {
   const p = data.project
   const study = data.study
   return (
     <header className="report-cover">
       <h1>{data.preset.title || p.title}</h1>
-      <div className="subtitle">{p.summary}</div>
+      <div className="subtitle">{plain(p.summary)}</div>
       <dl>
         <dt>Project</dt>
         <dd>{p.id}</dd>
@@ -154,7 +157,12 @@ function Body({ section, data, registry }: { section: ReportSection; data: Repor
       return <Facts project={data.project} />
     case 'markdown':
       return section.markdown.trim() ? (
-        <MarkdownView content={section.markdown} docPath={section.path ?? 'README.md'} source={data.project.id} />
+        <MarkdownView
+          content={section.markdown}
+          docPath={section.path ?? 'README.md'}
+          source={data.project.id}
+          compact
+        />
       ) : (
         <p>Nothing written.</p>
       )
@@ -162,7 +170,7 @@ function Body({ section, data, registry }: { section: ReportSection; data: Repor
       return (
         <>
           <div className="written-by">Written by Claude</div>
-          <MarkdownView content={section.markdown} docPath="README.md" />
+          <MarkdownView content={section.markdown} docPath="README.md" compact />
           <div className="sources">Sources: {section.cites.map((c) => c.title).join('; ')}</div>
         </>
       )
@@ -223,7 +231,7 @@ function Body({ section, data, registry }: { section: ReportSection; data: Repor
 function Facts({ project: p }: { project: ReportContent['project'] }) {
   return (
     <>
-      {p.summary && <p>{p.summary}</p>}
+      {p.summary && <p>{plain(p.summary)}</p>}
       <Table
         head={['Fact', 'Value']}
         rows={[

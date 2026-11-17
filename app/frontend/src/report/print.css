@@ -171,3 +171,27 @@
     padding: 0;
   }
 }
+
+/* A section whose diagram is wide gets a landscape page (the named page is set in PrintReport's @page rules). */
+.report-section:has(.print-diagram[data-wide='true']) {
+  page: wide;
+}
+
+.print-diagram[data-wide='true'] svg {
+  max-height: 140mm;
+}
+
+.report .markdown-body h1 {
+  font-size: 15pt;
+  margin: 5mm 0 2mm;
+}
+
+.report .markdown-body h2 {
+  font-size: 13pt;
+  margin: 5mm 0 2mm;
+}
+
+.report .markdown-body h3 {
+  font-size: 11.5pt;
+  margin: 4mm 0 2mm;
+}

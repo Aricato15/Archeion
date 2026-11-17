@@ -1,7 +1,7 @@
 import { Alert, Code, Loader, Stack, Text, useComputedColorScheme } from '@mantine/core'
 import { useContext, useEffect, useId, useState } from 'react'
 import { DiagramFrame, type LabelActions } from './DiagramFrame'
-import { PrintContext } from './PrintContext'
+import { PrintContext, prefersLandscape } from './PrintContext'
 
 type State = { svg: string; error: null } | { svg: null; error: string } | { svg: null; error: null }
 
@@ -90,7 +90,7 @@ export function MermaidBlock({ code, labels, title }: { code: string; labels?: L
   if (state.svg === null) return <Loader size="sm" my="md" aria-label="Rendering diagram" />
   if (print) {
     return (
-      <figure className="print-diagram">
+      <figure className="print-diagram" data-wide={prefersLandscape(state.svg)}>
         <div dangerouslySetInnerHTML={{ __html: state.svg }} />
         {title && <figcaption>{title}</figcaption>}
       </figure>

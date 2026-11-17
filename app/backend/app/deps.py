@@ -13,6 +13,7 @@ from .config import Settings
 from .db import Database
 from .security import COOKIE_NAME, LoginLimiter, Session, check_session
 from .services.events import EventBus
+from .services.report_render import ReportJobs
 from .services.sources import SourceManager
 
 
@@ -24,6 +25,7 @@ class AppState:
     limiter: LoginLimiter
     sources: SourceManager
     version: str
+    report_jobs: ReportJobs = field(default_factory=ReportJobs)
     stop: asyncio.Event = field(default_factory=asyncio.Event)
     tasks: list[asyncio.Task] = field(default_factory=list)
 

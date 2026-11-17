@@ -22,6 +22,7 @@ from .services import designs as dz
 from .services import docs_fs, git, study_scan
 from .services import feedback as fb
 from .services import glossary as gl
+from .services import report_render as rr
 from .services import reports as rp
 from .services import studies as st
 from .services.registry import (
@@ -1498,12 +1499,15 @@ def _report_catalog(settings: Settings, name: str) -> tuple[SourceManager, list[
 
 def cmd_report_preflight(settings: Settings, args: argparse.Namespace) -> int:
     manager = _report_project(settings, args.project)
-    result = rp.preflight(manager, settings.registry_root, args.project, settings.report_browser)
+    result = rp.preflight(
+        manager, settings.registry_root, args.project, settings.report_browser, rr.frontend_up(settings)
+    )
     if args.json:
         _print_json(result)
         return 0 if result["ok"] else 1
     print(f"{args.project}: {result['available']} of {result['sections']} sections have a source.")
     print(f"  renderer (headless Edge): {'found' if result['browser'] else 'NOT found'}")
+    print(f"  viewer frontend: {'running' if result['frontend'] else 'NOT running'}")
     print(f"  latest study: {result['study'] or 'none'}")
     for u in result["unavailable"]:
         print(f"  unavailable: {u['id']} ({u['reason']})")
@@ -1573,6 +1577,46 @@ def cmd_report_preset_delete(settings: Settings, args: argparse.Namespace) -> in
     rp.delete_preset(settings.registry_root, args.project, args.name)
     print(f"Deleted the preset '{args.name}' of {args.project}.")
     return 0
+
+
+def cmd_report_build(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _report_project(settings, args.project)
+    info = rr.build(settings, manager, args.project, args.preset)
+    print(
+        f"Built {info['file']}: {info['pages']} pages, {info['sections']} sections, "
+        f"{info['failed']} failed diagrams."
+    )
+    check = rr.verify(settings.registry_root, args.project, info["file"])
+    for problem in check["problems"]:
+        print(f"  problem: {problem}")
+    return 0 if check["ok"] else 1
+
+
+def cmd_report_list(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    rows = rr.list_reports(settings.registry_root, args.project)
+    if args.json:
+        _print_json(rows)
+        return 0
+    for r in rows:
+        print(f"{r['file']}: {r.get('pages', '?')} pages, {r.get('mode', '?')}, built {r.get('built', '?')}")
+    if not rows:
+        print(f"No reports built yet for {args.project}.")
+    return 0
+
+
+def cmd_report_verify(settings: Settings, args: argparse.Namespace) -> int:
+    _report_project(settings, args.project)
+    result = rr.verify(settings.registry_root, args.project, args.file)
+    if args.json:
+        _print_json(result)
+    else:
+        print(f"{result['file']}: {result['pages']} pages, {result['bytes']} bytes")
+        for problem in result["problems"]:
+            print(f"  problem: {problem}")
+        if result["ok"]:
+            print("  OK")
+    return 0 if result["ok"] else 1
 
 
 def cmd_report_default(settings: Settings, args: argparse.Namespace) -> int:
@@ -1838,6 +1882,19 @@ def build_parser() -> argparse.ArgumentParser:
     rdf.add_argument("project")
     rdf.add_argument("--name", default="full")
     rdf.set_defaults(func=cmd_report_default)
+    rbd = report.add_parser("build", help="build a saved preset into a PDF (needs the viewer running)")
+    rbd.add_argument("project")
+    rbd.add_argument("--preset", required=True)
+    rbd.set_defaults(func=cmd_report_build)
+    rls = report.add_parser("list", help="the PDFs built for a project")
+    rls.add_argument("project")
+    rls.add_argument("--json", action="store_true")
+    rls.set_defaults(func=cmd_report_list)
+    rvf = report.add_parser("verify", help="check a built PDF against its build record")
+    rvf.add_argument("project")
+    rvf.add_argument("file")
+    rvf.add_argument("--json", action="store_true")
+    rvf.set_defaults(func=cmd_report_verify)
     rva = report.add_parser("validate", help="check a preset file against the catalog without saving it")
     rva.add_argument("project")
     rva.add_argument("--file", required=True)

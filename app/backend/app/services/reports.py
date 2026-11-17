@@ -438,7 +438,11 @@ def find_browser(override: str = "") -> Path | None:
 
 
 def preflight(
-    manager: SourceManager, registry_root: Path, project_id: str, browser_override: str = ""
+    manager: SourceManager,
+    registry_root: Path,
+    project_id: str,
+    browser_override: str = "",
+    frontend_up: bool | None = None,
 ) -> dict:
     """What a report of this project can use right now, and what can't be built."""
     entries = catalog(manager, registry_root, project_id)
@@ -450,11 +454,14 @@ def preflight(
         problems.append(
             "headless Edge wasn't found; set ARCHEION_REPORT_BROWSER or use the browser's Save as PDF"
         )
+    if frontend_up is False:
+        problems.append("the viewer frontend isn't running (start.bat); the PDF is printed from it")
     if not available:
         problems.append("no section has a source")
     return {
         "project": project_id,
         "browser": browser is not None,
+        "frontend": frontend_up,
         "study": snaps[0].id if snaps else None,
         "sections": len(entries),
         "available": len(available),
