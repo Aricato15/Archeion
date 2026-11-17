@@ -5,7 +5,7 @@ For an install that is older than the current release. Archeion and the plugin h
 - Archeion: the `VERSION` file in the repo root, or `scripts/archeion.ps1 version`.
 - Plugin: `scripts/archeion.ps1 --where` (run from a project with the plugin, it prints the Archeion it found and its version), or `/plugin`.
 
-What changed in each version is in [`CHANGELOG.md`](../../CHANGELOG.md) and [`plugins/archeion/CHANGELOG.md`](../../plugins/archeion/CHANGELOG.md).
+A short how-to for each release is in [`docs/updates/`](../updates/README.md), starting with [1.3.1](../updates/update-v1.3.1.md). What changed in each version is in [`CHANGELOG.md`](../../CHANGELOG.md) and [`plugins/archeion/CHANGELOG.md`](../../plugins/archeion/CHANGELOG.md).
 
 ## What is kept, and what is touched
 
@@ -51,6 +51,7 @@ start.bat
 
 | Version | What to know when coming from an older one |
 |---|---|
+| 1.3.1 | PDF reports (added in 1.3.0), and the plugin's `/archeion:report` is renamed `/archeion:notify` (plugin 0.4.0). `setup.bat` installs two new dependencies. No database migration. See the [update note](../updates/update-v1.3.1.md). |
 | 1.1.0 | Adds designs, and inbox commands that carry on a thread from a session (`inbox create --in`, `threads`, `resolve`) for plugin 0.2.0 and later. Adds `restart.bat`. No database migration and no new setting. `registry/designs/` is created the first time a design is started, so an existing registry needs no change. Approving a design is the one thing that writes to a registry page (`ports`, `depends_on`, `group`, `kind`, `status`), and only after you confirm. |
 | 1.0.0 | Studies as conversations, Claude jobs, on-demand Claude, the inbox terminal. Database migrations 6 to 10 run on first start (threads, responder, Claude jobs, edit mode). Existing items reopened the old way become a "Reopened" message. |
 

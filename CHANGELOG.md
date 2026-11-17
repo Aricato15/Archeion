@@ -7,6 +7,9 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`docs/updates/`**, the home of the update notes: one short how-to per release that asks the user to do something, starting with [`update-v1.3.1.md`](docs/updates/update-v1.3.1.md) (update Archeion, update the plugin, open a new session in each project, check it worked). Its README sets the convention and has a template. The viewer shows them with the other docs, and the [update guide](docs/guides/update_archeion_and_plugin.md) links to them.
+
 ## [1.3.1] - 2026-11-18
 
 ### Changed
