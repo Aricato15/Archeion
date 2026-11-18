@@ -55,6 +55,9 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects scan` | Folders in your roots with no registry page yet (`--write` creates stub pages) |
 | `projects show --project <name>` | One project's place in the system |
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
+| `projects remove <name>` | Take a project out of the registry; its page moves to `registry/removed/` (ADR 0026) |
+| `projects removed` / `projects restore <name>` | List removed projects, or put one back |
+| `projects purge <name> --yes` | Delete a removed project and its saved studies, designs, glossary and reports, for good |
 | `projects inbox-edits <name> on\|off\|auto` | Allow or forbid Archeion's `/inbox` editing a project's files (auto: allowed, or as its project for a module) |
 | `projects ports` | Every recorded port, with clashes marked |
 | `design preflight <name> [--for design\|handoff]` | What stands in the way of a design step, each problem with its fix |

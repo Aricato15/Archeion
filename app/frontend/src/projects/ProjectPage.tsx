@@ -18,7 +18,7 @@ import {
 } from '@mantine/core'
 import { IconExternalLink, IconFileText, IconFileTypePdf, IconMessagePlus } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
 import { notifications } from '@mantine/notifications'
 import {
@@ -38,6 +38,7 @@ import { flattenFiles } from '../lib/format'
 import { ProjectCard, ProjectLink, StatusPill } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
+import { RemoveProject } from './RemoveProject'
 import { DesignTab } from '../design/DesignTab'
 import { StudyTab } from '../study/StudyTab'
 import { GlossaryTab } from '../glossary/GlossaryTab'
@@ -202,6 +203,7 @@ function Facts({ project, projects }: { project: Project; projects: Map<string, 
 
 export function ProjectPage() {
   const id = useParams().id ?? ''
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab') ?? 'notes'
   const registry = useRegistry()
@@ -269,6 +271,7 @@ export function ProjectPage() {
           >
             Registry page
           </Button>
+          <RemoveProject project={project} onRemoved={() => navigate('/projects')} />
         </Group>
       </Group>
 

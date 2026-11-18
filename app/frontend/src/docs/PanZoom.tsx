@@ -1,6 +1,7 @@
 import { ActionIcon, Box, Stack, Tooltip } from '@mantine/core'
 import { IconFocusCentered, IconZoomIn, IconZoomOut } from '@tabler/icons-react'
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { FULL_HEIGHT, FullScreenButton, FullScreenModal } from '../lib/FullScreen'
 
 /**
  * A pan and zoom canvas for content the page draws itself (the interactive flow view). It looks
@@ -16,6 +17,8 @@ const STEP = 1.25
 /** Room above the content for the toolbar, so it doesn't sit on the first row. */
 const TOP = 48
 
+const noop = () => {}
+
 type View = { scale: number; x: number; y: number }
 const FIT: View = { scale: 1, x: 0, y: 0 }
 
@@ -23,11 +26,20 @@ export function PanZoom({
   children,
   height,
   toolbar,
+  title,
+  nested,
+  onClose,
 }: {
-  children: (moved: () => boolean) => ReactNode
+  /** `close` leaves full screen (it does nothing otherwise), for a click that opens something behind it. */
+  children: (moved: () => boolean, close: () => void) => ReactNode
   height?: number | string
   toolbar?: ReactNode
+  title?: string
+  /** Set by the full screen copy, which has no full screen button of its own. */
+  nested?: boolean
+  onClose?: () => void
 }) {
+  const [full, setFull] = useState(false)
   const outer = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>(FIT)
   const [dragging, setDragging] = useState(false)
@@ -115,7 +127,7 @@ export function PanZoom({
           }}
         >
           {/* oxlint-disable-next-line react/refs -- `moved` reads the ref only when called, from a click */}
-          {children(moved)}
+          {children(moved, onClose ?? noop)}
         </div>
       </Box>
       <Box pos="absolute" top={8} left={8} style={{ zIndex: 2 }}>
@@ -125,7 +137,15 @@ export function PanZoom({
         {control('Zoom in', () => zoom(STEP), <IconZoomIn size={16} />)}
         {control('Zoom out', () => zoom(1 / STEP), <IconZoomOut size={16} />)}
         {control('Fit', () => setView(FIT), <IconFocusCentered size={16} />)}
+        {!nested && <FullScreenButton onClick={() => setFull(true)} />}
       </Stack>
+      {!nested && (
+        <FullScreenModal opened={full} onClose={() => setFull(false)} title={title}>
+          <PanZoom nested height={FULL_HEIGHT} toolbar={toolbar} onClose={() => setFull(false)}>
+            {children}
+          </PanZoom>
+        </FullScreenModal>
+      )}
     </Box>
   )
 }

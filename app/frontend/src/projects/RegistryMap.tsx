@@ -43,6 +43,7 @@ export function RegistryMap({ registry, height = 480, ...opts }: { registry: Reg
       {mode === 'graph' ? (
         <LazyGraph
           graph={graph}
+          title="Map"
           direction={opts.direction ?? 'LR'}
           height={height}
           selected={opts.focus ?? null}

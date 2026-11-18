@@ -123,6 +123,16 @@ export type RootsSettings = {
 }
 
 /** A folder found in a root, or a registered project living there (ADR 0010). */
+/** A project that was removed and not registered since (ADR 0026). */
+export type RemovedProject = {
+  name: string
+  removed_on: string
+  path: string | null
+  root: string | null
+  /** What the registry still keeps for it besides its page: studies, designs, glossary, reports. */
+  kept: string[]
+}
+
 export type RootItem = {
   /** The project it's registered as, or the name suggested for registering it. */
   name: string

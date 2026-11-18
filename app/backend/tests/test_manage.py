@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from app.services.registry import load_registry, register, split_frontmatter, survey
+from app.services.registry import load_registry, register, split_frontmatter, survey, unregister
 from app.services.roots import format_roots, parse_roots, write_env_roots
 
 
@@ -238,11 +238,80 @@ def test_api_register_refusal_is_a_400(authed):
     assert r.status_code == 201 and r.json()["page"] == "projects/gamma.md"
 
 
+def test_api_remove_moves_the_page_and_can_be_registered_again(authed, settings):
+    page = settings.registry_root / "projects" / "gamma.md"
+    r = authed.post("/api/registry/projects", json={"root": None, "path": "../gamma", "name": "gamma"})
+    assert r.status_code == 201 and page.is_file()
+    r = authed.delete("/api/registry/projects/gamma")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["used_by"] == [] and body["moved_to"].startswith("removed/gamma-")
+    assert not page.exists() and (settings.registry_root / body["moved_to"]).is_file()
+    assert "gamma" not in [p["id"] for p in authed.get("/api/registry").json()["projects"]]
+    assert authed.delete("/api/registry/projects/gamma").status_code == 404
+    # Registering the folder again works, and a second removal doesn't overwrite the first.
+    assert (
+        authed.post(
+            "/api/registry/projects", json={"root": None, "path": "../gamma", "name": "gamma"}
+        ).status_code
+        == 201
+    )
+    again = authed.delete("/api/registry/projects/gamma").json()["moved_to"]
+    assert again != body["moved_to"] and (settings.registry_root / body["moved_to"]).is_file()
+
+
+def test_api_removed_list_restore_and_purge(authed, settings):
+    reg = settings.registry_root
+    body = {"root": None, "path": "../gamma", "name": "gamma"}
+    assert authed.post("/api/registry/projects", json=body).status_code == 201
+    (reg / "studies" / "gamma" / "2026-01-01-abc1234").mkdir(parents=True)
+    (reg / "glossary").mkdir(exist_ok=True)
+    (reg / "glossary" / "gamma.json").write_text("{}", encoding="utf-8")
+    authed.delete("/api/registry/projects/gamma")
+    listed = authed.get("/api/registry/removed").json()
+    assert [e["name"] for e in listed] == ["gamma"]
+    assert listed[0]["path"] == "../gamma" and listed[0]["kept"] == ["glossary", "studies"]
+    # A removed project comes back with restore; a registered one can't be purged.
+    assert authed.post("/api/registry/removed/gamma/restore").status_code == 200
+    assert (reg / "projects" / "gamma.md").is_file() and authed.get("/api/registry/removed").json() == []
+    assert authed.delete("/api/registry/removed/gamma").status_code == 400  # registered
+    authed.delete("/api/registry/projects/gamma")
+    assert authed.post("/api/registry/projects", json=body).status_code == 201
+    assert authed.get("/api/registry/removed").json() == []  # registered again: not "previously"
+    authed.delete("/api/registry/projects/gamma")
+    done = authed.delete("/api/registry/removed/gamma").json()["deleted"]
+    assert "studies/gamma" in done and "glossary/gamma.json" in done
+    assert not (reg / "studies" / "gamma").exists() and not (reg / "glossary" / "gamma.json").exists()
+    assert not list((reg / "removed").glob("gamma-*")) and authed.get("/api/registry/removed").json() == []
+
+
+def test_removed_names_that_arent_ids_are_ignored(settings):
+    from app.services.registry import list_removed, purge
+
+    (settings.registry_root / "removed").mkdir(exist_ok=True)
+    (settings.registry_root / "removed" / "..x-2026-01-01.md").write_text("---\n---\n", encoding="utf-8")
+    assert list_removed(settings.registry_root) == []
+    reg = load_registry(settings.registry_root, settings.repo_root, settings.project_roots)
+    with pytest.raises(KeyError):
+        purge(settings.registry_root, reg, "../x")
+
+
+def test_remove_refuses_a_project_with_modules_and_reports_dependents(settings):
+    reg = load_registry(settings.registry_root, settings.repo_root, settings.project_roots)
+    parent = next(p for p in reg.projects.values() if p.children)
+    with pytest.raises(Exception, match="remove those first"):
+        unregister(settings.registry_root, reg, parent.id)
+    assert (settings.registry_root / parent.page).is_file()
+
+
 def test_manage_routes_need_a_session(client):
     assert client.get("/api/settings/roots").status_code == 401
     assert client.put("/api/settings/roots", json={"roots": []}).status_code == 401
     assert client.get("/api/registry/roots").status_code == 401
     assert client.post("/api/registry/projects", json={"path": "x", "name": "x"}).status_code == 401
+    assert client.delete("/api/registry/projects/alpha").status_code == 401
+    assert client.get("/api/registry/removed").status_code == 401
+    assert client.delete("/api/registry/removed/alpha").status_code == 401
 
 
 # --- no root by default (ADR 0012) --------------------------------------------------------
@@ -292,3 +361,13 @@ def test_api_removes_the_workspace_root(authed, settings):
     env = (settings.repo_root / ".env").read_text(encoding="utf-8")
     assert "ARCHEION_WORKSPACE_ROOT=\n" in env and "ARCHEION_ROOTS=\n" in env
     assert not any(p["available"] for p in authed.get("/api/registry").json()["projects"])
+
+
+def test_cli_projects_remove(settings, capsys):
+    import argparse
+
+    from app.__main__ import cmd_projects_remove
+
+    register_args = argparse.Namespace(name="gamma")
+    with pytest.raises(ValueError, match="isn't a registered project"):
+        cmd_projects_remove(settings, register_args)

@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { RouterProvider, createMemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoginPage } from './auth/LoginPage'
@@ -12,6 +12,7 @@ import { ThreadPage } from './feedback/ThreadPage'
 import { Shell } from './layout/Shell'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UpdatesPage } from './pages/UpdatesPage'
 import { GroupPage } from './projects/GroupPage'
 import { ProjectPage } from './projects/ProjectPage'
 import { ProjectsPage } from './projects/ProjectsPage'
@@ -105,6 +106,8 @@ const files: Record<string, unknown> = {
     content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md) and [gateway](../../gateway/docs/api.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
     dirty: true,
   },
+  'archeion:updates/update-v0.2.0.md': { content: '# Update to 0.2.0\n\nDo the newer thing.\n', dirty: false },
+  'archeion:updates/update-v0.1.0.md': { content: '# Update to 0.1.0\n\nDo the older thing.\n', dirty: false },
   'registry:projects/gateway.md': { content: '---\nname: gateway\n---\n# Gateway\n\nThe gateway notes.\n', dirty: false },
   'registry:groups/shop.md': { content: '# Shop\n\nThe shop apps.\n', dirty: false },
   'gateway:README.md': { content: '# Gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
@@ -130,6 +133,16 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
       children: [
         { name: 'roadmap', path: 'roadmap', type: 'dir', children: [{ name: 'roadmap.md', path: 'roadmap/roadmap.md', type: 'file' }] },
         { name: 'README.md', path: 'README.md', type: 'file' },
+        {
+          name: 'updates',
+          path: 'updates',
+          type: 'dir',
+          children: [
+            { name: 'README.md', path: 'updates/README.md', type: 'file' },
+            { name: 'update-v0.2.0.md', path: 'updates/update-v0.2.0.md', type: 'file' },
+            { name: 'update-v0.1.0.md', path: 'updates/update-v0.1.0.md', type: 'file' },
+          ],
+        },
       ],
     },
     '/api/settings/roots': {
@@ -155,6 +168,9 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
     '/api/runner': { running: false, interval: '10m', pid: null, started_at: null, can_start: true, reason: null },
     '/api/runner/start': { running: true, interval: '10m', pid: 4242, started_at: '2026-11-15T03:00:00+00:00', can_start: true, reason: null },
     '/api/registry/projects': { page: 'projects/newproj.md', project: null },
+    '/api/registry/removed': [{ name: 'oldsvc', removed_on: '2026-11-19', path: '../oldsvc', root: null, kept: ['studies'] }],
+    '/api/registry/removed/oldsvc': { deleted: [] },
+    '/api/registry/projects/gateway': { moved_to: 'removed/gateway-2026-11-19.md', used_by: [] },
     '/api/feedback/summary': { open: 1, in_progress: 0, answered: 1, resolved: 0, waiting_by_source: { gateway: 1 } },
     '/api/feedback/7': { item, thread: [item] },
     '/api/roadmap': {
@@ -224,6 +240,8 @@ function renderAt(url: string) {
               { path: 'roadmap', element: <RoadmapPage /> },
               { path: 'feedback', element: <FeedbackPage /> },
               { path: 'feedback/:id', element: <ThreadPage /> },
+              { path: 'updates', element: <UpdatesPage /> },
+              { path: 'updates/:version', element: <UpdatesPage /> },
               { path: 'settings', element: <SettingsPage /> },
             ],
           },
@@ -389,6 +407,43 @@ describe('app', () => {
       const put = calls.find(([url, init]) => url === '/api/registry/projects/gateway/inbox-edits' && init?.method === 'PUT')
       expect(JSON.parse(String(put?.[1]?.body))).toEqual({ inbox_edits: false })
     })
+  })
+
+  it('removes a project after a confirmation', async () => {
+    mockApi(true)
+    renderAt('/projects/gateway')
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    expect(await screen.findByText(/moves to/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove project' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      expect(calls.some(([url, init]) => url === '/api/registry/projects/gateway' && init?.method === 'DELETE')).toBe(true)
+    })
+  })
+
+  it('lists previously registered projects, with restore and a confirmed permanent delete', async () => {
+    mockApi(true)
+    renderAt('/settings')
+    expect(await screen.findByText('Previously registered')).toBeTruthy()
+    expect(screen.getByText('studies')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain("can't be undone")
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete permanently' }))
+    await waitFor(() => {
+      const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
+      expect(calls.some(([url, init]) => url === '/api/registry/removed/oldsvc' && init?.method === 'DELETE')).toBe(true)
+    })
+  })
+
+  it('shows the update notes, newest first, with the installed version marked', async () => {
+    mockApi(true)
+    renderAt('/updates')
+    expect(await screen.findByText('Do the newer thing.')).toBeTruthy()
+    const list = screen.getByLabelText('Update notes')
+    expect(within(list).getAllByRole('link').map((a) => a.textContent)).toEqual(['v0.2.0installed', 'v0.1.0'])
+    fireEvent.click(within(list).getByRole('link', { name: 'v0.1.0' }))
+    expect(await screen.findByText('Do the older thing.')).toBeTruthy()
   })
 
   it('starts with no roots on a clean slate', async () => {

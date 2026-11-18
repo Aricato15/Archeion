@@ -10,12 +10,14 @@ import {
   MiniMap,
   type Node,
   type NodeProps,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
 } from '@xyflow/react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { FULL_HEIGHT, FullScreenButton, FullScreenModal } from '../lib/FullScreen'
 import type { StudyEntity } from '../api/study'
 import { layoutGraph } from '../graph/layout'
 import { buildSchema, HEADER_H, ROW_H, type Table, TABLE_W, tableHeight } from './schema'
@@ -112,11 +114,13 @@ function Inner({
   storeNames,
   onOpen,
   height,
+  onFull,
 }: {
   entities: StudyEntity[]
   storeNames: Map<string, string>
   onOpen?: (id: string) => void
   height: number | string
+  onFull?: () => void
 }) {
   const scheme = useComputedColorScheme('light')
   const flow = useReactFlow()
@@ -223,6 +227,11 @@ function Inner({
       >
         <Background gap={20} size={1} />
         <Controls showInteractive={false} />
+        {onFull && (
+          <Panel position="top-right">
+            <FullScreenButton onClick={onFull} />
+          </Panel>
+        )}
         {tables.length > 4 && <MiniMap pannable zoomable />}
       </ReactFlow>
     </Box>
@@ -234,10 +243,27 @@ export default function SchemaView(props: {
   storeNames: Map<string, string>
   onOpen?: (id: string) => void
   height?: number | string
+  nested?: boolean
 }) {
+  const { nested, onOpen, ...rest } = props
+  const [full, setFull] = useState(false)
+  const open = useCallback(
+    (id: string) => {
+      setFull(false)
+      onOpen?.(id)
+    },
+    [onOpen],
+  )
   return (
-    <ReactFlowProvider>
-      <Inner {...props} height={props.height ?? 560} />
-    </ReactFlowProvider>
+    <>
+      <ReactFlowProvider>
+        <Inner {...rest} onOpen={onOpen} height={props.height ?? 560} onFull={nested ? undefined : () => setFull(true)} />
+      </ReactFlowProvider>
+      {!nested && (
+        <FullScreenModal opened={full} onClose={() => setFull(false)} title="Data">
+          <SchemaView {...rest} nested height={FULL_HEIGHT} onOpen={onOpen && open} />
+        </FullScreenModal>
+      )}
+    </>
   )
 }

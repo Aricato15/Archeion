@@ -443,6 +443,7 @@ function ComponentsView({ model, params, set, ask }: ViewProps) {
             <LazyGraph
               key={`${focus ?? ''}|${depth}|${showImports}|${shown ?? ''}`}
               graph={graph}
+              title="Components"
               height={520}
               minimap
               selected={selected ?? shown}
@@ -650,7 +651,7 @@ function LogicView({ model, ...rest }: ViewProps) {
       what="activity"
       draw={activity}
       interactive={(a, open, sel) => (
-        <LazyGraph key={a.id} graph={activityGraph(a)} direction="TB" height={460} selected={sel} onSelect={open} />
+        <LazyGraph key={a.id} graph={activityGraph(a)} title={a.title} direction="TB" height={460} selected={sel} onSelect={open} />
       )}
       details={(a, id, open) => <ActivityNode a={a} id={id} onSelect={open} />}
     />
@@ -666,7 +667,7 @@ function StatesView({ model, ...rest }: ViewProps) {
       what="state machine"
       draw={stateDiagram}
       interactive={(m, open, sel) => (
-        <LazyGraph key={m.id} graph={stateGraph(m)} direction="LR" height={420} selected={sel} onSelect={open} />
+        <LazyGraph key={m.id} graph={stateGraph(m)} title={m.title} direction="LR" height={420} selected={sel} onSelect={open} />
       )}
       details={(m, id, open) => <StateNode m={m} id={id} onSelect={open} />}
       extra={(m) =>
