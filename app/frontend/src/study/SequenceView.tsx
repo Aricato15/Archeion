@@ -70,7 +70,7 @@ export function SequenceView({
     return false
   }
 
-  const header = (y: number) =>
+  const header = (y: number, close: () => void) =>
     lanes.map((l) => (
       <g
         key={`${l.id}-${y}`}
@@ -78,7 +78,10 @@ export function SequenceView({
         style={{ cursor: onOpen ? 'pointer' : undefined }}
         onMouseEnter={() => setLane(l.id)}
         onMouseLeave={() => setLane(null)}
-        onClick={() => onOpen?.(l.id)}
+        onClick={() => {
+          close()
+          onOpen?.(l.id)
+        }}
         data-lane={l.id}
       >
         <title>{l.name}</title>
@@ -113,6 +116,7 @@ export function SequenceView({
   return (
     <PanZoom
       height={height}
+      title={flow.title}
       toolbar={
         <TextInput
           size="xs"
@@ -127,7 +131,7 @@ export function SequenceView({
         />
       }
     >
-      {(moved) => (
+      {(moved, close) => (
         <svg
           role="img"
           aria-label={flow.title}
@@ -275,8 +279,8 @@ export function SequenceView({
               </g>
             )
           })}
-          {header(0)}
-          {header(layout.footer)}
+          {header(0, close)}
+          {header(layout.footer, close)}
         </svg>
       )}
     </PanZoom>

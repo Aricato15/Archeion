@@ -19,7 +19,8 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from '@xyflow/react'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FULL_HEIGHT, FullScreenButton, FullScreenModal } from '../lib/FullScreen'
 import {
   DENSE_LIMIT,
   type EdgeStyle,
@@ -207,9 +208,23 @@ export type GraphViewProps = {
   /** Containers folded at first. Give the view a new `key` to start over. */
   initialFolded?: string[]
   minimap?: boolean
+  /** Shown in the full screen window's title bar. */
+  title?: string
 }
 
-function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelect, onOpen, initialFolded, minimap }: GraphViewProps) {
+type InnerProps = Omit<GraphViewProps, 'title'> & { onFull?: () => void }
+
+function Inner({
+  graph: given,
+  direction = 'LR',
+  height = 460,
+  selected,
+  onSelect,
+  onOpen,
+  initialFolded,
+  minimap,
+  onFull,
+}: InnerProps) {
   const scheme = useComputedColorScheme('light')
   const flow = useReactFlow()
   const [folded, setFolded] = useState(() => new Set(initialFolded ?? []))
@@ -423,6 +438,11 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
               }
             />
           </Panel>
+          {onFull && (
+            <Panel position="top-right">
+              <FullScreenButton onClick={onFull} />
+            </Panel>
+          )}
           {minimap && <MiniMap pannable zoomable />}
         </ReactFlow>
       )}
@@ -430,10 +450,35 @@ function Inner({ graph: given, direction = 'LR', height = 460, selected, onSelec
   )
 }
 
-export default function GraphView(props: GraphViewProps) {
+export default function GraphView(props: GraphViewProps & { nested?: boolean }) {
+  const { nested, title, onSelect, onOpen, ...rest } = props
+  const [full, setFull] = useState(false)
+  // A click in the full screen copy shows its target behind it, so it closes first. Stable, because
+  // a new `onOpen` lays the graph out again.
+  const select = useCallback(
+    (id: string) => {
+      setFull(false)
+      onSelect?.(id)
+    },
+    [onSelect],
+  )
+  const open = useCallback(
+    (id: string) => {
+      setFull(false)
+      onOpen?.(id)
+    },
+    [onOpen],
+  )
   return (
-    <ReactFlowProvider>
-      <Inner {...props} />
-    </ReactFlowProvider>
+    <>
+      <ReactFlowProvider>
+        <Inner {...rest} onSelect={onSelect} onOpen={onOpen} onFull={nested ? undefined : () => setFull(true)} />
+      </ReactFlowProvider>
+      {!nested && (
+        <FullScreenModal opened={full} onClose={() => setFull(false)} title={title}>
+          <GraphView {...rest} nested height={FULL_HEIGHT} onSelect={onSelect && select} onOpen={onOpen && open} />
+        </FullScreenModal>
+      )}
+    </>
   )
 }

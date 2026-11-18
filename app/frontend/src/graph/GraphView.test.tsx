@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ElkNode, Graph } from './graph'
 import GraphView from './GraphView'
@@ -42,5 +42,23 @@ describe('GraphView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Fold API' }))
     expect(await screen.findByRole('button', { name: 'Unfold API' })).toBeTruthy()
     expect(screen.queryByText('routes')).toBeNull()
+  })
+
+  it('opens full screen with a second copy, and a click there closes it first', async () => {
+    const onSelect = vi.fn()
+    render(
+      <MantineProvider env="test">
+        <GraphView graph={graph} title="Map" onSelect={onSelect} />
+      </MantineProvider>,
+    )
+    await screen.findByText('routes')
+    expect(document.querySelectorAll('[data-node="db"]')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }))
+    await waitFor(() => expect(document.querySelectorAll('[data-node="db"]')).toHaveLength(2))
+    // The copy in the window has no full screen button of its own.
+    expect(screen.getAllByRole('button', { name: 'Full screen' })).toHaveLength(1)
+    fireEvent.click(document.querySelectorAll('[data-node="db"]')[1])
+    expect(onSelect).toHaveBeenCalledWith('db')
+    await waitFor(() => expect(document.querySelectorAll('[data-node="db"]')).toHaveLength(1))
   })
 })

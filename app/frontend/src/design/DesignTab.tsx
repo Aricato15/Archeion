@@ -379,7 +379,7 @@ function Architecture({ design, base }: { design: DesignFull; base: string }) {
             <Stack gap="xs">
               <Title order={4}>Components</Title>
               <ViewSwitch
-                interactive={<LazyGraph graph={componentGraph(model)} height={520} minimap />}
+                interactive={<LazyGraph graph={componentGraph(model)} title="Components" height={520} minimap />}
                 mermaid={<MermaidBlock code={componentMap(model)} title="Components" />}
               />
             </Stack>
