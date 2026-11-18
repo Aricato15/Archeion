@@ -164,5 +164,6 @@ Ids match `[A-Za-z0-9_][A-Za-z0-9_.-]*` and are unique within their section. Eve
 
 ## Notes
 - One project per run. A module can be studied on its own. Studying a project covers its modules unless they have their own studies.
+- No git, no commit: when the scan shows no commit (a module in a folder that isn't in a repository, or a project that isn't versioned), leave `commit` out of `meta`. The snapshot is named by a digest of its model, and the viewer can't say how stale it is. `--refresh` isn't possible for it, so study the whole project again.
 - A dirty working tree is fine. Record `"dirty": true` so the snapshot says it saw uncommitted code.
 - If the scan finds very little (another language, generated code), say so in `coverage.note` and read the code directly.

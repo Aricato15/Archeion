@@ -97,7 +97,8 @@ export type StudyModel = {
   meta: {
     project: string
     date: string
-    commit: string
+    /** Null when the studied folder isn't in a git repository. */
+    commit: string | null
     dirty?: boolean
     summary?: string
     stack?: string[]

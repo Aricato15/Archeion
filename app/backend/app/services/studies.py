@@ -9,6 +9,7 @@ snapshot folder and prunes the oldest beyond the configured number.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -115,7 +116,9 @@ class Coverage(_Strict):
 class Meta(_Strict):
     project: Id
     date: Date
-    commit: str
+    # The studied commit. Left out when the folder isn't in a git repository (a module in a folder
+    # without one, or a project that isn't versioned): the snapshot is then named by a digest of its model.
+    commit: str | None = None
     dirty: bool = False
     summary: str = Field("", max_length=4000)
     stack: list[str] = []
@@ -126,8 +129,8 @@ class Meta(_Strict):
 
     @field_validator("commit")
     @classmethod
-    def _commit(cls, v: str) -> str:
-        if not _COMMIT.match(v):
+    def _commit(cls, v: str | None) -> str | None:
+        if v is not None and not _COMMIT.match(v):
             raise ValueError("commit is a git hash (7 to 40 hex characters)")
         return v
 
@@ -586,7 +589,8 @@ def save(
 ) -> tuple[Snapshot, list[str]]:
     """Write a new snapshot and prune the oldest beyond `keep`. Returns it and the pruned ids."""
     project = study.meta.project
-    base = f"{study.meta.date.isoformat()}-{study.meta.commit[:7]}"
+    short = study.meta.commit[:7] if study.meta.commit else _digest(study)
+    base = f"{study.meta.date.isoformat()}-{short}"
     folder = _project_dir(registry_root, project)
     folder.mkdir(parents=True, exist_ok=True)
     name, n = base, 1
@@ -607,6 +611,12 @@ def save(
         (tmp / INFO_FILE).write_text(json.dumps({"thread": thread}) + "\n", encoding="utf-8")
     tmp.rename(target)
     return Snapshot(project, name, target), prune(registry_root, project, keep)
+
+
+def _digest(study: Study) -> str:
+    """Seven hex digits that name a snapshot with no commit: a hash of what it says."""
+    text = json.dumps(dump(study), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:7]
 
 
 def prune(registry_root: Path, project: str, keep: int) -> list[str]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -542,3 +543,48 @@ def test_wide_levels_get_a_warning_not_an_error():
     for c in data["components"][:3]:
         c["parent"] = "m12"
     assert st.structure_warnings(st.parse(data)) == []
+
+
+# --- a study of a folder that isn't in a git repository (ADR 0027) ---------------------------
+
+
+def test_a_study_without_a_commit_is_named_by_a_digest(tmp_path):
+    reg = tmp_path / "registry"
+    data = model("example")
+    del data["meta"]["commit"]
+    snap, _ = st.save(reg, st.parse(data))
+    again, _ = st.save(reg, st.parse(data))
+    assert re.match(r"^\d{4}-\d{2}-\d{2}-[0-9a-f]{7}$", snap.id)
+    assert again.id == snap.id + "-2"  # the same content twice: the second gets the usual suffix
+    row = st.summary(snap)
+    assert row["commit"] is None and row["valid"]
+    assert st.get_snapshot(reg, "example", "latest").id == again.id
+
+
+def test_a_different_study_gets_a_different_name(tmp_path):
+    reg = tmp_path / "registry"
+    a, b = model("example"), model("example")
+    del a["meta"]["commit"], b["meta"]["commit"]
+    b["meta"]["summary"] = "Changed."
+    assert st.save(reg, st.parse(a))[0].id != st.save(reg, st.parse(b))[0].id
+
+
+def test_a_bad_commit_is_still_refused_but_none_is_fine():
+    data = model("example")
+    data["meta"]["commit"] = "not-a-hash"
+    with pytest.raises(st.StudyError, match="git hash"):
+        st.parse(data)
+    data["meta"]["commit"] = None
+    assert st.parse(data).meta.commit is None
+
+
+def test_no_commit_means_staleness_is_unknown_and_refresh_is_refused(settings, capsys):
+    (settings.repo_root.parent / "example-dir").mkdir()
+    page = settings.registry_root / "projects" / "example-nogit.md"
+    page.write_text("---\npath: ../example-dir\n---\n# No git\n", encoding="utf-8")
+    data = model("example-nogit")
+    del data["meta"]["commit"]
+    st.save(settings.registry_root, st.parse(data))
+    assert main(["study", "list", "example-nogit"], settings) == 0
+    assert main(["study", "changes", "example-nogit"], settings) != 0
+    assert "has no commit" in capsys.readouterr().err

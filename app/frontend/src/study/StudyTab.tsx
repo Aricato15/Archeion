@@ -361,7 +361,14 @@ function OverviewView({ model, set }: ViewProps) {
         ))}
       </Group>
       <Text size="sm" c="dimmed">
-        Studied {m.date} at commit <Code>{m.commit.slice(0, 10)}</Code>
+        Studied {m.date}
+        {m.commit ? (
+          <>
+            {' '}at commit <Code>{m.commit.slice(0, 10)}</Code>
+          </>
+        ) : (
+          ' (not in a git repository, so no commit and no staleness)'
+        )}
         {m.coverage?.files_read !== undefined &&
           ` · read ${m.coverage.files_read}${m.coverage.files_total ? ` of ${m.coverage.files_total}` : ''} files`}
         {m.refreshed_from && ` · refreshed from ${m.refreshed_from}`}

@@ -129,7 +129,7 @@ def _flatten(
     own_meta = own.get("meta") or {}
     commit = own_meta.get("commit") or next(
         ((m.get("meta") or {}).get("commit") for m in loaded.values() if (m.get("meta") or {}).get("commit")),
-        "0000000",
+        None,
     )
     components: list[dict] = [
         c for c in own.get("components", []) if isinstance(c, dict) and c.get("id") not in won

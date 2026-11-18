@@ -25,6 +25,9 @@ A group is a page with a narrative and a list of members. It has no folder, so i
 3. **Study disagreements:** the member's study wins over the group's, because it read that code more closely. The viewer shows where they differ and offers **Discuss**, which starts a thread for Archeion about it (ADR 0018) so the user can decide.
 4. **Version:** the work joins 1.4.0 (still unreleased and untagged), recorded under its changelog entry.
 
+## Found while testing (2026-11-19)
+A study had to name a git commit, so a folder with no repository (a module outside any, or a project that isn't versioned) couldn't be studied. `meta.commit` is now optional ([ADR 0019](0019-code-studies.md), point 1 amended): the snapshot is named by a digest of its model, and its staleness is unknown.
+
 ## Alternatives considered
 - **Extra project fields on the `groups/` page.** One page, but two code paths for docs, inbox and studies, and every API keyed by project would have to learn about groups.
 - **A single page for both.** Cleaner, but it needs a migration of every existing group page. Point 2 leaves that for later and lets the two pages coexist.

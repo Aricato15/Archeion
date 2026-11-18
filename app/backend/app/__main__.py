@@ -1005,8 +1005,9 @@ def _print_study(study: st.Study) -> None:
 
 def _study_counts(study: st.Study) -> str:
     m = study.meta
+    at = (m.commit or "no git")[:10]
     return (
-        f"{m.project} at {m.commit[:10]} ({m.date.isoformat()}): {len(study.components)} components,"
+        f"{m.project} at {at} ({m.date.isoformat()}): {len(study.components)} components,"
         f" {len(study.relations)} relations, {len(study.interfaces.exposes)} exposed,"
         f" {len(study.interfaces.calls)} outgoing calls, {len(study.entities)} entities,"
         f" {len(study.flows)} flows, {len(study.activities)} activities, {len(study.states)} state"
@@ -1185,7 +1186,12 @@ def cmd_study_changes(settings: Settings, args: argparse.Namespace) -> int:
     except git.GitError:
         files = None
     if files is None:
-        raise ValueError(f"can't compare with {snap.id}'s commit; study the whole project instead")
+        why = (
+            "it has no commit (the folder isn't in a git repository)"
+            if not commit
+            else "that commit isn't here"
+        )
+        raise ValueError(f"can't compare with {snap.id}: {why}; study the whole project instead")
     if args.json:
         _print_json({"snapshot": snap.id, "commit": commit, "files": files})
         return 0
