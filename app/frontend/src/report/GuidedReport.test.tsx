@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReportDialog } from './ReportDialog'
+import { ReportTab } from './ReportTab'
 
 const entry = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
   id,
@@ -254,5 +255,35 @@ describe('Guided report, choosing the sections', () => {
       'study.interfaces',
     ])
     expect((saved.sections[0] as { body: string }).body).toBe('Alpha owns **items**.')
+  })
+})
+
+describe('The Reports tab', () => {
+  const tab = () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <MantineProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <ReportTab project="alpha" />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+  }
+
+  it('shows a plan waiting for review, with Approve and build', async () => {
+    stubApi({ 'GET /api/reports/alpha/plan': plan, 'GET /api/reports/alpha/files': [] })
+    tab()
+    expect(await screen.findByRole('button', { name: /Approve and build/ })).toBeTruthy()
+    expect(screen.getByText('Executive review')).toBeTruthy()
+  })
+
+  it('shows no plan card when there is none', async () => {
+    stubApi({ 'GET /api/reports/alpha/files': [] })
+    tab()
+    expect(await screen.findByText(/No reports built yet/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Approve and build/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Ask Claude to plan/ })).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import { ActionIcon, Alert, Badge, Group, Loader, Stack, Table, Text, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconCertificate, IconDownload, IconEye, IconTrash } from '@tabler/icons-react'
+import { GuidedReport } from './GuidedReport'
 import { checkReportFile, reportFileUrl, useDeleteReportFile, useReportFiles } from '../api/reports'
 
 const KB = 1024
@@ -28,17 +29,24 @@ export function ReportTab({ project }: { project: string }) {
     }
   }
 
+  // A guided plan waiting for review shows here too, so approving it doesn't need the dialog.
+  const plan = <GuidedReport project={project} onClose={() => {}} planOnly />
+
   if (files.isPending) return <Loader size="sm" />
   if (files.isError) return <Alert color="red">{files.error.message}</Alert>
   if (files.data.length === 0)
     return (
-      <Text c="dimmed" size="sm">
-        No reports built yet. Use <b>Report</b> at the top of this page to make one.
-      </Text>
+      <Stack>
+        {plan}
+        <Text c="dimmed" size="sm">
+          No reports built yet. Use <b>Report</b> at the top of this page to make one.
+        </Text>
+      </Stack>
     )
 
   return (
     <Stack>
+      {plan}
       <Text size="sm" c="dimmed">
         Kept in the private registry, never committed.
       </Text>
