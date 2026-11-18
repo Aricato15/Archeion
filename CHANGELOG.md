@@ -8,6 +8,7 @@ All notable changes to Archeion are recorded here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Groups with a home** ([ADR 0027](docs/decisions/0027-groups-with-a-home-and-promotion.md), part 1). A project page with `type: group` is a group that has its own folder, docs and inbox, and keeps the narrative of a `groups/` page of the same name. Its members are the pages whose `group:` or `parent:` names it, a module of its repository belongs to it, and groups don't nest. The viewer draws it as a group (icon, badge, member count, grape box on the maps) and shows its docs as a source. `projects list` shows it as the group's header. A project and a group sharing a name is now a warning.
 - **An Updates tab** in the sidebar. It reads the notes in `docs/updates/` and lists them by the version they update to, newest first, with the installed version marked. Pick one to read it in place, or open it as a doc for its history and comments. A new note shows up by itself, as long as it's named `update-vX.Y.Z.md`.
 
 ## [1.4.0] - 2026-11-19

@@ -33,6 +33,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** "3 modules · 1 sub-project": a project's children by type (ADR 0016). */
 function childrenSummary(project: Project, projects: Map<string, Project>): string | null {
+  if (project.type === 'group') return plural(project.members.length, 'member')
   const modules = project.children.filter((c) => projects.get(c)?.type === 'module').length
   const nested = project.children.length - modules
   const parts = [modules ? plural(modules, 'module') : null, nested ? plural(nested, 'sub-project') : null]
@@ -66,7 +67,7 @@ export function ProjectCard({ project, projects }: { project: Project; projects:
           </Group>
         </Group>
         <Text size="xs" c="dimmed">
-          {[project.type === 'module' ? 'module' : null, project.kind, project.ports.length ? `:${project.ports.join(', :')}` : null].filter(Boolean).join(' · ') ||
+          {[project.type === 'module' || project.type === 'group' ? project.type : null, project.kind, project.ports.length ? `:${project.ports.join(', :')}` : null].filter(Boolean).join(' · ') ||
             project.id}
         </Text>
         {project.summary && (

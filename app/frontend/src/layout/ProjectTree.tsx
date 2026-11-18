@@ -35,7 +35,14 @@ function Item({
     to: projectUrl(project.id),
     label: project.title,
     // Projects (their own repository) and modules (part of one) look different (ADR 0016).
-    leftSection: project.type === 'module' ? <IconPuzzle size={16} data-type="module" /> : <IconBox size={16} />,
+    leftSection:
+      project.type === 'module' ? (
+        <IconPuzzle size={16} data-type="module" />
+      ) : project.type === 'group' ? (
+        <IconStack2 size={16} data-type="group" />
+      ) : (
+        <IconBox size={16} />
+      ),
     active,
     childrenOffset: 14,
     py: 4,

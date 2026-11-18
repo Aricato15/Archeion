@@ -9,7 +9,7 @@ title: Example collector                      # display name (else the first hea
 root: projects                                # a root granted on the Settings page (ARCHEION_ROOTS)
 path: example-service/collectors/example      # relative to that root (without root: relative to this repo, inside ARCHEION_WORKSPACE_ROOT)
 parent: example-service                       # the project it's part of
-type: module                                  # optional: project | module; detected when left out
+type: module                                  # optional: project | module | group; detected when left out
 inbox_edits: true                             # optional: Archeion's /inbox may edit it (ADR 0017)
 group: example-system                         # a page in ../groups/; modules and sub-projects inherit their parent's
 status: active                                # active | planned | paused | archived
@@ -24,6 +24,7 @@ verified: 2026-11-15                          # when the frontmatter was last ch
 - **New projects:** the viewer's Settings page lists every root's projects and registers the ones you pick. Or `scripts/archeion.ps1 projects scan` lists the folders in your roots that have no page yet, and `--write` creates stub pages here (it never overwrites one). `--only <name>` picks some, `--root <name>` scans one root.
 - **Projects outside the workspace:** grant their folder on the viewer's Settings page or in `ARCHEION_ROOTS` (`configure.bat`) and set `root:` on the page. `path` is then relative to that folder ([ADR 0008](../../docs/decisions/0008-named-project-roots.md)). `projects list` shows the tree and any problems, which the viewer's Projects page also shows.
 - **Projects and modules:** without `type:`, a page with `parent:` whose folder has no `.git` of its own is a module, and everything else is a project. Set `type:` when that's wrong: on the project's page in the viewer, when registering on the Settings page, or with `scripts/archeion.ps1 projects type <name> project|module|auto`. A module's feedback reaches its project's session.
+- **Groups with a home (ADR 0027):** `type: group` makes the page a group that has its own folder, docs and inbox. It's never detected, can't have `parent:` or `group:`, and its members are the pages whose `group:` names it (or whose `parent:` is it). A `groups/<name>.md` page of the same name keeps the narrative. A plain project and a group sharing a name is a warning.
 - **Inbox edits:** `inbox_edits: false` stops Archeion's `/inbox` editing the project to carry out its items; it then only answers, and the project's own session makes changes. Left out, it's allowed, and a module follows its project. Switch it on the project page or with `scripts/archeion.ps1 projects inbox-edits <name> on|off|auto` ([ADR 0017](../../docs/decisions/0017-inbox-may-edit-registered-projects.md)).
 - **Keep facts in their home:** a project's own facts (endpoints, commands, internal design) stay in its own repo. The viewer shows its README, CLAUDE.md and docs folder live, read-only.
 - **Starting point:** copy `_template.md` to `<name>.md` for a page written by hand.

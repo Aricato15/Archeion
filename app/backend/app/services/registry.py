@@ -11,7 +11,7 @@ body holds the cross-project notes (ADR 0006). Files starting with "_" are templ
     path: ../example-service/collectors/example   # relative to this repo's root, or to `root`
     root: private                                 # optional: a folder granted in ARCHEION_ROOTS
     parent: example-service                       # the project (or module) it sits in
-    type: module                                  # optional: project | module (ADR 0016)
+    type: module                                  # optional: project | module | group (ADR 0016, 0027)
     group: example-system                         # a groups/<group>.md page
     status: active                                # active | paused | archived | planned
     inbox_edits: true                             # optional: /inbox may edit its files (ADR 0017)
@@ -39,6 +39,8 @@ FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.S)
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 STATUSES = {"active", "paused", "archived", "planned"}
 TYPES = ("project", "module")  # ADR 0016: a project has its own repository, a module lives in one
+GROUP_TYPE = "group"  # ADR 0027: a group with a home. Set by promoting a project, never by detection
+PAGE_TYPES = (*TYPES, GROUP_TYPE)  # what a page's `type:` may say
 PROJECTS_DIR = "projects"
 GROUPS_DIR = "groups"
 SELF_ID = "archeion"  # this repo's docs/ source, never a registered project
@@ -127,6 +129,7 @@ class Project:
     available: bool = False  # path resolves to a folder inside its root
     children: list[str] = field(default_factory=list)
     used_by: list[str] = field(default_factory=list)
+    members: list[str] = field(default_factory=list)  # a group with a home: its member pages (ADR 0027)
     dir: Path | None = field(default=None, repr=False)
 
     def public(self) -> dict:
@@ -142,6 +145,7 @@ class Group:
     page: str
     summary: str = ""
     projects: list[str] = field(default_factory=list)
+    home: str | None = None  # the project page (same name) that gives the group a home (ADR 0027)
 
 
 @dataclass
@@ -264,8 +268,8 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
             reg.warn(rel, f"inbox_edits '{edits}' must be true or false; ignored")
             edits = None
         page_type = meta.get("type")
-        if page_type is not None and page_type not in TYPES:
-            reg.warn(rel, f"unknown type '{page_type}' (use project or module); detected instead")
+        if page_type is not None and page_type not in PAGE_TYPES:
+            reg.warn(rel, f"unknown type '{page_type}' (use project, module or group); detected instead")
             page_type = None
         project = Project(
             id=pid,
@@ -304,6 +308,13 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
 def _link(reg: Registry) -> None:
     """Check references and fill in children, used_by and group membership."""
     for p in reg.projects.values():
+        if p.type == GROUP_TYPE:  # ADR 0027: groups don't nest and sit at the top
+            if p.parent:
+                reg.warn(p.page, "a group can't have `parent:`; ignored")
+                p.parent = None
+            if p.group:
+                reg.warn(p.page, "a group can't be a member of a group (groups don't nest); `group:` ignored")
+                p.group = None
         if p.parent and p.parent not in reg.projects:
             reg.warn(p.page, f"parent '{p.parent}' isn't a registered project")
             p.parent = None
@@ -333,6 +344,7 @@ def _link(reg: Registry) -> None:
             cur = reg.projects[cur.parent]
 
     _types(reg)
+    _homes(reg)
     for p in reg.projects.values():
         if p.parent:
             reg.projects[p.parent].children.append(p.id)
@@ -344,6 +356,27 @@ def _link(reg: Registry) -> None:
             reg.groups[p.group] = Group(p.group, p.group, "", "")
         if group:
             reg.groups[group].projects.append(p.id)
+    for g in reg.groups.values():
+        if g.home:
+            reg.projects[g.home].members = list(g.projects)
+
+
+def _homes(reg: Registry) -> None:
+    """ADR 0027: a project page of type `group` is a group with a home. It joins the group
+    page of the same name (which keeps the narrative) or makes the group when there's none.
+    A group page and a plain project page of one name are two things sharing a name."""
+    for p in reg.projects.values():
+        if p.type == GROUP_TYPE:
+            g = reg.groups.get(p.id)
+            if g is None:
+                g = reg.groups[p.id] = Group(p.id, p.title, p.page, p.summary)
+            g.home = p.id
+        elif p.id in reg.groups:
+            reg.warn(
+                p.page,
+                f"'{p.id}' is both a project and a group ({reg.groups[p.id].page}); "
+                "set `type: group` on the project (projects promote) to make it one group with a home",
+            )
 
 
 def is_repo(folder: Path | None) -> bool:
@@ -361,7 +394,7 @@ def _types(reg: Registry) -> None:
         if p.type_source != "page":
             p.type = p.detected_type
     for p in reg.projects.values():
-        if p.type == "project":
+        if p.type in ("project", GROUP_TYPE):
             continue
         if not p.parent:
             reg.warn(p.page, "a module needs `parent:`, the project it's part of")
@@ -375,9 +408,10 @@ def _types(reg: Registry) -> None:
 
 def owning_project(reg: Registry, p: Project) -> Project:
     """The project a module is part of: its nearest ancestor that's a project. A project
-    owns itself. A chain of modules with no project above ends at the topmost page."""
+    owns itself. A chain of modules with no project above ends at the topmost page. A group
+    with a home counts as a project here: a module of its repository belongs to it (ADR 0027)."""
     cur = p
-    while cur.type != "project" and cur.parent and cur.parent in reg.projects:
+    while cur.type not in ("project", GROUP_TYPE) and cur.parent and cur.parent in reg.projects:
         cur = reg.projects[cur.parent]
     return cur
 
@@ -388,12 +422,16 @@ def modules_of(reg: Registry, p: Project) -> list[str]:
 
 
 def effective_group(reg: Registry, p: Project) -> str | None:
-    """A sub-project without its own group belongs to its parent's group."""
+    """A sub-project without its own group belongs to its parent's group, and a page whose
+    parent is a group with a home belongs to that group (ADR 0027)."""
     cur: Project | None = p
     while cur is not None:
         if cur.group:
             return cur.group
-        cur = reg.projects.get(cur.parent) if cur.parent else None
+        parent = reg.projects.get(cur.parent) if cur.parent else None
+        if parent is not None and parent.type == GROUP_TYPE:
+            return parent.id
+        cur = parent
     return None
 
 

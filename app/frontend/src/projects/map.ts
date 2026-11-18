@@ -159,12 +159,12 @@ export function buildGraph(registry: Registry, opts: MapOptions = {}, links?: Sy
     nodes.push({
       id,
       label: p?.title ?? id,
-      sublabel: [p?.type === 'module' ? 'module' : null, p?.kind, p && p.status !== 'active' ? p.status : null]
+      sublabel: [p?.type === 'module' || p?.type === 'group' ? p.type : null, p?.kind, p && p.status !== 'active' ? p.status : null]
         .filter(Boolean)
         .join(' · '),
       parent,
       shape: p?.type === 'module' ? 'round' : 'box',
-      tone: id === opts.focus ? 'blue' : undefined,
+      tone: id === opts.focus ? 'blue' : p?.type === 'group' ? 'grape' : undefined,
       ghost,
       dimmed: p?.status === 'paused' || p?.status === 'archived',
     })

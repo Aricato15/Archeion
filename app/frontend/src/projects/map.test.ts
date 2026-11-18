@@ -27,6 +27,7 @@ function project(id: string, extra: Partial<Project> = {}): Project {
     available: true,
     children: [],
     used_by: [],
+    members: [],
     ...extra,
   }
 }
@@ -39,7 +40,7 @@ const registry: Registry = {
     project('collector-a', { parent: 'datasvc', title: 'coll "tei"' }),
     project('notes', { status: 'archived' }),
   ],
-  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web', 'bff'] }],
+  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web', 'bff'], home: null }],
   warnings: [],
   unregistered: [],
 }
@@ -125,5 +126,26 @@ describe('buildGraph', () => {
       studied: ['web'],
     })
     expect(confirmed.edges.find((e) => e.id === 'dep:web>bff')?.style).toBeUndefined()
+  })
+})
+
+describe('a group with a home (ADR 0027)', () => {
+  const reg: Registry = {
+    projects: [
+      project('top', { type: 'group', type_source: 'page', members: ['svc'] }),
+      project('svc', { group: 'top' }),
+    ],
+    groups: [{ id: 'top', title: 'Top', page: 'projects/top.md', summary: '', projects: ['svc'], home: 'top' }],
+    warnings: [],
+    unregistered: [],
+  }
+
+  it('is drawn as a grape box labelled group', () => {
+    const top = buildGraph(reg).nodes.find((n) => n.id === 'top')
+    expect(top).toMatchObject({ sublabel: 'group', tone: 'grape', shape: 'box' })
+  })
+
+  it('still puts its members in the group container', () => {
+    expect(buildGraph(reg).nodes.find((n) => n.id === 'svc')?.parent).toBe('group:top')
   })
 })

@@ -64,7 +64,8 @@ export type Source = { id: SourceId; title: string; kind: 'archeion' | 'registry
 
 export type ProjectStatus = 'active' | 'paused' | 'archived' | 'planned'
 
-export type ProjectType = 'project' | 'module'
+/** ADR 0027: a 'group' is a group with a home, set by promoting a project; it's never detected. */
+export type ProjectType = 'project' | 'module' | 'group'
 
 export type Project = {
   id: string
@@ -97,9 +98,19 @@ export type Project = {
   available: boolean
   children: string[]
   used_by: string[]
+  /** A group with a home (ADR 0027): its member pages. Empty for anything else. */
+  members: string[]
 }
 
-export type Group = { id: string; title: string; page: string; summary: string; projects: string[] }
+export type Group = {
+  id: string
+  title: string
+  page: string
+  summary: string
+  projects: string[]
+  /** The project page of the same name that gives the group a folder (ADR 0027); null for a virtual group. */
+  home: string | null
+}
 
 export type Registry = {
   projects: Project[]

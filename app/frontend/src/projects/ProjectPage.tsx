@@ -71,6 +71,12 @@ function SourceDoc({ source, path }: { source: SourceId; path: string }) {
 /** Project, module, or back to what the folder says (ADR 0016). Writes `type:` on the registry page. */
 function TypeControl({ project }: { project: Project }) {
   const setType = useSetProjectType()
+  if (project.type === 'group')
+    return (
+      <Text size="xs" c="dimmed">
+        A group with a home (<Code>type: group</Code> on its registry page, ADR 0027).
+      </Text>
+    )
   const value = project.type_source === 'page' ? project.type : 'auto'
   return (
     <Stack gap={2} align="flex-start">
@@ -235,6 +241,10 @@ export function ProjectPage() {
             {project.type === 'module' ? (
               <Badge variant="light" color="grape" size="sm">
                 module{project.owner && <> of <ProjectLink id={project.owner} projects={projects} /></>}
+              </Badge>
+            ) : project.type === 'group' ? (
+              <Badge variant="light" color="grape" size="sm">
+                group
               </Badge>
             ) : (
               <Badge variant="outline" size="sm">

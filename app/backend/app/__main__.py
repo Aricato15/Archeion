@@ -607,12 +607,23 @@ def cmd_projects_list(settings: Settings, args: argparse.Namespace) -> int:
         for child in sorted(p.children):
             show(child, depth + 1)
 
-    roots = [p for p in reg.projects.values() if not p.parent]
+    roots = [p for p in reg.projects.values() if not p.parent and p.type != "group"]
     for gid, group in sorted(reg.groups.items()):
-        print(f"{group.title} [{gid}]")
+        home = reg.projects.get(group.home) if group.home else None
+        head = f"{group.title} [{gid}]"
+        if home:  # ADR 0027: a group with a home
+            flags = ["group", home.status] + ([f"root {home.root}"] if home.root else [])
+            flags += [] if home.available or not home.path else ["not available"]
+            flags += [] if home.inbox_edits else ["no inbox edits"]
+            extra = f" -> {', '.join(home.depends_on)}" if home.depends_on else ""
+            head += f" ({', '.join(flags)}){extra}"
+        print(head)
         for p in sorted(roots, key=lambda x: x.id):
             if p.group == gid:
                 show(p.id, 1)
+        for child in sorted(home.children if home else []):
+            if reg.projects[child].group != gid:  # members that sit under the group's page
+                show(child, 1)
     loose = [p for p in roots if not p.group]
     if loose:
         print("Standalone")
