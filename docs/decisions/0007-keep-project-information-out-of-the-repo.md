@@ -3,6 +3,7 @@
 - Status: Accepted (2026-11-15)
 - Date: 2026-11-15
 - Amends: [ADR 0006](0006-multi-project-registry.md) (where the registry lives), hard rule 1 in `CLAUDE.md`
+- Extended on 2026-11-19: name clashes are reviewed by the user (see "Name clashes" below).
 
 ## Context
 The repo will be published on GitHub ([ADR 0003](0003-track-on-github-keep-configuration-out.md)). In 0.2.0, the registry pages (project names, folder layout, ports, dependencies and descriptions) were committed under `docs/system/`. Project names had also crept into docs, code comments and tests. Publishing the repo would publish all of it. Anything committed also stays retrievable from history, even after it's deleted from the files.
@@ -18,7 +19,11 @@ The repo will be published on GitHub ([ADR 0003](0003-track-on-github-keep-confi
 3. **The commit hook enforces it.** `check-sensitive.ps1` adds two checks:
    - It blocks any file under `registry/`.
    - It blocks the names of registered projects and workspace project folders in added lines. It builds that list at commit time from `registry/` and the workspace, so the names are never written into the repo.
-4. **History is cleaned before the first push.** See Remediation.
+4. **A name that clashes is reviewed by the user.** Registering a real project can make an ordinary term, one already used in committed text as a made-up example (a test fixture, a Mermaid keyword), into a project name. Blocking every such line for good, or letting the person at the keyboard wave it through, are both wrong. The hook tells the two cases apart by whether the term is already in the committed text (`git grep` of `HEAD`):
+   - A name that was **never committed** is a leak, and is blocked as before.
+   - A name that **already appears** in committed text is a clash. The commit stops with `REVIEW NEEDED` and the lines, and the user decides: change the line, mark a harmless example `sensitive-ok`, or approve the term in `registry/reviewed-names.txt` (private, like the rest of the registry).
+   - That file has one entry per line, `name` (accepted anywhere) or `name path/to/file` (accepted only there), with `#` comments. Claude never adds an entry or the marker to get a commit through: it shows the lines and waits.
+5. **History is cleaned before the first push.** See Remediation.
 
 ## Remediation (done on 2026-11-15)
 The repo has never had a remote, so nothing has left this machine. The leaked text is only in local commits:

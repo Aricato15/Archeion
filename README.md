@@ -65,7 +65,7 @@ This repo is meant to be published, so nothing in it describes a specific projec
 The commit hook (`.githooks/check-sensitive.ps1`) refuses:
 - secrets, absolute paths and email addresses,
 - any file under `registry/`,
-- the names of your registered projects and workspace folders, which it reads from your private registry at commit time.
+- the names of your registered projects and workspace folders, which it reads from your private registry at commit time. When such a name is also an ordinary word that's already in the committed text (an example name like `my-service` in a test), it stops for **you** to review it instead of deciding: change the line, mark it `sensitive-ok`, or approve the term in `registry/reviewed-names.txt`.
 
 Turn the hook on once per clone with `git config core.hooksPath .githooks`. The reasons are in [ADR 0003](docs/decisions/0003-track-on-github-keep-configuration-out.md) and [ADR 0007](docs/decisions/0007-keep-project-information-out-of-the-repo.md).
 

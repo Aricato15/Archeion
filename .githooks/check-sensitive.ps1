@@ -2,6 +2,9 @@
 # personal information. Run by .githooks/pre-commit on the staged changes, or by hand:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File .githooks/check-sensitive.ps1 -All
 # A line that is a deliberate, harmless example can carry the marker: sensitive-ok
+# A registered project's name that is also an ordinary term (an example name in a test, a Mermaid
+# keyword) is a clash: the commit stops for the user to review it, see registry/reviewed-names.txt
+# and docs/decisions/0007-keep-project-information-out-of-the-repo.md.
 # See docs/decisions/0003-track-on-github-keep-configuration-out.md.
 param([switch]$All)
 
@@ -56,16 +59,55 @@ if ($names.Count -gt 0) {
 }
 
 $findings = New-Object System.Collections.Generic.List[string]
+$nameHits = New-Object System.Collections.Generic.List[object]
 
 function Test-Line([string]$file, [int]$num, [string]$text) {
     if ($text -match 'sensitive-ok') { return }
     foreach ($p in $patterns) {
         foreach ($m in [regex]::Matches($text, $p.Re)) {
             if ($p.Kind -eq 'personal info' -and $m.Value -match $emailOk) { continue }
-            $findings.Add("  [$($p.Kind)] ${file}:${num}: $($m.Value)")
+            if ($p.Kind -eq 'project name') {
+                $nameHits.Add(@{ File = $file; Num = $num; Value = $m.Value })
+            } else {
+                $findings.Add("  [$($p.Kind)] ${file}:${num}: $($m.Value)")
+            }
             break
         }
     }
+}
+
+# Terms the user has reviewed: registry/reviewed-names.txt (private, gitignored), one per line,
+# `name` (accepted anywhere) or `name path/to/file` (accepted only there). `#` starts a comment.
+$reviewed = New-Object System.Collections.Generic.List[object]
+$reviewFile = Join-Path $registry 'reviewed-names.txt'
+if (Test-Path -LiteralPath $reviewFile) {
+    foreach ($line in (Get-Content -LiteralPath $reviewFile -Encoding UTF8)) {
+        $t = ($line -replace '#.*$', '').Trim()
+        if (-not $t) { continue }
+        $parts = $t -split '\s+', 2
+        $reviewed.Add(@{ Name = $parts[0]; Path = $(if ($parts.Count -gt 1) { $parts[1].Replace('\', '/') } else { '' }) })
+    }
+}
+function Test-Reviewed([string]$name, [string]$file) {
+    foreach ($r in $reviewed) {
+        if ($r.Name -ieq $name -and ($r.Path -eq '' -or $r.Path -ieq $file)) { return $true }
+    }
+    return $false
+}
+# Is the term already in the committed text? Then it is an ordinary word that also names a project
+# (a clash to review). A name that was never committed is a leak, and is blocked.
+$committedCache = @{}
+function Test-Committed([string]$term) {
+    $key = $term.ToLowerInvariant()
+    if (-not $committedCache.ContainsKey($key)) {
+        $hit = $false
+        try {
+            & git grep -qiwIF -e $term HEAD 2>$null | Out-Null
+            $hit = ($LASTEXITCODE -eq 0)
+        } catch { $hit = $false }
+        $committedCache[$key] = $hit
+    }
+    return $committedCache[$key]
 }
 
 if ($All) {
@@ -90,12 +132,34 @@ if ($All) {
     }
 }
 
+$clashes = New-Object System.Collections.Generic.List[string]
+foreach ($h in $nameHits) {
+    if (Test-Reviewed $h.Value $h.File) { continue }
+    if (Test-Committed $h.Value) {
+        $clashes.Add("  [name clash] $($h.File):$($h.Num): $($h.Value)")
+    } else {
+        $findings.Add("  [project name] $($h.File):$($h.Num): $($h.Value)")
+    }
+}
+
 if ($findings.Count -gt 0) {
     [Console]::Error.WriteLine("BLOCKED: sensitive content found (secrets, absolute paths, personal info or project names):")
     $findings | ForEach-Object { [Console]::Error.WriteLine($_) }
     [Console]::Error.WriteLine("Move it to a gitignored .env, use a relative path, or remove it.")
     [Console]::Error.WriteLine("Project details belong in the private registry/ folder, not in committed files.")
     [Console]::Error.WriteLine("For a harmless example, put 'sensitive-ok' on that line.")
+    if ($clashes.Count -gt 0) {
+        [Console]::Error.WriteLine("Also, name clashes for the user to review (see below):")
+        $clashes | ForEach-Object { [Console]::Error.WriteLine($_) }
+    }
+    exit 1
+}
+if ($clashes.Count -gt 0) {
+    [Console]::Error.WriteLine("REVIEW NEEDED: these lines contain the name of a registered project, but the same word is already in committed text, so it may only be a clash (an example name, a keyword):")
+    $clashes | ForEach-Object { [Console]::Error.WriteLine($_) }
+    [Console]::Error.WriteLine("Show them to the user and let them decide. Don't approve them yourself.")
+    [Console]::Error.WriteLine("To accept one, the user adds a line to registry/reviewed-names.txt: 'name' (anywhere) or 'name path/to/file' (only there).")
+    [Console]::Error.WriteLine("Or change the line to use another name, or mark a harmless example with 'sensitive-ok'.")
     exit 1
 }
 exit 0

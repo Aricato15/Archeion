@@ -10,6 +10,7 @@ registry/
   projects/<name>.md   one page per project or module (format: projects/README.md)
   groups/<name>.md     one page per system of related projects
   interactions/        notable cross-project flows, one file each
+  reviewed-names.txt   terms you reviewed for the commit hook (a project name that is also an ordinary word)
 ```
 
 Files whose name starts with `_` (like `projects/_template.md`) are examples. The registry ignores them.

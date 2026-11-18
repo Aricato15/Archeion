@@ -1,0 +1,10 @@
+# Terms you have reviewed for the commit hook (ADR 0007). Private, like the rest of registry/.
+#
+# When a registered project's name is also an ordinary word already in Archeion's committed text
+# (an example name in a test, a Mermaid keyword), the hook stops with REVIEW NEEDED. If you decide
+# a line is only a clash, accept it here. One entry per line:
+#
+#   name                      accepted anywhere
+#   name path/to/file         accepted only in that file
+#
+# Lines starting with # are comments. Claude never adds an entry here to get a commit through.
