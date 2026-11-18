@@ -3,6 +3,7 @@ import {
   Anchor,
   Badge,
   Blockquote,
+  Box,
   Button,
   Card,
   Group,
@@ -30,6 +31,8 @@ import { MarkdownView } from '../docs/MarkdownView'
 import { formatDate } from '../lib/format'
 import { OriginBadge, ProjectBadge, StatusBadge } from './FeedbackCard'
 import { KIND_LABEL, docLink } from './labels'
+import { LatestButton, ThreadNav } from './ThreadNav'
+import { SCROLL_MARGIN, messageDomId } from './threadDom'
 
 /** One message in a thread: what you wrote and, once answered, Claude's reply. */
 function Message({ item, highlight, onDeleted }: { item: FeedbackItem; highlight: boolean; onDeleted: () => void }) {
@@ -257,56 +260,71 @@ export function ThreadPage() {
     else if (deleted.id === item.id) navigate(`/feedback/${first.id}`, { replace: true })
   }
 
+  const nav = thread.length > 1
   return (
-    <Stack maw={900}>
-      <Group justify="space-between" align="flex-start">
-        <Stack gap={4}>
-          <Group gap="xs">
-            <Title order={2}>Thread #{first.id}</Title>
-            <Badge variant="outline" size="sm">
-              {KIND_LABEL[first.kind]}
-            </Badge>
-            <StatusBadge item={last} />
-            {first.source !== SELF && <ProjectBadge id={first.source} />}
-            {first.origin && <OriginBadge id={first.origin} />}
-          </Group>
-          <Text size="xs" c="dimmed">
-            {thread.length} {thread.length === 1 ? 'message' : 'messages'} · started {formatDate(first.created_at)}
-          </Text>
-        </Stack>
-        <Anchor component={Link} to="/feedback" size="sm">
-          All feedback
-        </Anchor>
-      </Group>
-      {first.doc_path && link && (
-        <Text size="sm">
-          <Anchor component={Link} to={link}>
-            {first.doc_path}
-          </Anchor>{' '}
-          · {describeAnchor(first.anchor)}
-          {first.doc_rev && (
-            <Text span size="xs" c="dimmed">
-              {' '}
-              (written at {first.doc_rev.slice(0, 8)})
+    <Group align="flex-start" wrap="nowrap" gap="lg">
+      <Stack maw={900} style={{ flex: 1, minWidth: 0 }}>
+        <Group justify="space-between" align="flex-start">
+          <Stack gap={4}>
+            <Group gap="xs">
+              <Title order={2}>Thread #{first.id}</Title>
+              <Badge variant="outline" size="sm">
+                {KIND_LABEL[first.kind]}
+              </Badge>
+              <StatusBadge item={last} />
+              {first.source !== SELF && <ProjectBadge id={first.source} />}
+              {first.origin && <OriginBadge id={first.origin} />}
+            </Group>
+            <Text size="xs" c="dimmed">
+              {thread.length} {thread.length === 1 ? 'message' : 'messages'} · started {formatDate(first.created_at)}
             </Text>
-          )}
-        </Text>
+          </Stack>
+          <Anchor component={Link} to="/feedback" size="sm">
+            All feedback
+          </Anchor>
+        </Group>
+        {first.doc_path && link && (
+          <Text size="sm">
+            <Anchor component={Link} to={link}>
+              {first.doc_path}
+            </Anchor>{' '}
+            · {describeAnchor(first.anchor)}
+            {first.doc_rev && (
+              <Text span size="xs" c="dimmed">
+                {' '}
+                (written at {first.doc_rev.slice(0, 8)})
+              </Text>
+            )}
+          </Text>
+        )}
+        {first.anchor?.quote && (
+          <Blockquote p="xs" style={{ whiteSpace: 'pre-wrap' }}>
+            <Text size="sm">{first.anchor.quote}</Text>
+          </Blockquote>
+        )}
+        {thread.map((t) => (
+          <div key={t.id} id={messageDomId(t.id)} data-message={t.id} style={{ scrollMarginTop: SCROLL_MARGIN }}>
+            <Message
+              key={`${t.id}:${t.updated_at}`}
+              item={t}
+              highlight={thread.length > 1 && t.id === item.id && t.id !== first.id}
+              onDeleted={onDeleted(t)}
+            />
+          </div>
+        ))}
+        <ThreadActions last={last} single={thread.length === 1} />
+        <ReplyBox key={last.id} last={last} />
+      </Stack>
+      {nav && (
+        <>
+          <Box visibleFrom="md" style={{ position: 'sticky', top: SCROLL_MARGIN, flexShrink: 0 }}>
+            <ThreadNav thread={thread} current={item.id} />
+          </Box>
+          <Box hiddenFrom="md">
+            <LatestButton thread={thread} />
+          </Box>
+        </>
       )}
-      {first.anchor?.quote && (
-        <Blockquote p="xs" style={{ whiteSpace: 'pre-wrap' }}>
-          <Text size="sm">{first.anchor.quote}</Text>
-        </Blockquote>
-      )}
-      {thread.map((t) => (
-        <Message
-          key={`${t.id}:${t.updated_at}`}
-          item={t}
-          highlight={thread.length > 1 && t.id === item.id && t.id !== first.id}
-          onDeleted={onDeleted(t)}
-        />
-      ))}
-      <ThreadActions last={last} single={thread.length === 1} />
-      <ReplyBox key={last.id} last={last} />
-    </Stack>
+    </Group>
   )
 }
