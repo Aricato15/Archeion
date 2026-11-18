@@ -45,12 +45,14 @@ flowchart LR
 4. **Feedback to Claude.** You can comment on a block or a selection in any doc, review a whole doc, or write a prompt for a project. Each item records which project it's for.
    - In a Claude Code session, `/inbox` lists the open items through a local command-line interface (there's no unauthenticated API), claims one, does the work and replies.
    - The reply shows up in the browser within seconds.
+   - Items form threads: reply under Claude's answer, resolve a thread to close it, or delete a whole thread from its page ([ADR 0018](docs/decisions/0018-feedback-threads.md)).
+   - Claude can answer without you opening a session. **Settings → Claude jobs** can keep an inbox terminal running, or start **on-demand** runs when a new item waits (in a window, or headless). A run is given the folders of the projects it has items for, unless you switch that off ([ADR 0020](docs/decisions/0020-study-conversations-and-on-demand-claude.md), [ADR 0021](docs/decisions/0021-claude-jobs-windows-headless-and-limits.md)).
    - Archeion's own session handles Archeion and registry items. The [Archeion plugin](#archeion-plugin-for-your-projects) gives every other project's session the same loop, plus its place in the system.
 5. **Studies and designs.** `/study <project>` reads a project's code and saves a dated snapshot, and `/design <project>` works out a project's brief, architecture and plan. The project page's **Study** and **Design** tabs show them as interactive diagrams: the component map, flows as sequence diagrams, activities, states and data. Click a box to open its side panel without leaving the diagram, and switch any diagram to Mermaid. See [ADR 0019](docs/decisions/0019-code-studies.md), [ADR 0022](docs/decisions/0022-design-and-plan-a-project.md) and [ADR 0024](docs/decisions/0024-interactive-study-views.md).
 6. **PDF reports.** The **Report** button on a project page makes a PDF of it, with every diagram (the compact component map, each sub-system on its own page, flows, logic, states and data). **Standard** is deterministic: you pick and order the sections. **Guided** takes a prompt and an outline, and Claude plans the report with you, labeling what it wrote. See [ADR 0025](docs/decisions/0025-project-pdf-reports.md).
 7. **Glossary.** Each project page has a **Glossary** tab for the project's terms and jargon, with a case-insensitive search. You edit it in the viewer, and Claude fills it with `glossary set` ([ADR 0023](docs/decisions/0023-project-glossaries.md)). It's kept in the private registry.
-8. **Home page.** The viewer opens on **What's changed in Archeion**, the releases from Archeion's own `CHANGELOG.md`, newest first. A switch shows the registered projects' changelogs instead.
-8. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
+8. **Home page.** The viewer opens on **What's changed in Archeion**, the releases from Archeion's own `CHANGELOG.md`, newest first. A switch shows the registered projects' changelogs instead. The **Updates** page lists a short how-to for each release that asks you to do something.
+9. **Roadmaps, search and diagrams** cover Archeion's own docs, the registry and every project's own docs.
 
 ## What stays private
 This repo is meant to be published, so nothing in it describes a specific project:
@@ -82,6 +84,9 @@ You need [uv](https://docs.astral.sh/uv/), Node.js with npm, and git. Put Archei
 To change or reset the admin password, run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 password set` from the repo root. It logs out every session.
 
 On a new computer, a fresh clone starts with an empty registry. Your registry and feedback stay on the machine where you created them, unless you copy `registry/` over yourself. Back it up like any other private folder: it isn't in git.
+
+## Updating
+Pull, run `setup.bat`, then `start.bat`. The database is migrated by itself on the first start (currently schema 11), and migrations only go forward, so **back up `app/backend/data/archeion.db` and your `registry/` folder first**. You can jump straight from an older version to the current one. The steps, what is kept, and the plugin update are in the [update guide](docs/guides/update_archeion_and_plugin.md), with a note per release in [`docs/updates/`](docs/updates/README.md).
 
 ## Registering a project
 Projects don't go inside Archeion, and Archeion reads none of them until you say so. **On a fresh start no folder is granted** ([ADR 0012](docs/decisions/0012-no-root-granted-by-default.md)). On the **Settings** page, add the folder that holds your projects as a root (for example `projects`, the folder that contains `archeion/`), then register the projects you want. Projects can stay wherever they are: add one root per folder (see [Projects in other folders](#projects-in-other-folders)).
