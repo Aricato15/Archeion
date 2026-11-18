@@ -1,7 +1,7 @@
 import { ActionIcon, Anchor, Button, Text, Tooltip, Typography } from '@mantine/core'
 import { IconMessagePlus } from '@tabler/icons-react'
 import type { Element as HastElement, ElementContent } from 'hast'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Markdown, { type Components } from 'react-markdown'
 import { Link } from 'react-router'
 import rehypeSlug from 'rehype-slug'
@@ -82,6 +82,9 @@ function buildComponents(ctx: LinkContext, source: SourceId, docPath: string): C
 
 export function MarkdownView({ content, docPath, source = SELF, compact, onComment, onHeadings, flash }: Props) {
   const linkCtx = useLinkContext()
+  // Stable identity: a new `pre` component each render would remount every MermaidBlock,
+  // so diagrams would redraw on hover, refetch and window focus.
+  const components = useMemo(() => buildComponents(linkCtx, source, docPath), [linkCtx, source, docPath])
   const wrapperRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<{ top: number; block: HTMLElement } | null>(null)
@@ -177,7 +180,7 @@ export function MarkdownView({ content, docPath, source = SELF, compact, onComme
         <Markdown
           remarkPlugins={[remarkGfm, remarkFrontmatter]}
           rehypePlugins={[rehypeSlug, rehypeLines]}
-          components={buildComponents(linkCtx, source, docPath)}
+          components={components}
         >
           {content}
         </Markdown>

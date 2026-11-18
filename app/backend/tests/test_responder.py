@@ -176,7 +176,7 @@ def test_refused_when_the_backend_isnt_local(fake, db, settings):
 
 def test_flags_allow_only_archeions_cli_and_the_granted_roots(tmp_path):
     flags = responder._flags([tmp_path])
-    assert flags[:2] == ["--permission-mode", "acceptEdits"]
+    assert flags[:2] == ["--permission-mode", "auto"]
     assert any(f.startswith("Bash(powershell") and "archeion.ps1" in f for f in flags)
     assert flags[-2:] == ["--add-dir", str(tmp_path)]
 
@@ -189,7 +189,7 @@ def test_api_requires_login(client):
 def test_edits_are_accepted_or_confirmed_in_both_terminals(authed, fake, db, settings):
     assert authed.get("/api/responder").json()["accept_edits"] is True
     assert authed.post("/api/runner/start", json={}).json()["running"]
-    assert fake.terminal_flags[-1] == ["--permission-mode", "acceptEdits"]
+    assert fake.terminal_flags[-1] == ["--permission-mode", "auto"]
     authed.post("/api/runner/stop")
 
     assert authed.put("/api/responder", json={"accept_edits": False}).json()["accept_edits"] is False

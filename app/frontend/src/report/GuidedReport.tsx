@@ -3,6 +3,7 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
   Grid,
   Group,
   Loader,
@@ -15,7 +16,7 @@ import {
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconFileTypePdf, IconMessageCircle, IconSparkles } from '@tabler/icons-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useCreateFeedback, useResponder } from '../api/queries'
 import {
@@ -45,16 +46,27 @@ const isAuthored = (id: string) => id.startsWith('authored:')
  * and you review its plan here (reorder, drop sections) before it is built. Claude writes only the
  * sections marked as its own, each citing the sections it drew on.
  */
-export function GuidedReport({ project, onClose }: { project: string; onClose: () => void }) {
+export function GuidedReport({
+  project,
+  onClose,
+  planOnly = false,
+}: {
+  project: string
+  onClose: () => void
+  /** The Reports tab shows only a pending plan (and its build), not the form to ask for one. */
+  planOnly?: boolean
+}) {
   const plan = useReportPlan(project)
   // The build is followed here, not in the plan view: approving turns the plan into a preset, so
   // the plan (and the view of it) is gone by the time the PDF is ready.
   const [jobId, setJobId] = useState<string | null>(null)
   const job = useFollowBuild(project, jobId)
-  if (plan.isPending) return <Loader size="sm" />
+  if (plan.isPending) return planOnly ? null : <Loader size="sm" />
   if (plan.isError) return <Alert color="red">{plan.error.message}</Alert>
-  if (plan.data) return <ReviewPlan project={project} found={plan.data} job={job} onStarted={setJobId} />
-  return (
+  const wrap = (node: ReactNode) => (planOnly ? <Card withBorder>{node}</Card> : node)
+  if (plan.data) return wrap(<ReviewPlan project={project} found={plan.data} job={job} onStarted={setJobId} />)
+  if (planOnly && jobId === null) return null
+  return wrap(
     <Stack>
       {jobId !== null && (
         <>
@@ -66,13 +78,15 @@ export function GuidedReport({ project, onClose }: { project: string; onClose: (
           <BuildBanner project={project} job={job} />
           {job?.status !== 'running' && (
             <Text size="sm" c="dimmed">
-              It's saved under this project's <b>Reports</b> tab. To make another, describe it below.
+              {planOnly
+                ? "It's saved in the list below."
+                : "It's saved under this project's Reports tab. To make another, describe it below."}
             </Text>
           )}
         </>
       )}
-      <AskClaude project={project} onClose={onClose} />
-    </Stack>
+      {!planOnly && <AskClaude project={project} onClose={onClose} />}
+    </Stack>,
   )
 }
 

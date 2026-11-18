@@ -140,7 +140,7 @@ def update(
     will_accept = accept_edits if accept_edits is not None else runner.accepts_edits(conn)
     if will_headless and not will_accept:
         raise RunnerError(
-            "Headless runs have no one to confirm edits with. Choose auto accept edits, or turn Headless off."
+            "Headless runs have no one to confirm edits with. Choose auto mode, or turn Headless off."
         )
     if max_instances is not None and not 1 <= max_instances <= MAX_INSTANCES:
         raise RunnerError(f"Max Claude instances is 1 or {MAX_INSTANCES}.")
@@ -181,7 +181,7 @@ def set_enabled(conn: sqlite3.Connection, value: bool, *, can_start: bool) -> No
 def _flags(dirs: list[Path], *, accept_edits: bool = True) -> list[str]:
     """With "seek confirmations" no permission mode is passed: Claude asks before each edit,
     which only makes sense in a window someone can answer."""
-    out = (["--permission-mode", "acceptEdits"] if accept_edits else []) + ["--allowedTools", *ALLOWED_TOOLS]
+    out = (list(runner.AUTO_FLAGS) if accept_edits else []) + ["--allowedTools", *ALLOWED_TOOLS]
     for d in dirs:
         out += ["--add-dir", str(d)]
     return out

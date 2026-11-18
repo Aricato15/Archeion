@@ -59,12 +59,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
    - Sub-system diagrams (`study.sub:<id>`) come right after the map they belong to. For a technical audience include them all; for an executive one, the compact map and the findings are usually enough.
    - Keep an authored section short and plain: a few paragraphs, lists where they help, no filler. Write in the user's language and for their audience.
 7. **Write the plan** to `<scratchpad>/plan.json` (below), then `report plan save <p> --file <scratchpad>/plan.json --thread <thread id>`. Fix whatever it refuses and save again.
+   **A plan that isn't saved doesn't exist.** The viewer shows only what `report plan save` stored: a plan described in a reply alone gives the user nothing to review or approve. A thread anchored to a report task is always a *guided* report, however short the prompt is: never turn it into a standard report or only propose one. If the prompt is thin, assume a general reader, say so, plan anyway and save it. Check with `report plan show <p>` before you reply.
 8. **Reply** (or print, in the terminal). Keep it short:
    1. your reading of the ask, in a sentence or two;
    2. the plan as a numbered list: each section's title, marked **sourced** or **written by Claude**, and why it's there;
    3. where the sources were thin, and anything you left out and why;
    4. **questions**, numbered, so the user can answer by number;
-   5. that they can reorder or drop sections and press **Approve and build** in the viewer (the project page's **Report** button, **Guided**), or reply here to change the plan.
+   5. that they can reorder or drop sections and press **Approve and build** in the viewer (the plan is at the top of the project page's **Reports** tab, and in the **Report** button's **Guided** panel), or reply here to change the plan.
 
 ## Conversation mode
 
