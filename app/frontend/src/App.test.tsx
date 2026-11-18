@@ -12,6 +12,7 @@ import { ThreadPage } from './feedback/ThreadPage'
 import { Shell } from './layout/Shell'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UpdatesPage } from './pages/UpdatesPage'
 import { GroupPage } from './projects/GroupPage'
 import { ProjectPage } from './projects/ProjectPage'
 import { ProjectsPage } from './projects/ProjectsPage'
@@ -105,6 +106,8 @@ const files: Record<string, unknown> = {
     content: '# Docs\n\nSee [roadmap](roadmap/roadmap.md) and [gateway](../../gateway/docs/api.md).\n\n## One\n\n## Two\n\n```mermaid\nflowchart LR\n  A --> B\n```\n',
     dirty: true,
   },
+  'archeion:updates/update-v0.2.0.md': { content: '# Update to 0.2.0\n\nDo the newer thing.\n', dirty: false },
+  'archeion:updates/update-v0.1.0.md': { content: '# Update to 0.1.0\n\nDo the older thing.\n', dirty: false },
   'registry:projects/gateway.md': { content: '---\nname: gateway\n---\n# Gateway\n\nThe gateway notes.\n', dirty: false },
   'registry:groups/shop.md': { content: '# Shop\n\nThe shop apps.\n', dirty: false },
   'gateway:README.md': { content: '# Gateway readme\n\nSee [api](docs/api.md).\n', dirty: false },
@@ -130,6 +133,16 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
       children: [
         { name: 'roadmap', path: 'roadmap', type: 'dir', children: [{ name: 'roadmap.md', path: 'roadmap/roadmap.md', type: 'file' }] },
         { name: 'README.md', path: 'README.md', type: 'file' },
+        {
+          name: 'updates',
+          path: 'updates',
+          type: 'dir',
+          children: [
+            { name: 'README.md', path: 'updates/README.md', type: 'file' },
+            { name: 'update-v0.2.0.md', path: 'updates/update-v0.2.0.md', type: 'file' },
+            { name: 'update-v0.1.0.md', path: 'updates/update-v0.1.0.md', type: 'file' },
+          ],
+        },
       ],
     },
     '/api/settings/roots': {
@@ -227,6 +240,8 @@ function renderAt(url: string) {
               { path: 'roadmap', element: <RoadmapPage /> },
               { path: 'feedback', element: <FeedbackPage /> },
               { path: 'feedback/:id', element: <ThreadPage /> },
+              { path: 'updates', element: <UpdatesPage /> },
+              { path: 'updates/:version', element: <UpdatesPage /> },
               { path: 'settings', element: <SettingsPage /> },
             ],
           },
@@ -419,6 +434,16 @@ describe('app', () => {
       const calls = (fetch as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls
       expect(calls.some(([url, init]) => url === '/api/registry/removed/oldsvc' && init?.method === 'DELETE')).toBe(true)
     })
+  })
+
+  it('shows the update notes, newest first, with the installed version marked', async () => {
+    mockApi(true)
+    renderAt('/updates')
+    expect(await screen.findByText('Do the newer thing.')).toBeTruthy()
+    const list = screen.getByLabelText('Update notes')
+    expect(within(list).getAllByRole('link').map((a) => a.textContent)).toEqual(['v0.2.0installed', 'v0.1.0'])
+    fireEvent.click(within(list).getByRole('link', { name: 'v0.1.0' }))
+    expect(await screen.findByText('Do the older thing.')).toBeTruthy()
   })
 
   it('starts with no roots on a clean slate', async () => {

@@ -10,7 +10,7 @@ One short how-to per release that asks the user to do something: update Archeion
 
 ## Conventions
 
-- **One file per release**, named `update-vX.Y.Z.md`, kept in this folder for good. Add a row to the table above, newest first.
+- **One file per release**, named `update-vX.Y.Z.md`, kept in this folder for good. The viewer's **Updates** tab lists the notes by the version in the file name, so keep that name exact. Add a row to the table above, newest first.
 - **Write one when a release needs the user to do something.** A release that changes nothing for them needs no note.
 - **Keep it to what they do.** What's new goes in two or three lines, with links to `CHANGELOG.md` and the plugin's changelog. The steps come next, then how to check that it worked, then what to do if it didn't.
 - **Say who it is for** (which versions it covers) and **what is kept**: whether there's a database migration, and whether a backup is needed.

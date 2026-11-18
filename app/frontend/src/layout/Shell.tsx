@@ -27,6 +27,7 @@ import {
   IconRoad,
   IconRoute,
   IconSearch,
+  IconDownload,
   IconSettings,
   IconSun,
   IconTerminal2,
@@ -52,6 +53,7 @@ const NAV = [
   { to: '/feedback', label: 'Feedback', icon: IconMessages },
   // an ordinary doc, so it gets diagrams, history and comments like any other
   { to: '/docs/guides/use-cases.md', label: 'Use cases', icon: IconRoute },
+  { to: '/updates', label: 'Updates', icon: IconDownload },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
 

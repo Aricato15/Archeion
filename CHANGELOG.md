@@ -7,6 +7,9 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **An Updates tab** in the sidebar. It reads the notes in `docs/updates/` and lists them by the version they update to, newest first, with the installed version marked. Pick one to read it in place, or open it as a doc for its history and comments. A new note shows up by itself, as long as it's named `update-vX.Y.Z.md`.
+
 ## [1.4.0] - 2026-11-19
 
 ### Added

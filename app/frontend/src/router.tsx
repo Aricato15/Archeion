@@ -14,6 +14,7 @@ import { HomePage } from './pages/HomePage'
 import { RoadmapPage } from './pages/RoadmapPage'
 import { SearchRoute } from './pages/SearchPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { UpdatesPage } from './pages/UpdatesPage'
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
@@ -33,6 +34,8 @@ export const router = createBrowserRouter([
           { path: 'groups/:id', element: <GroupPage /> },
           { path: 'roadmap', element: <RoadmapPage /> },
           { path: 'diagrams', element: <DiagramsPage /> },
+          { path: 'updates', element: <UpdatesPage /> },
+          { path: 'updates/:version', element: <UpdatesPage /> },
           { path: 'search', element: <SearchRoute /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'feedback', element: <FeedbackPage /> },
