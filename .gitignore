@@ -52,3 +52,6 @@ app/frontend/dist/
 
 # Local scratch: screenshots for debugging, never tracked
 /temp_feedback/
+
+# Imported exports from other instances (name real projects, never tracked)
+/temp_import/
