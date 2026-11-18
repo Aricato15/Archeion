@@ -1,22 +1,31 @@
 # Update to Archeion 1.4.0
 
-**For:** Archeion 1.3.2 → **1.4.0**. The plugin is unchanged (0.4.0). It takes about two minutes.
+**For:** Archeion 1.3.2 → **1.4.0**. The plugin is unchanged (0.4.0). It takes about five minutes.
 
 Coming from before 1.3.2? Read [update-v1.3.2.md](update-v1.3.2.md) first, then the [full update guide](../guides/update_archeion_and_plugin.md).
 
 ## What's new
 
-- **Every diagram can go full screen.** The maps, the activity and state diagrams, the data schema and the flow views now have the **Full screen** button the Mermaid diagrams already had. Escape closes it.
-- **You can remove a registered project.** Use **Remove** on the project's page or next to it in Settings, or `projects remove <name>` in the CLI. Only its registry page moves, to `registry/removed/` ([ADR 0026](../decisions/0026-remove-a-registered-project.md)); the project itself isn't touched, and **Restore** brings it back, and **Delete permanently** (under Settings → Previously registered) deletes it and what was kept for it.
-- **A project can be promoted to a group.** A group can now have its own folder and docs, an inbox, a design and a study, and its parts are its members ([ADR 0027](../decisions/0027-groups-with-a-home-and-promotion.md)). Use **Promote to group** on a project's page, or `projects promote <name>`. A group's **Study** tab reads its members' studies instead of redoing them, and **Break down** registers the folders its study points at as members ([use case 7](../guides/use-cases.md)).
-- **You can create a project or group from Archeion.** **New project or group** on the Projects page makes the folder in a root you granted, with a README.md and CLAUDE.md, an optional git repository and its registry page ([ADR 0028](../decisions/0028-create-a-project-from-the-viewer.md)). It never writes into a folder that exists.
-- **A long thread has a table of contents.** A numbered panel on the right jumps to any message and marks the one you're reading. **Top** and **Latest** buttons go to the ends of the thread.
+- **Groups can have a home** ([ADR 0027](../decisions/0027-groups-with-a-home-and-promotion.md)). A group used to be a page that listed its projects. It can now also have a folder, docs, an inbox, a design and a study of its own, like a project.
+  - **Promote a project to a group** with **Promote to group** on its page, or `projects promote <name>`. Only `type: group` and a time are added to its registry page, so its name, design, studies and threads stay attached, and its modules and sub-projects become its members.
+  - **A group's Study tab reads its members' studies** instead of redoing them. It lists each member with the date of its study, has a **Top level / Flattened** switch, and where a member's study and the group's differ, the member's wins and **Discuss** starts a thread.
+  - **Break down** on a group's page registers the folders its study points at as members: modules, or sub-projects when a folder has its own repository. `study save-set` saves a group's study and its members' together, all or none.
+  - `depends_on` may name a group, and the inbox of a group covers its members.
+- **You can create a project or group from Archeion** ([ADR 0028](../decisions/0028-create-a-project-from-the-viewer.md)). **New project or group** on the Projects page makes a new folder in a root you granted, with a README.md and CLAUDE.md holding your description, an optional git repository, and its registry page (planned by default). It never writes into a folder that exists. This is the one place Archeion writes outside its registry.
+- **A study no longer needs git.** A module in a folder that isn't in a repository, or a project that isn't versioned, can be studied. Its staleness shows as unknown.
+- **Every diagram can go full screen**, and **a long thread has a table of contents**.
+- **You can remove a registered project.** Use **Remove** on the project's page or in Settings, or `projects remove <name>`. Only its registry page moves, to `registry/removed/` ([ADR 0026](../decisions/0026-remove-a-registered-project.md)); **Restore** brings it back.
+- **An Updates tab** in the sidebar lists notes like this one.
 
 The full list is in [`CHANGELOG.md`](../../CHANGELOG.md).
 
 ## Update in steps
 
-### 1. Update Archeion
+### 1. Back up the registry
+
+Registry pages are written in more places now (promotion, break-down, new projects), and `registry/` isn't in git. Copy the `registry/` folder somewhere safe before you start. The database needs no backup for this release, but it's a good habit ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes)).
+
+### 2. Update Archeion
 
 In Archeion's folder:
 
@@ -29,29 +38,40 @@ setup.bat
 start.bat
 ```
 
-### 2. The database
+Then **reload the viewer**. If a page says a study "doesn't validate" with `meta.commit: Field required`, the old backend is still running: use `restart.bat`.
 
-There is **no database migration** in this release (the schema stays at 10). Your password, feedback, registry, studies and settings are left alone. A backup isn't needed, but it's a good habit ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes)).
+### 3. The database
 
-### 3. Projects and groups that share a name
+There is **no database migration** in this release (the schema stays at 10). Your password, feedback, registry, studies and settings are left alone.
+
+### 4. Projects and groups that share a name
 
 If a project and a group have the same name (a project that began as the place to design a system, and a group made afterwards for its parts), `projects list` and the Projects page now warn about it. Fix it with `projects promote <name>`: the project becomes the group's home, and its design, studies and threads stay attached. Use `--dry-run` first to see what it does. Nothing needs doing if you have no such pair.
 
-### 4. The plugin and your project sessions
+### 5. The plugin and your project sessions
 
 Nothing to do: the plugin is still 0.4.0.
 
 ## Check that it worked
 
 - The viewer's header shows **v1.4.0**.
-- A project's map has a **Full screen** button in its top right corner.
-- A project's page has a **Remove** button. Don't press it unless you mean it. It also has **Promote to group**, if the project sits at the top and isn't a member of a group.
+- The Projects page has a **New project or group** button.
+- A project's page has **Promote to group** (if it sits at the top and isn't a member of a group), **Remove**, and a map with a **Full screen** button.
+- A group with a home shows a **Members** section with a **Break down** button, and its Study tab has a **Top level / Flattened** switch.
 - Open a thread with several messages: numbers appear on the right.
 
 ## If something looks wrong
 
 | What you see | What to do |
 |---|---|
-| Remove says the project still has modules | Remove its modules first. |
+| A study "doesn't validate": `meta.commit: Field required` | The old backend is still running. Run `restart.bat`. |
 | Promote says it can't | A module, a project inside another, or a member of a group can't be promoted: groups sit at the top and don't nest. The message says which. |
+| Demote says the group has members | Move or remove them first. |
+| New project says the folder exists | It never writes into an existing folder. Pick another name, or register the folder from Settings instead. |
+| Remove says the project still has modules | Remove its modules first. |
+| A group shows **needs restudy** | It was studied before it became a group. Study it again; the badge goes away once a newer study is saved. |
 | Anything else | See "If something looks wrong" in the [full guide](../guides/update_archeion_and_plugin.md#if-something-looks-wrong). |
+
+## Undo
+
+Promotion only adds `type: group` and `promoted:` to a page. To undo it, remove those two lines, or restore the page from your backup. `projects demote <name>` does it for a group with no members. A project created from Archeion is an ordinary folder: delete it and its registry page (or use **Remove**).

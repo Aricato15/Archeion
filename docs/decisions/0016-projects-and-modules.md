@@ -2,6 +2,7 @@
 
 - Status: Accepted (2026-11-15). Point 6 extended by [ADR 0017](0017-inbox-may-edit-registered-projects.md) (the `inbox_edits:` line).
 - Date: 2026-11-15
+- Extended by [ADR 0027](0027-groups-with-a-home-and-promotion.md): a third type, `group`, and a module of a group's repository belongs to the group.
 - Refines: [ADR 0006](0006-multi-project-registry.md) (sub-projects). Amends: [ADR 0010](0010-manage-roots-and-registration-in-the-viewer.md) (what the backend may write).
 
 ## Context

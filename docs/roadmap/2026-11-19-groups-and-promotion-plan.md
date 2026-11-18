@@ -64,6 +64,11 @@ Every phase ends with the tests and linters passing (`uv run pytest`, `uv run ru
 - Moving or editing any code in a project.
 - Merging the `groups/` and `projects/` pages into one file for every group.
 
+## Built differently from the plan
+- **`scope` in a study's meta** became `meta.excluded`: a group's own study leaves its members' folders out. A module needs no scope, because its page's `path` already limits it to its subfolder.
+- **`meta.commit` became optional** (found while testing), so a folder with no git repository can be studied. The snapshot is then named by a digest of its model.
+- **Separate from the plan:** creating a new project or group from the viewer is [ADR 0028](../decisions/0028-create-a-project-from-the-viewer.md).
+
 ## Not built
 - **Group-to-group edges drawn from code.** `depends_on` may name a group, and the map draws it as an arrow to that group's box, but `GET /api/system/links` still reports calls between members, not between groups. Folding a group on the map shows the merged edge between groups.
 - **The flattened view's flows, logic, states and findings.** It composes components, relations, interfaces and data; the rest stay in each member's own study (the view says so).

@@ -3,6 +3,7 @@
 - Status: Accepted (2026-11-16)
 - Date: 2026-11-16
 - Builds on: [ADR 0006](0006-multi-project-registry.md), [ADR 0007](0007-keep-project-information-out-of-the-repo.md), [ADR 0014](0014-diagrams-for-system-design.md)
+- Amended by [ADR 0027](0027-groups-with-a-home-and-promotion.md): a group's study leaves its members' folders out (`meta.excluded`), and `meta.commit` is optional for a folder that isn't in a git repository.
 - Amends: the convention "a project's own facts stay in its own docs" in `CLAUDE.md`, for studies only.
 
 ## Context

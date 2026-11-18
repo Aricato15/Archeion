@@ -35,9 +35,10 @@ flowchart LR
 1. **The registry.** Every project and sub-project gets a page in `registry/projects/`, and every group of related projects a page in `registry/groups/`.
    - YAML frontmatter records the structural facts: `path`, `parent`, `group`, `status`, `kind`, `ports`, `depends_on`. The page body holds cross-project notes only.
    - `projects scan --write` finds workspace folders that don't have a page yet and creates stub pages for them.
+   - A group can also have a folder of its own, with its own docs, inbox, design and study (a project page with `type: group`). Promote a project to a group from its page, break it down into members, and its study reads the members' studies ([ADR 0027](docs/decisions/0027-groups-with-a-home-and-promotion.md)). **New project or group** on the Projects page creates one from scratch.
 2. **Generated maps.** The backend checks the registry and reports problems (unknown references, missing paths, cycles) as warnings. The frontend draws interactive maps from the frontmatter (one for everything, one per group, one around each project): boxes fold and unfold, hovering lights up what a box links to, and a **Find a box** search zooms to a match. A Mermaid version is one click away. The maps can't drift from the pages.
 3. **Live, read-only project docs.** For each registered project, the backend serves its `README.md`, `CLAUDE.md`, `CHANGELOG.md`, `ROADMAP.md` and `docs/` folder straight from disk, and nothing else.
-   - It never writes to a project.
+   - It never edits an existing project's files. The one exception is creating a new project from the viewer: a new folder in a root you granted, with a README.md, a CLAUDE.md and optionally a git repository, and never into a folder that exists ([ADR 0028](docs/decisions/0028-create-a-project-from-the-viewer.md)).
    - History and diffs come from that project's own git repo.
    - Links between docs follow into other projects.
    - A file watcher pushes changes to the browser over server-sent events, so open pages update as files change.
