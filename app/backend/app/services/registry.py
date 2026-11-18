@@ -123,6 +123,8 @@ class Project:
     inbox_edits_source: str = "default"  # "page" | "owner" | "default"
     ports: list[int] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
+    # Groups without a home that it depends on (ADR 0027); a group with a home is in depends_on by name.
+    depends_on_groups: list[str] = field(default_factory=list)
     docs_dir: str = "docs"
     verified: str | None = None
     summary: str = ""
@@ -149,6 +151,7 @@ class Group:
     summary: str = ""
     projects: list[str] = field(default_factory=list)
     home: str | None = None  # the project page (same name) that gives the group a home (ADR 0027)
+    used_by: list[str] = field(default_factory=list)  # projects that list this group in depends_on
 
 
 @dataclass
@@ -361,12 +364,18 @@ def _link(reg: Registry) -> None:
             p.parent = None
         kept = []
         for dep in p.depends_on:
-            if dep not in reg.projects:
-                reg.warn(p.page, f"depends_on '{dep}' isn't a registered project")
-            elif dep == p.id:
-                reg.warn(p.page, "a project can't depend on itself")
+            if dep in reg.projects:
+                if dep == p.id:
+                    reg.warn(p.page, "a project can't depend on itself")
+                else:
+                    kept.append(dep)
+            elif dep in reg.groups:  # a group without a home: another system (ADR 0027)
+                if dep == effective_group(reg, p):
+                    reg.warn(p.page, f"depends_on '{dep}' is the group it's part of")
+                elif dep not in p.depends_on_groups:
+                    p.depends_on_groups.append(dep)
             else:
-                kept.append(dep)
+                reg.warn(p.page, f"depends_on '{dep}' isn't a registered project or group")
         p.depends_on = kept
 
     # Parent cycles: walk up from each project; break the link that closes a loop.
@@ -397,6 +406,9 @@ def _link(reg: Registry) -> None:
     for g in reg.groups.values():
         if g.home:
             reg.projects[g.home].members = list(g.projects)
+    for p in reg.projects.values():
+        for dep in p.depends_on_groups:
+            reg.groups[dep].used_by.append(p.id)
 
 
 def _homes(reg: Registry) -> None:

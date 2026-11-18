@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router'
 import { useRegistry } from '../api/queries'
 import { REGISTRY, locationOf, type Project, type Registry } from '../api/types'
-import { docUrl } from '../docs/links'
+import { docUrl, projectUrl } from '../docs/links'
 import { ProjectCard } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
@@ -80,8 +80,9 @@ export function ProjectsPage() {
   if (registry.isPending) return <Loader />
   if (registry.isError) return <Alert color="red">{registry.error.message}</Alert>
   const reg = registry.data
+  const homes = new Set(reg.groups.flatMap((g) => (g.home ? [g.home] : [])))
   const standalone = tops(
-    reg.projects.filter((p) => !reg.groups.some((g) => g.projects.includes(p.id))).map((p) => p.id),
+    reg.projects.filter((p) => !homes.has(p.id) && !reg.groups.some((g) => g.projects.includes(p.id))).map((p) => p.id),
     projects,
   )
 
@@ -112,7 +113,7 @@ export function ProjectsPage() {
         <Stack key={g.id} gap="xs">
           <Group gap="xs" align="baseline">
             <Title order={3}>
-              <Anchor component={Link} to={`/groups/${encodeURIComponent(g.id)}`} inherit>
+              <Anchor component={Link} to={g.home ? projectUrl(g.home) : `/groups/${encodeURIComponent(g.id)}`} inherit>
                 {g.title}
               </Anchor>
             </Title>

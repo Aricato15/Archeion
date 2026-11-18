@@ -92,6 +92,8 @@ export type Project = {
   inbox_edits_source: 'page' | 'owner' | 'default'
   ports: number[]
   depends_on: string[]
+  /** Groups without a home that it depends on (ADR 0027). */
+  depends_on_groups: string[]
   docs_dir: string
   verified: string | null
   summary: string
@@ -126,6 +128,8 @@ export type Group = {
   projects: string[]
   /** The project page of the same name that gives the group a folder (ADR 0027); null for a virtual group. */
   home: string | null
+  /** Projects that list this group under depends_on. */
+  used_by: string[]
 }
 
 export type Registry = {

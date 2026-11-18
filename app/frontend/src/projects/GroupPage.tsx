@@ -1,9 +1,9 @@
 import { Alert, Anchor, Card, Group, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
 import { useMemo } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
 import { useDoc, useRegistry } from '../api/queries'
 import { REGISTRY } from '../api/types'
-import { docUrl } from '../docs/links'
+import { docUrl, projectUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { ProjectCard } from './ProjectCard'
 import { RegistryMap } from './RegistryMap'
@@ -18,6 +18,8 @@ export function GroupPage() {
 
   if (registry.isPending) return <Loader />
   if (!registry.data || !group) return <Alert color="yellow">There's no group named {id}.</Alert>
+  // A group with a home is a project page with members (ADR 0027).
+  if (group.home) return <Navigate to={projectUrl(group.home)} replace />
 
   const members = group.projects.filter((pid) => !projects.get(pid)?.parent).sort()
   return (

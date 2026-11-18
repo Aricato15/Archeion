@@ -28,6 +28,7 @@ function project(id: string, extra: Partial<Project> = {}): Project {
     children: [],
     used_by: [],
     members: [],
+    depends_on_groups: [],
     promoted: null,
     needs_restudy: false,
     ...extra,
@@ -42,7 +43,7 @@ const registry: Registry = {
     project('collector-a', { parent: 'datasvc', title: 'coll "tei"' }),
     project('notes', { status: 'archived' }),
   ],
-  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web', 'bff'], home: null }],
+  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web', 'bff'], home: null, used_by: [] }],
   warnings: [],
   unregistered: [],
 }
@@ -137,7 +138,7 @@ describe('a group with a home (ADR 0027)', () => {
       project('top', { type: 'group', type_source: 'page', members: ['svc'] }),
       project('svc', { group: 'top' }),
     ],
-    groups: [{ id: 'top', title: 'Top', page: 'projects/top.md', summary: '', projects: ['svc'], home: 'top' }],
+    groups: [{ id: 'top', title: 'Top', page: 'projects/top.md', summary: '', projects: ['svc'], home: 'top', used_by: [] }],
     warnings: [],
     unregistered: [],
   }
@@ -147,7 +148,32 @@ describe('a group with a home (ADR 0027)', () => {
     expect(top).toMatchObject({ sublabel: 'group', tone: 'grape', shape: 'box' })
   })
 
-  it('still puts its members in the group container', () => {
-    expect(buildGraph(reg).nodes.find((n) => n.id === 'svc')?.parent).toBe('group:top')
+  it('is the container of its members, with no second group box', () => {
+    const nodes = buildGraph(reg).nodes
+    expect(nodes.find((n) => n.id === 'svc')?.parent).toBe('top')
+    expect(nodes.some((n) => n.id === 'group:top')).toBe(false)
+  })
+
+  it('shows its members on its own page map', () => {
+    const { shown } = selectProjects(reg, { focus: 'top' })
+    expect([...shown].sort()).toEqual(['svc', 'top'])
+    expect([...selectProjects(reg, { group: 'top' }).shown].sort()).toEqual(['svc', 'top'])
+  })
+
+  it('draws depends_on a group without a home as an arrow to its container', () => {
+    const two: Registry = {
+      projects: [
+        project('web', { group: 'shop', depends_on_groups: ['pay'] }),
+        project('card', { group: 'pay' }),
+      ],
+      groups: [
+        { id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: '', projects: ['web'], home: null, used_by: [] },
+        { id: 'pay', title: 'Pay', page: 'groups/pay.md', summary: '', projects: ['card'], home: null, used_by: ['web'] },
+      ],
+      warnings: [],
+      unregistered: [],
+    }
+    const edge = buildGraph(two).edges.find((e) => e.to === 'group:pay')
+    expect(edge).toMatchObject({ from: 'web', to: 'group:pay' })
   })
 })

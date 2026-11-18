@@ -216,3 +216,51 @@ def test_promote_and_demote_endpoints(solo, authed, settings):
     assert authed.post("/api/registry/projects/solo/demote").status_code == 409  # has members
     assert authed.post("/api/registry/projects/nope/promote", json={}).status_code == 404
     assert authed.post("/api/registry/projects/nope/demote").status_code == 404
+
+
+# --- groups and the rest of the system (ADR 0027, phase 3) -----------------------------------
+
+
+def test_depends_on_can_name_a_group_without_a_home(settings):
+    _page(settings, "other", "---\npath: ../gamma\ndepends_on: [g1]\n---\n# Other\n")
+    reg = _load(settings)
+    other = reg.projects["other"]
+    assert other.depends_on == [] and other.depends_on_groups == ["g1"]
+    assert reg.groups["g1"].used_by == ["other"]
+    assert reg.warnings == []
+
+
+def test_depends_on_a_group_with_a_home_is_a_plain_dependency(settings):
+    _make_group(settings)
+    _page(settings, "other", "---\npath: ../gamma\ndepends_on: [top]\n---\n# Other\n")
+    reg = _load(settings)
+    assert reg.projects["other"].depends_on == ["top"] and reg.projects["top"].used_by == ["other"]
+    assert reg.projects["other"].depends_on_groups == []
+
+
+def test_a_member_cant_depend_on_its_own_group_and_unknown_names_warn(settings):
+    _page(settings, "alpha", "---\npath: ../alpha\ngroup: g1\ndepends_on: [g1, nowhere]\n---\n# Alpha\n")
+    reg = _load(settings)
+    messages = [w["message"] for w in reg.warnings if w["page"] == "projects/alpha.md"]
+    assert any("is the group it's part of" in m for m in messages)
+    assert any("'nowhere' isn't a registered project or group" in m for m in messages)
+    assert reg.projects["alpha"].depends_on_groups == []
+
+
+def test_a_groups_inbox_covers_its_members(settings):
+    from app.__main__ import _with_modules
+
+    _make_group(settings)
+    (settings.repo_root.parent / "alpha" / "src").mkdir(exist_ok=True)
+    _page(settings, "mod", "---\npath: ../alpha/src\nparent: top\n---\n# Mod\n")
+    reg = _load(settings)
+    assert _with_modules(reg, reg.projects["top"]) == ["alpha", "beta", "mod", "sub1", "top"]
+    # a member project keeps its own inbox, which still includes its modules
+    assert _with_modules(reg, reg.projects["beta"]) == ["beta", "sub1"]
+
+
+def test_projects_show_lists_a_groups_members(settings, capsys):
+    _make_group(settings)
+    assert main(["projects", "show", "--project", "top"], settings) == 0
+    out = capsys.readouterr().out
+    assert "type: group" in out and "members: alpha, beta, sub1" in out

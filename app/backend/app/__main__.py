@@ -138,7 +138,10 @@ OWN_SOURCES = [SELF_ID, REGISTRY_ID]
 
 def _with_modules(reg: Registry, p: Project) -> list[str]:
     """A project and the modules it owns: one repository, one session, one inbox (ADR 0016).
-    A module on its own (--project <module>) is just itself."""
+    A module on its own (--project <module>) is just itself. A group with a home owns its
+    members' items too (ADR 0027): the pages in it, and the modules of its repository."""
+    if p.type == "group":
+        return sorted({p.id, *p.members, *modules_of(reg, p)})
     return [p.id, *modules_of(reg, p)] if p.type == "project" else [p.id]
 
 
@@ -743,7 +746,11 @@ def cmd_projects_show(settings: Settings, args: argparse.Namespace) -> int:
         print(f"  modules: {names(modules)}")
     if nested:
         print(f"  sub-projects: {names(nested)}")
-    print(f"  depends on: {names(facts['depends_on'])}")
+    if facts["type"] == "group":
+        print(f"  members: {names(sorted(facts['members']))}")
+        if facts["needs_restudy"]:
+            print("  needs restudy: it was studied before it became a group")
+    print(f"  depends on: {names([*facts['depends_on'], *facts['depends_on_groups']])}")
     print(f"  used by: {names(sorted(facts['used_by']))}")
     print(f"  ports: {', '.join(str(n) for n in facts['ports']) or 'none'}")
     print(f"  verified: {facts['verified'] or 'never'}")

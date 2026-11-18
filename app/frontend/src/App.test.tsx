@@ -74,6 +74,10 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   available: true,
   children: [],
   used_by: [],
+  members: [],
+  depends_on_groups: [],
+  promoted: null,
+  needs_restudy: false,
   ...extra,
 })
 
@@ -90,7 +94,7 @@ const registry = {
     }),
     project('vault', { root: 'lab', path: 'vault', available: false }),
   ],
-  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: 'The shop apps.', projects: ['gateway'] }],
+  groups: [{ id: 'shop', title: 'Shop', page: 'groups/shop.md', summary: 'The shop apps.', projects: ['gateway'], home: null, used_by: [] }],
   warnings: [
     { page: 'projects/collector-a.md', message: "depends_on 'ghost' isn't a registered project" },
     { page: '', message: ".env: root name 'Bad' must be 2-32 characters" },

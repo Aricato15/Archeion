@@ -180,7 +180,23 @@ function Facts({ project, projects }: { project: Project; projects: Map<string, 
         none
       </Text>
     )
-  rows.push(['Depends on', list('deps', project.depends_on)])
+  rows.push([
+    'Depends on',
+    project.depends_on_groups.length ? (
+      <Group key="deps" gap="xs">
+        {project.depends_on.map((id) => (
+          <ProjectLink key={id} id={id} projects={projects} />
+        ))}
+        {project.depends_on_groups.map((id) => (
+          <Anchor key={id} component={Link} to={`/groups/${encodeURIComponent(id)}`} size="sm">
+            {id} (group)
+          </Anchor>
+        ))}
+      </Group>
+    ) : (
+      list('deps', project.depends_on)
+    ),
+  ])
   rows.push(['Used by', list('used', project.used_by)])
   rows.push([
     'Verified',
@@ -312,6 +328,27 @@ export function ProjectPage() {
           <RegistryMap registry={registry.data} focus={project.id} direction="TB" />
         </Card>
       </SimpleGrid>
+
+      {project.type === 'group' && (
+        <Stack gap="xs">
+          <Title order={4}>Members</Title>
+          {project.members.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              None yet. A page joins this group with <Code>group: {project.id}</Code> or <Code>parent: {project.id}</Code>.
+            </Text>
+          ) : (
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+              {project.members
+                .map((m) => projects.get(m))
+                .filter((m): m is Project => Boolean(m) && !m?.parent)
+                .sort((a, b) => a.id.localeCompare(b.id))
+                .map((m) => (
+                  <ProjectCard key={m.id} project={m} projects={projects} />
+                ))}
+            </SimpleGrid>
+          )}
+        </Stack>
+      )}
 
       {(['module', 'project'] as const).map((type) => {
         const kids = project.children.map((c) => projects.get(c)).filter((c): c is Project => c?.type === type)

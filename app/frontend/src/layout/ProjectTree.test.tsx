@@ -29,6 +29,10 @@ const project = (id: string, extra: Record<string, unknown> = {}) => ({
   available: true,
   children: [],
   used_by: [],
+  members: [],
+  depends_on_groups: [],
+  promoted: null,
+  needs_restudy: false,
   ...extra,
 })
 
@@ -87,5 +91,38 @@ describe('ProjectTree', () => {
     // modules get their own icon (ADR 0016)
     expect(screen.getByRole('link', { name: 'collector-a' }).querySelector('[data-type="module"]')).toBeTruthy()
     expect(parent().querySelector('[data-type="module"]')).toBeNull()
+  })
+})
+
+describe('ProjectTree with a group that has a home (ADR 0027)', () => {
+  const grouped = {
+    projects: [
+      project('top', { type: 'group', type_source: 'page', members: ['svc', 'mod'], children: ['mod'] }),
+      project('svc', { group: 'top' }),
+      project('mod', { parent: 'top', type: 'module', detected_type: 'module', owner: 'top' }),
+      project('loose'),
+    ],
+    groups: [{ id: 'top', title: 'The system', page: 'projects/top.md', summary: '', projects: ['svc', 'mod'], home: 'top', used_by: [] }],
+    warnings: [],
+    unregistered: [],
+  } as unknown as Registry
+
+  const renderGrouped = () =>
+    render(
+      <MantineProvider>
+        <MemoryRouter initialEntries={['/docs/README.md']}>
+          <ProjectTree registry={grouped} onNavigate={vi.fn()} />
+        </MemoryRouter>
+      </MantineProvider>,
+    )
+
+  it('lists the home as the group header, with its members, and not as a project of its own', () => {
+    renderGrouped()
+    expect(screen.getByText('The system')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/projects/top')
+    expect(screen.getByRole('link', { name: 'svc' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'mod' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'top' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'loose' })).toBeTruthy()
   })
 })

@@ -37,9 +37,11 @@ export function selectProjects(registry: Registry, opts: MapOptions): { shown: S
   let shown: Set<string>
   if (opts.focus) {
     const p = byId.get(opts.focus)
-    shown = new Set(p ? [p.id, ...(p.parent ? [p.parent] : []), ...p.children] : [])
+    // A group with a home shows its members too (ADR 0027).
+    shown = new Set(p ? [p.id, ...(p.parent ? [p.parent] : []), ...p.children, ...(p.type === 'group' ? p.members : [])] : [])
   } else if (opts.group) {
-    shown = new Set(registry.projects.filter((p) => topGroup(byId, p) === opts.group).map((p) => p.id))
+    const home = registry.groups.find((g) => g.id === opts.group)?.home
+    shown = new Set(registry.projects.filter((p) => topGroup(byId, p) === opts.group || p.id === home).map((p) => p.id))
   } else {
     shown = new Set(byId.keys())
   }
@@ -149,9 +151,12 @@ export function buildGraph(registry: Registry, opts: MapOptions = {}, links?: Sy
     const ghost = ghosts.has(id)
     let parent: string | null = null
     if (p?.parent && visible.has(p.parent) && !ghost) parent = p.parent
-    else if (p && !ghost && !opts.group && !opts.focus) {
+    else if (p && !ghost && !opts.group) {
       const g = topGroup(byId, p)
-      if (g) {
+      const home = g ? groups.get(g)?.home : null
+      if (g && home && home !== id && visible.has(home)) {
+        parent = home // a group with a home is its own container (ADR 0027)
+      } else if (g && !opts.focus) {
         parent = GROUP_PREFIX + g
         usedGroups.add(g)
       }
@@ -190,6 +195,13 @@ export function buildGraph(registry: Registry, opts: MapOptions = {}, links?: Sy
       else if (links && studied.has(p.id))
         edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, label: 'not seen in code', style: 'dotted', tone: 'gray' })
       else edges.push({ id: `dep:${p.id}>${d}`, from: p.id, to: d, ...(p.status === 'planned' ? { style: 'dashed' as const } : {}) })
+    }
+  }
+  // depends_on naming a group without a home: an arrow to that group's container (ADR 0027).
+  for (const p of registry.projects) {
+    if (!visible.has(p.id)) continue
+    for (const g of p.depends_on_groups) {
+      if (usedGroups.has(g)) edges.push({ id: `dep:${p.id}>${GROUP_PREFIX}${g}`, from: p.id, to: GROUP_PREFIX + g })
     }
   }
   for (const l of links?.links ?? []) {

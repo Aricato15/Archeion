@@ -104,10 +104,19 @@ export function ProjectTree({ registry, onNavigate }: { registry: Registry; onNa
       current = null
     }
   }
-  const roots = registry.projects.filter((p) => !p.parent).sort((a, b) => a.title.localeCompare(b.title))
+  // A group with a home is its group's header (ADR 0027), so it isn't listed as a project of its own.
+  const homes = new Set(registry.groups.flatMap((g) => (g.home ? [g.home] : [])))
+  const roots = registry.projects.filter((p) => !p.parent && !homes.has(p.id)).sort((a, b) => a.title.localeCompare(b.title))
   const grouped = registry.groups
-    .map((g) => ({ group: g, members: roots.filter((p) => p.group === g.id) }))
-    .filter((x) => x.members.length > 0)
+    .map((g) => ({
+      group: g,
+      // Pages directly under the home count as members too.
+      members: [
+        ...roots.filter((p) => p.group === g.id),
+        ...(g.home ? (projects.get(g.home)?.children ?? []).flatMap((c) => (projects.get(c) ? [projects.get(c) as Project] : [])) : []),
+      ].filter((p, i, all) => all.findIndex((q) => q.id === p.id) === i),
+    }))
+    .filter((x) => x.members.length > 0 || x.group.home)
   const standalone = roots.filter((p) => !p.group || !registry.groups.some((g) => g.id === p.group))
 
   return (
@@ -123,12 +132,14 @@ export function ProjectTree({ registry, onNavigate }: { registry: Registry; onNa
         >
           <NavLink
             component={Link}
-            to={`/groups/${encodeURIComponent(group.id)}`}
+            to={group.home ? projectUrl(group.home) : `/groups/${encodeURIComponent(group.id)}`}
             label="Overview"
             py={2}
             c="dimmed"
             onClick={onNavigate}
-            active={pathname === `/groups/${encodeURIComponent(group.id)}`}
+            active={
+              group.home ? current === group.home : pathname === `/groups/${encodeURIComponent(group.id)}`
+            }
           />
           {members.map((p) => (
             <Item key={p.id} project={p} projects={projects} current={current} onNavigate={onNavigate} />
