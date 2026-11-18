@@ -55,6 +55,7 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects scan` | Folders in your roots with no registry page yet (`--write` creates stub pages) |
 | `projects show --project <name>` | One project's place in the system |
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
+| `projects promote <name> [--dry-run]` / `projects demote <name>` | Turn a project into a group with a home (`type: group`, its members are the pages whose `group:` or `parent:` names it), or back when it has no members (ADR 0027) |
 | `projects remove <name>` | Take a project out of the registry; its page moves to `registry/removed/` (ADR 0026) |
 | `projects removed` / `projects restore <name>` | List removed projects, or put one back |
 | `projects purge <name> --yes` | Delete a removed project and its saved studies, designs, glossary and reports, for good |

@@ -15,6 +15,7 @@ import type {
   NewFeedback,
   Project,
   ProjectType,
+  PromotePlan,
   Registry,
   ResponderStatus,
   RootSurvey,
@@ -144,6 +145,27 @@ export const useRestoreProject = () =>
 export const usePurgeProject = () =>
   useRegistryMutation((id: string) =>
     api<{ deleted: string[] }>(`/registry/removed/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  )
+
+/** What promoting a project to a group would do (ADR 0027); nothing is written. */
+export const usePromotePlan = (id: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['registry', 'promote-plan', id],
+    enabled,
+    gcTime: 0,
+    queryFn: () =>
+      api<PromotePlan>(`/registry/projects/${encodeURIComponent(id)}/promote`, { method: 'POST', json: { dry_run: true } }),
+  })
+
+/** Promote a project to a group with a home, and back (ADR 0027). */
+export const usePromoteProject = () =>
+  useRegistryMutation((id: string) =>
+    api<PromotePlan>(`/registry/projects/${encodeURIComponent(id)}/promote`, { method: 'POST', json: {} }),
+  )
+
+export const useDemoteProject = () =>
+  useRegistryMutation((id: string) =>
+    api<Project>(`/registry/projects/${encodeURIComponent(id)}/demote`, { method: 'POST' }),
   )
 
 /** Set a project's type on its registry page, or null to go back to detection (ADR 0016). */

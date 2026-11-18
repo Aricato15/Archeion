@@ -28,6 +28,8 @@ function project(id: string, extra: Partial<Project> = {}): Project {
     children: [],
     used_by: [],
     members: [],
+    promoted: null,
+    needs_restudy: false,
     ...extra,
   }
 }

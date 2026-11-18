@@ -28,7 +28,7 @@ from __future__ import annotations
 import re
 import shutil
 from dataclasses import asdict, dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import yaml
@@ -130,6 +130,9 @@ class Project:
     children: list[str] = field(default_factory=list)
     used_by: list[str] = field(default_factory=list)
     members: list[str] = field(default_factory=list)  # a group with a home: its member pages (ADR 0027)
+    promoted: str | None = None  # when the project was promoted to a group (ADR 0027)
+    # A group promoted after it was studied keeps that study until a newer one is saved (ADR 0027).
+    needs_restudy: bool = False
     dir: Path | None = field(default=None, repr=False)
 
     def public(self) -> dict:
@@ -286,6 +289,7 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
             docs_dir=docs_dir,
             verified=str(verified) if verified else None,
             summary=_summary_of(body),
+            promoted=_stamp(meta.get("promoted")),
         )
         if project.path:
             project.dir, problem = _resolve_project_dir(repo_root, roots, project.path, project.root)
@@ -302,7 +306,41 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
         reg.projects[pid] = project
 
     _link(reg)
+    for p in reg.projects.values():
+        if p.type == GROUP_TYPE and p.promoted:
+            p.needs_restudy = _studied_before(registry_root, p.id, p.promoted)
     return reg
+
+
+def _stamp(value: object) -> str | None:
+    """A `promoted:` value as an ISO timestamp string; YAML may have parsed it already."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value) if value else None
+
+
+def _studied_before(registry_root: Path, project_id: str, stamp: str) -> bool:
+    """The project has a study, and the newest one was written before `stamp` (ADR 0027)."""
+    try:
+        at = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=UTC)
+    folder = registry_root / "studies" / project_id
+    if not folder.is_dir():
+        return False
+    newest = max(
+        (
+            (d / "study.json").stat().st_mtime
+            for d in folder.iterdir()
+            if d.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}-", d.name) and (d / "study.json").is_file()
+        ),
+        default=None,
+    )
+    return newest is not None and newest < at.timestamp()
 
 
 def _link(reg: Registry) -> None:
@@ -837,9 +875,84 @@ def set_type(registry_root: Path, reg: Registry, project_id: str, value: str | N
     project = reg.projects.get(project_id)
     if project is None:
         raise KeyError(project_id)
+    if project.type == GROUP_TYPE:
+        raise RegisterError(f"'{project_id}' is a group: demote it first (projects demote {project_id})")
     if value == "module" and not project.parent:
         raise RegisterError(f"'{project_id}' has no `parent:`, so it can't be a module of a project")
     return _set_line(registry_root, project, "type", value, ("parent", "path"))
+
+
+def plan_promote(registry_root: Path, reg: Registry, project_id: str) -> dict:
+    """What promoting a project to a group with a home would do (ADR 0027), and what stops it.
+    Nothing is written. `problems` is empty when it can go ahead. The name, and so everything
+    keyed by it (studies, designs, glossary, reports, threads), stays as it is."""
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    problems: list[str] = []
+    if project.type == GROUP_TYPE:
+        problems.append("it's already a group")
+    elif project.type == "module":
+        problems.append(f"it's a module of {project.owner or project.parent}: make it a project first")
+    if project.parent and project.type != GROUP_TYPE:
+        problems.append(f"it sits inside '{project.parent}' (`parent:`); a group sits at the top")
+    if project.group and project.type != GROUP_TYPE:
+        problems.append(f"it's a member of group '{project.group}' (`group:`); groups don't nest")
+    members: list[str] = []
+    for other in reg.projects.values():
+        if other.id == project_id:
+            continue
+        cur: Project | None = other
+        while cur is not None and cur.id != project_id:
+            if cur.group:
+                break
+            cur = reg.projects.get(cur.parent) if cur.parent else None
+        if (cur is not None and cur.id == project_id) or other.group == project_id:
+            members.append(other.id)
+    group = reg.groups.get(project_id)
+    studies = registry_root / "studies" / project_id
+    return {
+        "project": project_id,
+        "page": project.page,
+        "ok": not problems,
+        "problems": problems,
+        "members": sorted(members),
+        "group_page": group.page if group and group.home is None and group.page else None,
+        "has_study": studies.is_dir() and any(studies.iterdir()),
+        "has_design": (registry_root / "designs" / project_id).is_dir(),
+    }
+
+
+def promote(registry_root: Path, reg: Registry, project_id: str) -> dict:
+    """Promote a project to a group with a home (ADR 0027): `type: group` and `promoted:` on its
+    page, nothing else. Its modules and sub-projects become members by `parent:`, a group page
+    of the same name is kept as its narrative, and a study written before now is marked as needing
+    a restudy. Returns the plan."""
+    plan = plan_promote(registry_root, reg, project_id)
+    if not plan["ok"]:
+        raise RegisterError(f"can't promote '{project_id}': " + "; ".join(plan["problems"]))
+    project = reg.projects[project_id]
+    stamp = datetime.now(UTC).replace(microsecond=0).isoformat()
+    _set_line(registry_root, project, "promoted", f'"{stamp}"', ("type", "path", "parent"))
+    _set_line(registry_root, project, "type", GROUP_TYPE, ("parent", "path"))
+    return plan
+
+
+def demote(registry_root: Path, reg: Registry, project_id: str) -> str:
+    """Take a group with a home back to a project (ADR 0027): remove `type:` and `promoted:`.
+    Refused while it has members, because they'd lose their group. Returns the page's path."""
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if project.type != GROUP_TYPE:
+        raise RegisterError(f"'{project_id}' isn't a group")
+    if project.members:
+        names = ", ".join(sorted(project.members))
+        raise RegisterError(
+            f"'{project_id}' still has {len(project.members)} member(s) ({names}): move them out first"
+        )
+    _set_line(registry_root, project, "promoted", None, ())
+    return _set_line(registry_root, project, "type", None, ())
 
 
 def set_inbox_edits(registry_root: Path, reg: Registry, project_id: str, value: bool | None) -> str:

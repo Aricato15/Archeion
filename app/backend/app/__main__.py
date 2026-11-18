@@ -32,11 +32,14 @@ from .services.registry import (
     RegisterError,
     Registry,
     apply_structure,
+    demote,
     effective_group,
     list_removed,
     modules_of,
     owning_project,
+    plan_promote,
     plan_structure,
+    promote,
     purge,
     restore,
     set_inbox_edits,
@@ -763,6 +766,42 @@ def cmd_projects_type(settings: Settings, args: argparse.Namespace) -> int:
     how = "set on its page" if p.type_source == "page" else "detected"
     of = f" of {p.owner}" if p.owner else ""
     print(f"{p.id}: {p.type}{of} ({how}); registry/{page}")
+    return 0
+
+
+def cmd_projects_promote(settings: Settings, args: argparse.Namespace) -> int:
+    """Promote a project to a group with a home (ADR 0027), or only say what it would do."""
+    manager = _sources(settings)
+    if args.name not in manager.registry.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    plan = plan_promote(manager.registry_root, manager.registry, args.name)
+    if not plan["ok"]:
+        print(f"can't promote '{args.name}': " + "; ".join(plan["problems"]), file=sys.stderr)
+        return 1
+    members = ", ".join(plan["members"]) or "none yet"
+    print(f"{args.name}: becomes a group with a home. Members: {members}.")
+    if plan["group_page"]:
+        print(f"  keeps registry/{plan['group_page']} as its narrative (one group instead of two pages)")
+    if plan["has_study"]:
+        print("  has a study: it will be marked as needing a restudy")
+    if plan["has_design"]:
+        print("  its design stays with it (same name)")
+    if args.dry_run:
+        print("Dry run, nothing changed.")
+        return 0
+    promote(manager.registry_root, manager.registry, args.name)
+    manager.reload()
+    print(f"Done. Page: registry/{plan['page']}")
+    return 0
+
+
+def cmd_projects_demote(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    if args.name not in manager.registry.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    page = demote(manager.registry_root, manager.registry, args.name)
+    manager.reload()
+    print(f"{args.name}: a project again; registry/{page}")
     return 0
 
 
@@ -1875,6 +1914,13 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("name", help="the registered name")
     pt.add_argument("type", choices=["project", "module", "auto"], help="auto: detected from the folder")
     pt.set_defaults(func=cmd_projects_type)
+    ppr = projects.add_parser("promote", help="turn a project into a group with a home (ADR 0027)")
+    ppr.add_argument("name", help="the registered name")
+    ppr.add_argument("--dry-run", action="store_true", help="say what it would do, change nothing")
+    ppr.set_defaults(func=cmd_projects_promote)
+    pdm = projects.add_parser("demote", help="turn a group with a home back into a project (no members)")
+    pdm.add_argument("name", help="the registered name")
+    pdm.set_defaults(func=cmd_projects_demote)
     pe = projects.add_parser(
         "inbox-edits", help="allow Archeion's /inbox to edit a project's files for its items (ADR 0017)"
     )

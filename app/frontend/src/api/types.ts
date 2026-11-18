@@ -100,6 +100,22 @@ export type Project = {
   used_by: string[]
   /** A group with a home (ADR 0027): its member pages. Empty for anything else. */
   members: string[]
+  /** When it was promoted to a group (ISO time), if it was. */
+  promoted: string | null
+  /** A group promoted after it was studied, with no newer study yet (ADR 0027). */
+  needs_restudy: boolean
+}
+
+/** What promoting a project to a group would do, and what stops it (ADR 0027). */
+export type PromotePlan = {
+  project: string
+  page: string
+  ok: boolean
+  problems: string[]
+  members: string[]
+  group_page: string | null
+  has_study: boolean
+  has_design: boolean
 }
 
 export type Group = {

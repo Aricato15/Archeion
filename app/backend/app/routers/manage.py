@@ -2,7 +2,8 @@
 
 The only files the backend writes: the ARCHEION_ROOTS line of .env, new pages in
 registry/projects/, the `type:` (ADR 0016) and `inbox_edits:` (ADR 0017) lines of an
-existing page there, and the move of a page to registry/removed/ when a project is removed
+existing page there, the `type: group` and `promoted:` lines when a project is promoted to a group
+and back (ADR 0027), and the move of a page to registry/removed/ when a project is removed
 (ADR 0026). Never a project's files, never anything else in an existing registry page.
 """
 
@@ -17,7 +18,11 @@ from pydantic import BaseModel, Field
 from ..deps import AppState, get_state
 from ..services.events import Event
 from ..services.registry import (
+    RegisterError,
+    demote,
     list_removed,
+    plan_promote,
+    promote,
     purge,
     register,
     restore,
@@ -174,6 +179,42 @@ async def put_project_type(project_id: str, body: TypeIn, state: AppState = Depe
         set_type(m.registry_root, m.registry, project_id, body.type)
     except KeyError:
         raise HTTPException(404, f"no project named '{project_id}'") from None
+    m.reload()
+    _changed(state)
+    return m.registry.projects[project_id].public()
+
+
+class PromoteIn(BaseModel):
+    dry_run: bool = False
+
+
+@router.post("/registry/projects/{project_id}/promote")
+async def post_promote(project_id: str, body: PromoteIn, state: AppState = Depends(get_state)) -> dict:
+    """Promote a project to a group with a home (ADR 0027). With dry_run: only say what it would do."""
+    m = state.sources
+    try:
+        if body.dry_run:
+            return plan_promote(m.registry_root, m.registry, project_id)
+        plan = promote(m.registry_root, m.registry, project_id)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    except RegisterError as exc:
+        raise HTTPException(409, str(exc)) from None
+    m.reload()
+    _changed(state)
+    return {**plan, "project_page": m.registry.projects[project_id].public()}
+
+
+@router.post("/registry/projects/{project_id}/demote")
+async def post_demote(project_id: str, state: AppState = Depends(get_state)) -> dict:
+    """Take a group with a home back to a project (ADR 0027). Refused while it has members."""
+    m = state.sources
+    try:
+        demote(m.registry_root, m.registry, project_id)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    except RegisterError as exc:
+        raise HTTPException(409, str(exc)) from None
     m.reload()
     _changed(state)
     return m.registry.projects[project_id].public()

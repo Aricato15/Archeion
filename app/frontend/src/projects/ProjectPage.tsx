@@ -38,6 +38,7 @@ import { flattenFiles } from '../lib/format'
 import { ProjectCard, ProjectLink, StatusPill } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
+import { PromoteGroup } from './PromoteGroup'
 import { RemoveProject } from './RemoveProject'
 import { DesignTab } from '../design/DesignTab'
 import { StudyTab } from '../study/StudyTab'
@@ -251,6 +252,11 @@ export function ProjectPage() {
                 {project.parent ? 'sub-project' : 'project'}
               </Badge>
             )}
+            {project.needs_restudy && (
+              <Badge variant="light" color="orange" size="sm" title="Promoted to a group after its last study">
+                needs restudy
+              </Badge>
+            )}
           </Group>
           {project.summary && <Text c="dimmed">{project.summary}</Text>}
         </Stack>
@@ -281,6 +287,7 @@ export function ProjectPage() {
           >
             Registry page
           </Button>
+          <PromoteGroup project={project} />
           <RemoveProject project={project} onRemoved={() => navigate('/projects')} />
         </Group>
       </Group>

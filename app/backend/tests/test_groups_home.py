@@ -102,3 +102,117 @@ def test_cli_lists_a_group_home_under_its_group(settings, capsys):
     assert "The system [top] (group, active)" in out
     assert "  - beta (" in out and "  - alpha (" in out
     assert "- top (" not in out
+
+
+# --- promote and demote (ADR 0027, phase 2) ------------------------------------------------
+
+
+def _front(settings, name: str) -> str:
+    return (settings.registry_root / "projects" / f"{name}.md").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def solo(settings):
+    """A top-level project with one module and a sub-project of its own."""
+    gamma = settings.repo_root.parent / "gamma"
+    (gamma / "mod").mkdir(exist_ok=True)
+    (gamma / "nested").mkdir(exist_ok=True)
+    (gamma / "nested" / ".git").write_text("gitdir: x\n", encoding="utf-8")
+    _page(settings, "solo", "---\npath: ../gamma\n---\n# Solo\n")
+    _page(settings, "solo-mod", "---\npath: ../gamma/mod\nparent: solo\n---\n# Mod\n")
+    _page(settings, "solo-sub", "---\npath: ../gamma/nested\nparent: solo\n---\n# Sub\n")
+
+
+def test_promote_dry_run_changes_nothing(solo, settings, capsys):
+    before = _front(settings, "solo")
+    assert main(["projects", "promote", "solo", "--dry-run"], settings) == 0
+    out = capsys.readouterr().out
+    assert "becomes a group with a home. Members: solo-mod, solo-sub" in out and "Dry run" in out
+    assert _front(settings, "solo") == before
+
+
+def test_promote_writes_only_type_and_stamp(solo, settings):
+    before = _front(settings, "solo")
+    assert main(["projects", "promote", "solo"], settings) == 0
+    after = _front(settings, "solo")
+    added = [line for line in after.splitlines() if line not in before.splitlines()]
+    assert sorted(line.split(":")[0] for line in added) == ["promoted", "type"]
+    reg = _load(settings)
+    page = reg.projects["solo"]
+    assert page.type == "group" and page.promoted and reg.groups["solo"].home == "solo"
+    assert sorted(page.members) == ["solo-mod", "solo-sub"]
+    assert reg.projects["solo-mod"].type == "module" and reg.projects["solo-mod"].owner == "solo"
+    assert reg.projects["solo-sub"].type == "project"
+    assert reg.warnings == []
+
+
+def test_a_member_of_a_group_cant_be_promoted(settings, capsys):
+    assert main(["projects", "promote", "alpha"], settings) == 1  # alpha has `group: g1`
+    assert "member of group 'g1'" in capsys.readouterr().err
+    assert "type: group" not in _front(settings, "alpha")
+
+
+def test_a_module_cant_be_promoted(settings, capsys):
+    assert main(["projects", "promote", "sub1"], settings) == 1
+    assert "it's a module of beta" in capsys.readouterr().err
+
+
+def test_promote_merges_a_duplicate_pair(settings, capsys):
+    # A group page and a project page of one name (the placeholder case), members by `group:`.
+    _page(settings, "g1", "---\npath: ../gamma\n---\n# G1\n")
+    assert [w for w in _load(settings).warnings if "both a project and a group" in w["message"]]
+    assert main(["projects", "promote", "g1"], settings) == 0
+    assert "keeps registry/groups/g1.md as its narrative" in capsys.readouterr().out
+    reg = _load(settings)
+    assert reg.warnings == []
+    assert reg.groups["g1"].home == "g1" and reg.groups["g1"].title == "Group one"
+    assert sorted(reg.projects["g1"].members) == ["alpha", "beta", "sub1"]
+
+
+def test_demote_removes_both_lines_and_needs_no_members(solo, settings):
+    from app.services.registry import RegisterError, demote
+
+    assert main(["projects", "promote", "solo"], settings) == 0
+    with pytest.raises(RegisterError, match="still has 2 member"):
+        demote(settings.registry_root, _load(settings), "solo")
+    for name in ("solo-mod", "solo-sub"):
+        (settings.registry_root / "projects" / f"{name}.md").unlink()
+    assert main(["projects", "demote", "solo"], settings) == 0
+    assert _front(settings, "solo") == "---\npath: ../gamma\n---\n# Solo\n"
+    assert _load(settings).projects["solo"].type == "project"
+
+
+def test_set_type_refuses_a_group(solo, settings):
+    from app.services.registry import RegisterError, set_type
+
+    assert main(["projects", "promote", "solo"], settings) == 0
+    with pytest.raises(RegisterError, match="is a group"):
+        set_type(settings.registry_root, _load(settings), "solo", "project")
+
+
+def test_a_study_older_than_the_promotion_needs_a_restudy(solo, settings):
+    import json
+    import os
+
+    snap = settings.registry_root / "studies" / "solo" / "2026-01-01-abcdef0"
+    snap.mkdir(parents=True)
+    (snap / "study.json").write_text(json.dumps({}), encoding="utf-8")
+    os.utime(snap / "study.json", (1_700_000_000, 1_700_000_000))
+    assert main(["projects", "promote", "solo"], settings) == 0
+    assert _load(settings).projects["solo"].needs_restudy is True
+    newer = snap.parent / "2026-11-19-abcdef1"
+    newer.mkdir()
+    (newer / "study.json").write_text("{}", encoding="utf-8")
+    assert _load(settings).projects["solo"].needs_restudy is False
+
+
+def test_promote_and_demote_endpoints(solo, authed, settings):
+    r = authed.post("/api/registry/projects/solo/promote", json={"dry_run": True})
+    assert r.status_code == 200 and r.json()["ok"] and r.json()["members"] == ["solo-mod", "solo-sub"]
+    assert "type: group" not in _front(settings, "solo")
+    r = authed.post("/api/registry/projects/solo/promote", json={})
+    assert r.status_code == 200 and r.json()["project_page"]["type"] == "group"
+    assert authed.post("/api/registry/projects/solo/promote", json={}).status_code == 409
+    assert authed.post("/api/registry/projects/solo/demote").status_code == 409  # has members
+    assert authed.post("/api/registry/projects/nope/promote", json={}).status_code == 404
+    assert authed.post("/api/registry/projects/nope/demote").status_code == 404
