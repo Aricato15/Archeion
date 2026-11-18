@@ -108,6 +108,9 @@ export type Project = {
   needs_restudy: boolean
 }
 
+/** A folder of a group that its study suggests as a member (ADR 0027). */
+export type BreakDownItem = { folder: string; name: string; type: 'module' | 'project'; components: string[] }
+
 /** What promoting a project to a group would do, and what stops it (ADR 0027). */
 export type PromotePlan = {
   project: string

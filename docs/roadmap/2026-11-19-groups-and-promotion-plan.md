@@ -1,6 +1,8 @@
 # Plan: groups with a home, and promoting a project to a group
 
-_Status (2026-11-19): planned, nothing built; phase 0 is settled. Branch `feat/v1.4.0-major-feature`, part of 1.4.0. Decision: [ADR 0027](../decisions/0027-groups-with-a-home-and-promotion.md) (Accepted). Background: [the brainstorm](../notes/2026-11-19-groups-as-promoted-projects-brainstorm.md)._
+_Status (2026-11-19): all five phases are built, with tests, on this branch, unreleased (part of 1.4.0). Still to do: the user's own checks in the viewer and a first real promotion and break-down. What was left out is under "Not built"._
+
+_Planned: phase 0 is settled. Branch `feat/v1.4.0-major-feature`, part of 1.4.0. Decision: [ADR 0027](../decisions/0027-groups-with-a-home-and-promotion.md) (Accepted). Background: [the brainstorm](../notes/2026-11-19-groups-as-promoted-projects-brainstorm.md)._
 
 ```mermaid
 flowchart LR
@@ -61,3 +63,10 @@ Every phase ends with the tests and linters passing (`uv run pytest`, `uv run ru
 - Nested groups.
 - Moving or editing any code in a project.
 - Merging the `groups/` and `projects/` pages into one file for every group.
+
+## Not built
+- **Group-to-group edges drawn from code.** `depends_on` may name a group, and the map draws it as an arrow to that group's box, but `GET /api/system/links` still reports calls between members, not between groups. Folding a group on the map shows the merged edge between groups.
+- **The flattened view's flows, logic, states and findings.** It composes components, relations, interfaces and data; the rest stay in each member's own study (the view says so).
+- **Deeper iterations of a group's study.** The group's own study covers its top level, and going deeper is a later round of `/study`, which the skill describes but nothing enforces.
+- **Members of a member.** The flattened view reads each top-level member's latest study. A member that is itself studied with modules inside it is read as one study.
+- **`projects promote` creating a group page.** It doesn't: the project page serves until someone writes `groups/<name>.md` (ADR 0027, point 4).

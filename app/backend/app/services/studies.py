@@ -606,11 +606,43 @@ def save(
     if thread is not None:
         (tmp / INFO_FILE).write_text(json.dumps({"thread": thread}) + "\n", encoding="utf-8")
     tmp.rename(target)
+    return Snapshot(project, name, target), prune(registry_root, project, keep)
+
+
+def prune(registry_root: Path, project: str, keep: int) -> list[str]:
+    """Delete a project's oldest snapshots beyond `keep`. Returns their ids."""
     pruned: list[str] = []
     for old in snapshots(registry_root, project)[max(keep, 1) :]:
         shutil.rmtree(old.folder)
         pruned.append(old.id)
-    return Snapshot(project, name, target), pruned
+    return pruned
+
+
+def save_many(
+    registry_root: Path,
+    items: list[tuple[Study, str | None]],
+    *,
+    keep: int = 10,
+    thread: int | None = None,
+) -> list[Snapshot]:
+    """Save several studies from one reading pass, all or none (ADR 0027): a group's top-level
+    study and one per member. Each is already validated. If one can't be written, the ones
+    written before it are removed again, and nothing is pruned."""
+    projects = [s.meta.project for s, _ in items]
+    if len(set(projects)) != len(projects):
+        raise StudyError("a project appears twice in the set")
+    done: list[Snapshot] = []
+    try:
+        for study, notes in items:
+            snap, _ = save(registry_root, study, notes=notes, keep=10**6, thread=thread)
+            done.append(snap)
+    except Exception:
+        for snap in done:
+            shutil.rmtree(snap.folder, ignore_errors=True)
+        raise
+    for snap in done:
+        prune(registry_root, snap.project, keep)
+    return done
 
 
 def latest_by_project(registry_root: Path) -> dict[str, Snapshot]:

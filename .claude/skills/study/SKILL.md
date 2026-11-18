@@ -2,7 +2,7 @@
 name: study
 description: Study one registered project's code in depth (ADR 0019) and save what you learn as a dated snapshot in Archeion's registry, a structured model of its components, libraries, calls, web calls, data, flows, logic and states that the viewer draws as component maps, sequence, ER, activity and state diagrams. Read-only on the project. Asks before writing unless given --yes. Use when the user says "/study <project>", "study <project>", "map out how <project> works", "refresh the study of <project>", or an inbox item asks for a study.
 argument-hint: <project> [--yes] [--refresh] [--focus <area>]
-allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 study:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 study:*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects show:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects show:*)
+allowed-tools: PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 study:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 study:*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects show:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects show:*), PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects break-down:*), Bash(powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 projects break-down:*)
 ---
 
 # Study a project
@@ -84,6 +84,16 @@ Read the whole thread first (`inbox show <id>`), and the draft if there is one (
 - `--yes` in the first message: do every round in one go and save, as in the terminal.
 - Keep each reply short enough to read in the viewer. The detail belongs in the draft, which the Study tab draws.
 - An on-demand run can't approve arbitrary commands. Use the study commands, read files and write in your scratchpad and `registry/`. If something needs more, ask in the reply.
+
+## Studying a group (ADR 0027)
+
+A group with a home (`type: group`, see `projects show`) has its own top-level study and a study per member. The group's study is the top layer: read it and the members' studies together, never twice.
+
+1. **Top level first.** `study scan <group>` leaves the members' folders out (`--include-members` reads them too), so the inventory covers only what the group holds itself. Study that: the subsystems as components (the id of a component that stands for a member is that member's name), how they connect, the group's own entry points and data. Put each subsystem's files in `paths`, since that is what `projects break-down` reads. Record the folders you left out in `meta.excluded`.
+2. **Read what exists.** For each member that already has a study (`study list <member>`), read its latest (`study show <member> --json`) instead of redoing it. A member's study wins over yours where they differ on a component of the same name; say so in the reply.
+3. **Members that don't exist yet.** If the group has subsystems that aren't registered, offer `projects break-down <group>` (it suggests folders from your study, and `--only` or `--all` registers them: modules, or sub-projects when the folder has its own repository). Don't register without the user's say-so.
+4. **Restudy after a promotion** (the group shows *needs restudy*): study the top level, then split what you found into one study per member, scoped to its folder. Save them all together with `study save-set <group> --file <set.json>` where the file is `{"studies": [{"model": {...}, "notes": "..."}, ...]}` (the group's model and each member's). It saves all or none, so an invalid model saves nothing.
+5. The flattened view in the viewer is composed from these snapshots, so each member's `meta.date` and commit say how current it is.
 
 ## The model (`study.json`, schema 1)
 

@@ -32,11 +32,13 @@ from .services.registry import (
     RegisterError,
     Registry,
     apply_structure,
+    break_down,
     demote,
     effective_group,
     list_removed,
     modules_of,
     owning_project,
+    plan_break_down,
     plan_promote,
     plan_structure,
     promote,
@@ -812,6 +814,41 @@ def cmd_projects_demote(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_projects_break_down(settings: Settings, args: argparse.Namespace) -> int:
+    """Folders a group's study suggests as members (ADR 0027), and registering the ones you pick."""
+    manager = _sources(settings)
+    if args.name not in manager.registry.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    snap = next(iter(st.snapshots(settings.registry_root, args.name)), None)
+    model = st.load(snap)[0] if snap else None
+    proposals = plan_break_down(settings.registry_root, manager.registry, args.name, model)
+    if args.json and not (args.all or args.only):
+        _print_json(proposals)
+        return 0
+    if not proposals:
+        print(
+            "No folders to suggest."
+            + ("" if snap else f" {args.name} has no study yet: run /study {args.name}.")
+        )
+        return 0
+    chosen = proposals if args.all else [p for p in proposals if p["folder"] in (args.only or [])]
+    if not (args.all or args.only):
+        print(f"Folders of {args.name} that could be members (from its study {snap.id if snap else '?'}):")
+        for p in proposals:
+            print(f"  {p['folder']}: as {p['name']} ({p['type']}); components {', '.join(p['components'])}")
+        print(f"Register some with: projects break-down {args.name} --only <folder> ..., or --all")
+        return 0
+    missing = sorted(set(args.only or []) - {p["folder"] for p in proposals})
+    if missing:
+        raise ValueError(f"not suggested for {args.name}: {', '.join(missing)}")
+    pages = break_down(settings.registry_root, manager.registry, args.name, chosen)
+    manager.reload()
+    for page in pages:
+        print(f"created registry/{page}")
+    print(f"{len(pages)} member(s) registered under {args.name}. Study each one, then restudy {args.name}.")
+    return 0
+
+
 def _edits_text(facts: dict) -> str:
     """Whether Archeion's /inbox may edit the project's files, and where that comes from."""
     how = {
@@ -1003,6 +1040,31 @@ def cmd_study_save(settings: Settings, args: argparse.Namespace) -> int:
     print(f"Saved snapshot {snap.id}: registry/{st.STUDIES_DIR}/{p.id}/{snap.id}/")
     if pruned:
         print(f"Pruned {len(pruned)} older snapshot(s) (keeping {settings.study_keep}): {', '.join(pruned)}")
+    return 0
+
+
+def cmd_study_save_set(settings: Settings, args: argparse.Namespace) -> int:
+    """Save a group's study and its members' from one reading pass, all or none (ADR 0027)."""
+    manager = _sources(settings)
+    reg = manager.registry
+    group = reg.projects.get(args.group)
+    if group is None or group.type != "group":
+        raise ValueError(f"'{args.group}' isn't a group (see: projects list)")
+    data = json.loads(_read_text_arg(args.file))
+    entries = data.get("studies") if isinstance(data, dict) else None
+    if not isinstance(entries, list) or not entries:
+        raise ValueError('the file must be {"studies": [{"model": {...}, "notes": "..."}, ...]}')
+    allowed = {group.id, *group.members}
+    items: list[tuple[st.Study, str | None]] = []
+    for entry in entries:
+        study = st.parse(entry.get("model"))
+        if study.meta.project not in allowed:
+            raise ValueError(f"'{study.meta.project}' is neither {group.id} nor one of its members")
+        items.append((study, entry.get("notes")))
+    saved = st.save_many(settings.registry_root, items, keep=settings.study_keep)
+    for (study, _), snap in zip(items, saved, strict=True):
+        print(f"{study.meta.project}: snapshot {snap.id} ({_study_counts(study)})")
+    print(f"Saved {len(saved)} snapshot(s).")
     return 0
 
 
@@ -1938,6 +2000,14 @@ def build_parser() -> argparse.ArgumentParser:
     ppr.add_argument("name", help="the registered name")
     ppr.add_argument("--dry-run", action="store_true", help="say what it would do, change nothing")
     ppr.set_defaults(func=cmd_projects_promote)
+    pbd = projects.add_parser(
+        "break-down", help="folders of a group that its study suggests as members, and registering them"
+    )
+    pbd.add_argument("name", help="the group")
+    pbd.add_argument("--all", action="store_true", help="register every suggested folder")
+    pbd.add_argument("--only", nargs="+", metavar="FOLDER", help="register these suggested folders")
+    pbd.add_argument("--json", action="store_true")
+    pbd.set_defaults(func=cmd_projects_break_down)
     pdm = projects.add_parser("demote", help="turn a group with a home back into a project (no members)")
     pdm.add_argument("name", help="the registered name")
     pdm.set_defaults(func=cmd_projects_demote)
@@ -1990,6 +2060,12 @@ def build_parser() -> argparse.ArgumentParser:
     sa.add_argument("--notes", help="the narrative (Markdown) to keep with it")
     sa.add_argument("--from-draft", action="store_true", help="save the project's draft instead (ADR 0020)")
     sa.set_defaults(func=cmd_study_save)
+    ssv = study.add_parser("save-set", help="save a group's study and its members' together, all or none")
+    ssv.add_argument("group")
+    ssv.add_argument(
+        "--file", required=True, help='{"studies": [{"model": {...}, "notes": "..."}]}, or - for stdin'
+    )
+    ssv.set_defaults(func=cmd_study_save_set)
     draft = study.add_parser(
         "draft", help="the study in progress, between conversation rounds"
     ).add_subparsers(dest="draft_action", required=True)

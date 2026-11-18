@@ -15,6 +15,7 @@ import type {
   NewFeedback,
   Project,
   ProjectType,
+  BreakDownItem,
   PromotePlan,
   Registry,
   ResponderStatus,
@@ -161,6 +162,24 @@ export const usePromotePlan = (id: string, enabled: boolean) =>
 export const usePromoteProject = () =>
   useRegistryMutation((id: string) =>
     api<PromotePlan>(`/registry/projects/${encodeURIComponent(id)}/promote`, { method: 'POST', json: {} }),
+  )
+
+/** Folders of a group that its own study suggests as members (ADR 0027). Nothing is written. */
+export const useBreakDownPlan = (group: string, enabled: boolean) =>
+  useQuery({
+    queryKey: ['registry', 'break-down', group],
+    enabled,
+    gcTime: 0,
+    queryFn: () => api<BreakDownItem[]>(`/registry/projects/${encodeURIComponent(group)}/break-down`),
+  })
+
+/** Register folders of a group as its members (ADR 0027). */
+export const useBreakDown = () =>
+  useRegistryMutation(({ group, members }: { group: string; members: { folder: string; name: string }[] }) =>
+    api<{ pages: string[] }>(`/registry/projects/${encodeURIComponent(group)}/break-down`, {
+      method: 'POST',
+      json: { members },
+    }),
   )
 
 export const useDemoteProject = () =>

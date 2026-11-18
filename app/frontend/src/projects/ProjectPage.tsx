@@ -38,6 +38,7 @@ import { flattenFiles } from '../lib/format'
 import { ProjectCard, ProjectLink, StatusPill } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
+import { BreakDown } from './BreakDown'
 import { PromoteGroup } from './PromoteGroup'
 import { RemoveProject } from './RemoveProject'
 import { DesignTab } from '../design/DesignTab'
@@ -331,7 +332,10 @@ export function ProjectPage() {
 
       {project.type === 'group' && (
         <Stack gap="xs">
-          <Title order={4}>Members</Title>
+          <Group justify="space-between">
+            <Title order={4}>Members</Title>
+            <BreakDown group={project} />
+          </Group>
           {project.members.length === 0 ? (
             <Text size="sm" c="dimmed">
               None yet. A page joins this group with <Code>group: {project.id}</Code> or <Code>parent: {project.id}</Code>.

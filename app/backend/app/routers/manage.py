@@ -16,11 +16,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_state
+from ..services import studies as st
 from ..services.events import Event
 from ..services.registry import (
     RegisterError,
+    break_down,
     demote,
     list_removed,
+    plan_break_down,
     plan_promote,
     promote,
     purge,
@@ -218,6 +221,44 @@ async def post_demote(project_id: str, state: AppState = Depends(get_state)) -> 
     m.reload()
     _changed(state)
     return m.registry.projects[project_id].public()
+
+
+class BreakDownItem(BaseModel):
+    folder: str = Field(max_length=300)
+    name: str = Field(max_length=64)
+
+
+class BreakDownIn(BaseModel):
+    members: list[BreakDownItem] = Field(max_length=200)
+
+
+@router.get("/registry/projects/{project_id}/break-down")
+async def get_break_down(project_id: str, state: AppState = Depends(get_state)) -> list[dict]:
+    """Folders of a group that its own study suggests as members (ADR 0027). Nothing is written."""
+    m = state.sources
+    try:
+        snap = next(iter(st.snapshots(m.registry_root, project_id)), None)
+        model = st.load(snap)[0] if snap else None
+        return plan_break_down(m.registry_root, m.registry, project_id, model)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    except RegisterError as exc:
+        raise HTTPException(409, str(exc)) from None
+
+
+@router.post("/registry/projects/{project_id}/break-down", status_code=201)
+async def post_break_down(project_id: str, body: BreakDownIn, state: AppState = Depends(get_state)) -> dict:
+    """Register folders of a group as its members: modules, or sub-projects with a repository of their own."""
+    m = state.sources
+    try:
+        pages = break_down(m.registry_root, m.registry, project_id, [i.model_dump() for i in body.members])
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    except RegisterError as exc:
+        raise HTTPException(409, str(exc)) from None
+    m.reload()
+    _changed(state)
+    return {"pages": pages}
 
 
 @router.put("/registry/projects/{project_id}/inbox-edits")

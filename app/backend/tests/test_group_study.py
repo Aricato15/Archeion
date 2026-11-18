@@ -147,3 +147,156 @@ def test_a_study_may_record_what_it_left_out():
     data = model("top")
     data["meta"]["excluded"] = ["ma", "mb"]
     assert st.parse(data).meta.excluded == ["ma", "mb"]
+
+
+# --- break a group down and restudy it (ADR 0027, phase 5) ----------------------------------
+
+
+@pytest.fixture
+def bare(settings):
+    """A group `top` whose folder holds three subsystems that aren't registered yet."""
+    gamma = settings.repo_root.parent / "gamma"
+    for folder in ("ma", "mb", "nested", "docs"):
+        (gamma / folder).mkdir(exist_ok=True)
+        (gamma / folder / "x.py").write_text("x = 1\n", encoding="utf-8")
+    (gamma / "nested" / ".git").write_text("gitdir: x\n", encoding="utf-8")
+    _page(settings, "top", "---\npath: ../gamma\ntype: group\n---\n# Top\n")
+    own = {
+        "components": [
+            {"id": "svc-a", "name": "A", "kind": "service", "paths": ["ma/x.py"]},
+            {"id": "svc-a-db", "name": "A db", "kind": "module", "parent": "svc-a", "paths": ["ma/db.py"]},
+            {"id": "svc-b", "name": "B", "kind": "service", "paths": ["mb/x.py"]},
+            {"id": "sub", "name": "Sub", "kind": "package", "paths": ["nested/x.py"]},
+            {"id": "docs-site", "name": "Docs", "kind": "ui", "paths": ["docs/x.py"]},
+            {"id": "top-file", "name": "Top file", "kind": "module", "paths": ["own.py"]},
+        ],
+        "relations": [],
+        "entities": [],
+        "interfaces": {"exposes": [], "calls": []},
+        "flows": [],
+        "states": [],
+        "activities": [],
+        "findings": [],
+    }
+    _save(settings, "top", **own)
+
+
+def _plan(settings):
+    from app.services.registry import plan_break_down
+
+    reg = _load(settings)
+    snap = next(iter(st.snapshots(settings.registry_root, "top")))
+    return plan_break_down(settings.registry_root, reg, "top", st.load(snap)[0])
+
+
+def test_the_groups_study_suggests_folders_as_members(bare, settings):
+    plan = {p["folder"]: p for p in _plan(settings)}
+    assert sorted(plan) == ["ma", "mb", "nested"]  # not docs (skipped), not a file at the top
+    assert plan["ma"]["type"] == "module" and plan["ma"]["components"] == ["svc-a"]
+    assert plan["nested"]["type"] == "project" and plan["nested"]["name"] == "nested"
+
+
+def test_registered_folders_are_not_suggested_again(bare, settings):
+    _page(settings, "already", "---\npath: ../gamma/ma\nparent: top\n---\n# A\n")
+    assert sorted(p["folder"] for p in _plan(settings)) == ["mb", "nested"]
+
+
+def test_registering_folders_makes_them_members(bare, settings):
+    from app.services.registry import break_down
+
+    pages = break_down(
+        settings.registry_root,
+        _load(settings),
+        "top",
+        [{"folder": "ma", "name": "part-a"}, {"folder": "nested", "name": "sub"}],
+    )
+    assert pages == ["projects/part-a.md", "projects/sub.md"]
+    reg = _load(settings)
+    assert reg.warnings == []
+    assert reg.projects["part-a"].type == "module" and reg.projects["part-a"].owner == "top"
+    assert reg.projects["sub"].type == "project" and reg.projects["sub"].parent == "top"
+    assert sorted(reg.projects["top"].members) == ["part-a", "sub"]
+    assert "parent: top" in (settings.registry_root / pages[0]).read_text(encoding="utf-8")
+
+
+def test_breaking_down_is_all_or_none_and_stays_inside_the_group(bare, settings):
+    from app.services.registry import RegisterError, break_down
+
+    reg = _load(settings)
+    for bad in (
+        [{"folder": "ma", "name": "part-a"}, {"folder": "../beta", "name": "out"}],
+        [{"folder": "ma", "name": "part-a"}, {"folder": "missing", "name": "gone"}],
+        [{"folder": "ma", "name": "part-a"}, {"folder": "mb", "name": "part-a"}],
+        [{"folder": "ma", "name": "Bad Name"}],
+        [{"folder": "ma", "name": "alpha"}],
+    ):
+        with pytest.raises(RegisterError):
+            break_down(settings.registry_root, reg, "top", bad)
+    assert not (settings.registry_root / "projects" / "part-a.md").exists()
+
+
+def test_break_down_cli_and_api(bare, authed, settings, capsys):
+    r = authed.get("/api/registry/projects/top/break-down")
+    assert r.status_code == 200 and sorted(p["folder"] for p in r.json()) == ["ma", "mb", "nested"]
+    r = authed.post(
+        "/api/registry/projects/top/break-down", json={"members": [{"folder": "mb", "name": "part-b"}]}
+    )
+    assert r.status_code == 201 and r.json()["pages"] == ["projects/part-b.md"]
+    again = authed.post(
+        "/api/registry/projects/top/break-down", json={"members": [{"folder": "mb", "name": "x"}]}
+    )
+    assert again.status_code == 409
+    assert authed.get("/api/registry/projects/alpha/break-down").status_code == 409
+    assert authed.get("/api/registry/projects/nope/break-down").status_code == 404
+
+    assert main(["projects", "break-down", "top"], settings) == 0
+    out = capsys.readouterr().out
+    assert "ma: as ma (module)" in out and "mb:" not in out
+    assert main(["projects", "break-down", "top", "--only", "ma"], settings) == 0
+    assert "1 member(s) registered under top" in capsys.readouterr().out
+
+
+def test_save_many_is_all_or_none(top, settings, monkeypatch):
+    items = [(st.parse(model("top")), None), (st.parse(model("m-a")), "# Notes\n")]
+    saved = st.save_many(settings.registry_root, items, keep=5)
+    assert [s.project for s in saved] == ["top", "m-a"]
+    assert (saved[1].folder / "notes.md").is_file()
+
+    real = st.save
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise OSError("disk full")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(st, "save", flaky)
+    before = {p: [s.id for s in st.snapshots(settings.registry_root, p)] for p in ("top", "m-b")}
+    with pytest.raises(OSError):
+        st.save_many(
+            settings.registry_root,
+            [(st.parse(model("top", commit="1234567abc")), None), (st.parse(model("m-b")), None)],
+        )
+    after = {p: [s.id for s in st.snapshots(settings.registry_root, p)] for p in ("top", "m-b")}
+    assert after == before  # the first one was taken back
+
+    monkeypatch.setattr(st, "save", real)
+    with pytest.raises(st.StudyError, match="appears twice"):
+        st.save_many(settings.registry_root, [(st.parse(model("top")), None), (st.parse(model("top")), None)])
+
+
+def test_save_set_cli(top, settings, tmp_path, capsys):
+    both = tmp_path / "set.json"
+    both.write_text(
+        json.dumps({"studies": [{"model": model("top")}, {"model": model("m-a"), "notes": "# A\n"}]})
+    )
+    assert main(["study", "save-set", "top", "--file", str(both)], settings) == 0
+    out = capsys.readouterr().out
+    assert "top: snapshot" in out and "m-a: snapshot" in out and "Saved 2 snapshot(s)." in out
+    stranger = tmp_path / "bad.json"
+    stranger.write_text(json.dumps({"studies": [{"model": model("top")}, {"model": model("alpha")}]}))
+    before = len(st.snapshots(settings.registry_root, "top"))
+    assert main(["study", "save-set", "top", "--file", str(stranger)], settings) != 0
+    assert "neither top nor one of its members" in capsys.readouterr().err
+    assert len(st.snapshots(settings.registry_root, "top")) == before

@@ -56,6 +56,7 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects show --project <name>` | One project's place in the system |
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
 | `projects promote <name> [--dry-run]` / `projects demote <name>` | Turn a project into a group with a home (`type: group`, its members are the pages whose `group:` or `parent:` names it), or back when it has no members (ADR 0027) |
+| `projects break-down <group> [--only <folder> ... \| --all]` | List the folders of a group that its study suggests as members, or register them (modules, or sub-projects with their own repository), ADR 0027 |
 | `projects remove <name>` | Take a project out of the registry; its page moves to `registry/removed/` (ADR 0026) |
 | `projects removed` / `projects restore <name>` | List removed projects, or put one back |
 | `projects purge <name> --yes` | Delete a removed project and its saved studies, designs, glossary and reports, for good |
@@ -80,6 +81,7 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `study show <name> [<snapshot>]` | One snapshot's counts, problems and folder |
 | `study changes <name>` | Files changed since the latest snapshot (what `/study --refresh` rereads) |
 | `study draft save\|show\|discard <name>` | The study in progress, kept between the rounds of its conversation; the Study tab shows it as **Draft** |
+| `study save-set <group> --file <f>` | Save a group's study and its members' from one reading pass, all or none (ADR 0027) |
 | `study save <name> --from-draft` | Turn the draft into a dated snapshot |
 | `study validate --file <f>` / `study save <name> --file <f>` | Check a study model, or store it as a new snapshot (`/study` does this) |
 | `password set` | Changes the admin password and logs out every session |

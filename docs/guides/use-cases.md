@@ -206,3 +206,23 @@ flowchart LR
   approve --> pdf
   pdf --> open[Reports tab:<br/>open, download, check]
 ```
+
+---
+
+## 7. Grow a project into a system, and study it in layers
+
+**Goal:** a project has become the top layer of a system. You want the parts to be projects or modules of their own, the project to stay the place you manage the whole, and its study to be readable instead of one map of hundreds of components ([ADR 0027](../decisions/0027-groups-with-a-home-and-promotion.md)).
+
+```mermaid
+flowchart LR
+  promote["Promote to group<br/>(project page)"] --> restudy["/study the group:<br/>top level only"]
+  restudy --> split["Break down:<br/>register folders as members"]
+  split --> members["/study each member,<br/>or study save-set"]
+  members --> flat["Study tab:<br/>Top level / Flattened"]
+```
+
+1. **Viewer:** on the project's page, **Promote to group**. Only `type: group` and a time are added to its registry page. Its name, design, studies and threads stay as they are, and its modules and sub-projects become its members. Or `projects promote <name>`.
+2. **Archeion's session:** `/study <group>`. The scan leaves the members' folders out, so the study covers the top level, with each subsystem as a component and its files in `paths`. A study from before the promotion shows *needs restudy* until this one is saved.
+3. **Viewer:** on the group's page, **Break down** lists the folders that study points at. Tick the ones you want and register them: a folder without a repository of its own becomes a module, one with its own a sub-project. Only registry pages are created.
+4. **Archeion's session:** study each member (`/study <member>`), or save the group's study and the members' together with `study save-set`, so a failure saves nothing.
+5. **Viewer:** the group's **Study** tab lists each member with the date of its study and how far the code has moved on. **Flattened** composes every member's latest study into one map. Where a member's study and the group's differ on a component, the member's wins, and **Discuss** starts a thread.

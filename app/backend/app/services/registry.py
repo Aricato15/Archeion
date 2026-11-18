@@ -967,6 +967,117 @@ def demote(registry_root: Path, reg: Registry, project_id: str) -> str:
     return _set_line(registry_root, project, "type", None, ())
 
 
+_SKIP_FOLDERS = {"node_modules", "venv", "dist", "build", "data", "__pycache__", "tests", "docs", "scripts"}
+
+
+def _slug(text: str) -> str:
+    out = re.sub(r"[^a-z0-9._-]+", "-", text.lower()).strip("-.")
+    return out[:64] or "member"
+
+
+def plan_break_down(registry_root: Path, reg: Registry, group_id: str, own_model: dict | None) -> list[dict]:
+    """Folders inside a group's own folder that could become its members (ADR 0027): the
+    top-level components of the group's own study, by the folder their files sit in, and nothing
+    else. Each is a module when it has no repository of its own, otherwise a project. Folders that
+    are already registered are left out. Nothing is written."""
+    group = reg.projects.get(group_id)
+    if group is None:
+        raise KeyError(group_id)
+    if group.type != GROUP_TYPE:
+        raise RegisterError(f"'{group_id}' isn't a group")
+    if group.dir is None:
+        raise RegisterError(f"'{group_id}' has no folder on this machine")
+    known = {p.dir.resolve() for p in reg.projects.values() if p.dir is not None}
+    comps = [c for c in (own_model or {}).get("components", []) if isinstance(c, dict) and "id" in c]
+    kids: dict[str, list[dict]] = {}
+    for c in comps:
+        kids.setdefault(c.get("parent") or "", []).append(c)
+
+    def paths_of(c: dict) -> list[str]:
+        out = list(c.get("paths") or [])
+        for k in kids.get(c["id"], []):
+            out += paths_of(k)
+        return out
+
+    found: dict[str, dict] = {}
+    for c in kids.get("", []):
+        firsts = [p.replace("\\", "/").split("/")[0] for p in paths_of(c) if "/" in p.replace("\\", "/")]
+        if not firsts:
+            continue
+        folder = max(set(firsts), key=firsts.count)
+        found.setdefault(folder, {"folder": folder, "components": []})["components"].append(c["id"])
+    out = []
+    for folder, item in sorted(found.items()):
+        target = (group.dir / folder).resolve()
+        if folder.startswith(".") or folder in _SKIP_FOLDERS or not target.is_dir():
+            continue
+        if not target.is_relative_to(group.dir.resolve()) or target in known:
+            continue
+        out.append(
+            {
+                "folder": folder,
+                "name": _slug(folder)
+                if _slug(folder) not in reg.projects
+                else f"{group_id}-{_slug(folder)}"[:64],
+                "type": "project" if is_repo(target) else "module",
+                "components": item["components"],
+            }
+        )
+    return out
+
+
+def break_down(registry_root: Path, reg: Registry, group_id: str, chosen: list[dict]) -> list[str]:
+    """Register folders of a group as its members, create-only (ADR 0010, ADR 0027): a page per
+    folder with `parent:` set to the group, so each is a module (no repository of its own) or a
+    sub-project. The folders must be inside the group's folder, and nothing is overwritten. Returns
+    the pages created, as paths inside the registry. All or none: every item is checked first."""
+    group = reg.projects.get(group_id)
+    if group is None:
+        raise KeyError(group_id)
+    if group.type != GROUP_TYPE or group.dir is None or not group.path:
+        raise RegisterError(f"'{group_id}' isn't a group with a folder on this machine")
+    known = {p.dir.resolve() for p in reg.projects.values() if p.dir is not None}
+    names: set[str] = set()
+    plan = []
+    for item in chosen:
+        name, folder = str(item.get("name", "")), str(item.get("folder", "")).strip("/")
+        if not ID_RE.match(name) or name in RESERVED_IDS:
+            raise RegisterError(f"'{name}' isn't a valid project name (lowercase letters, digits, . _ -)")
+        if name in reg.projects or name in names:
+            raise RegisterError(f"a project named '{name}' is already registered")
+        names.add(name)
+        if not re.match(r"^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$", folder) or ".." in folder.split("/"):
+            raise RegisterError(f"'{folder}' must be a plain folder inside {group_id}")
+        target = (group.dir / folder).resolve()
+        if not target.is_dir() or not target.is_relative_to(group.dir.resolve()):
+            raise RegisterError(f"'{folder}' isn't a folder inside {group_id}")
+        if target in known:
+            raise RegisterError(f"'{folder}' is already registered")
+        known.add(target)
+        plan.append((name, folder, target))
+    pages_dir = registry_root / PROJECTS_DIR
+    pages_dir.mkdir(parents=True, exist_ok=True)
+    for name, _, _ in plan:
+        if (pages_dir / f"{name}.md").exists():
+            raise RegisterError(f"{PROJECTS_DIR}/{name}.md already exists in the registry")
+    made = []
+    for name, folder, target in plan:
+        text = stub_page(
+            {
+                "name": name,
+                "root": group.root,
+                "path": f"{group.path.rstrip('/')}/{folder}",
+                "parent": group_id,
+                "inbox_edits": True if is_repo(target) else None,
+            }
+        )
+        page = pages_dir / f"{name}.md"
+        with page.open("x", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        made.append(page.relative_to(registry_root).as_posix())
+    return made
+
+
 def set_inbox_edits(registry_root: Path, reg: Registry, project_id: str, value: bool | None) -> str:
     """Set (True / False) or remove (None: the default, or its project's setting for a module)
     the `inbox_edits:` line of a project's registry page (ADR 0017). Returns the page's path."""
