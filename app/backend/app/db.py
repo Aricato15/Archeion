@@ -231,6 +231,13 @@ def _m10_permission_mode(conn: sqlite3.Connection) -> None:
     )
 
 
+def _m11_reserved(conn: sqlite3.Connection) -> None:
+    # Reserved, does nothing. A schema 11 existed briefly on one machine (an unused `bypass` column on
+    # `responder`, never released). Keeping the number means that database still opens; the column is
+    # never read, and databases created now simply don't have it.
+    return None
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
@@ -242,6 +249,7 @@ MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m8_responder,
     _m9_claude_jobs,
     _m10_permission_mode,
+    _m11_reserved,
 ]
 
 

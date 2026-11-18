@@ -20,7 +20,7 @@ class SettingsIn(BaseModel):
     # ADR 0021: no window at all, and how many Claude processes may run at once.
     headless: bool | None = None
     max_instances: int | None = Field(None, ge=1, le=2)
-    # Auto accept file edits, or seek the user's confirmation for each (both terminals).
+    # Auto permission mode, or seek the user's confirmation for each (both terminals).
     accept_edits: bool | None = None
 
 

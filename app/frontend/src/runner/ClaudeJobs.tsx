@@ -50,7 +50,7 @@ export function ClaudeJobsCard() {
               disabled={save.isPending}
               onChange={(v) => save.mutate({ accept_edits: v === 'accept' })}
               data={[
-                { value: 'accept', label: 'Auto accept edits' },
+                { value: 'accept', label: 'Auto mode' },
                 { value: 'confirm', label: 'Seek user confirmations', disabled: data.headless },
               ]}
             />

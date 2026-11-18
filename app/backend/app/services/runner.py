@@ -122,6 +122,11 @@ def _alive(row: sqlite3.Row | None) -> bool:
     return started is not None and started == row["proc_started"]
 
 
+# Claude Code's auto permission mode (ADR 0021): it decides most prompts itself. The stored setting is
+# still called accept_edits, which is what it was before it launched auto.
+AUTO_FLAGS = ("--permission-mode", "auto")
+
+
 def accepts_edits(conn: sqlite3.Connection) -> bool:
     """The Edits setting (ADR 0021): accept file edits, or ask before each one. Shared by both
     Claude terminals; it lives on the responder row with the other Claude job settings."""
@@ -130,7 +135,7 @@ def accepts_edits(conn: sqlite3.Connection) -> bool:
 
 
 def permission_flags(conn: sqlite3.Connection) -> list[str]:
-    return ["--permission-mode", "acceptEdits"] if accepts_edits(conn) else []
+    return list(AUTO_FLAGS) if accepts_edits(conn) else []
 
 
 def terminal_running(conn: sqlite3.Connection) -> bool:
