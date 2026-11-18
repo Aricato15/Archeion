@@ -12,6 +12,7 @@ const base: ResponderStatus = {
   jobs: [],
   headless: false,
   accept_edits: true,
+  add_project_dirs: true,
   max_instances: 1,
   instances: 0,
   terminal_running: false,

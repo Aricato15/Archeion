@@ -22,11 +22,18 @@ class SettingsIn(BaseModel):
     max_instances: int | None = Field(None, ge=1, le=2)
     # Auto permission mode, or seek the user's confirmation for each (both terminals).
     accept_edits: bool | None = None
+    # `--add-dir <project folder>` for each project or module a run has items for.
+    add_project_dirs: bool | None = None
 
 
 def granted_dirs(state: AppState) -> list[Path]:
     """The folders a run may read and edit besides the repo: every granted root."""
     return [path for _, path in state.sources.roots.all()]
+
+
+def project_dirs(state: AppState) -> dict[str, Path]:
+    """Each registered project or module that has a folder on this machine, by id."""
+    return {p.id: p.dir for p in state.sources.registry.projects.values() if p.dir is not None}
 
 
 def _view(state: AppState, conn: sqlite3.Connection) -> dict:
@@ -48,6 +55,7 @@ def put_settings(
         headless=body.headless,
         max_instances=body.max_instances,
         accept_edits=body.accept_edits,
+        add_project_dirs=body.add_project_dirs,
         can_start=local_only(state.settings.host),
     )
     return _view(state, conn)
@@ -57,7 +65,11 @@ def put_settings(
 def run_now(state: AppState = Depends(get_state), conn: sqlite3.Connection = Depends(get_conn)) -> dict:
     """One run now, switched on or not."""
     responder.start(
-        conn, state.settings.repo_root, granted_dirs(state), can_start=local_only(state.settings.host)
+        conn,
+        state.settings.repo_root,
+        granted_dirs(state),
+        can_start=local_only(state.settings.host),
+        project_dirs=project_dirs(state),
     )
     return _view(state, conn)
 

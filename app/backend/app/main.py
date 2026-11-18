@@ -92,6 +92,7 @@ async def watch_responder(state: AppState) -> None:
                 settings.repo_root,
                 responder.granted_dirs(state),
                 can_start=local_only(settings.host),
+                project_dirs=responder.project_dirs(state),
             )
 
     while not state.stop.is_set():

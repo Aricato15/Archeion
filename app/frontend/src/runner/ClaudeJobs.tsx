@@ -72,6 +72,18 @@ export function ClaudeJobsCard() {
               ends. The inbox terminal is always a window: its <code>/loop</code> needs an interactive session.
             </Text>
           </Stack>
+          <Stack gap={4}>
+            <Switch
+              label="Give runs the project's folder"
+              checked={data.add_project_dirs}
+              disabled={save.isPending}
+              onChange={(e) => save.mutate({ add_project_dirs: e.currentTarget.checked })}
+            />
+            <Text size="xs" c="dimmed" maw={360}>
+              Adds <code>--add-dir &lt;folder&gt;</code> for each project or module a run has waiting items for, so it can
+              read and edit there (on top of the granted roots). Turn it off to give runs only the roots.
+            </Text>
+          </Stack>
         </Group>
         {save.error && <Alert color="red">{save.error.message}</Alert>}
       </Stack>

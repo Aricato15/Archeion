@@ -207,3 +207,38 @@ def test_edits_are_accepted_or_confirmed_in_both_terminals(authed, fake, db, set
     assert authed.put("/api/responder", json={"headless": True, "accept_edits": True}).status_code == 200
     r = authed.put("/api/responder", json={"accept_edits": False})
     assert r.status_code == 400
+
+
+def _tick_with(db, settings, project_dirs):
+    with db.conn() as conn:
+        return responder.tick(
+            conn, settings.repo_root, [settings.repo_root.parent], can_start=True, project_dirs=project_dirs
+        )
+
+
+def _message_for(db, source):
+    with db.conn() as conn:
+        return fb.create(conn, kind="prompt", body="hello", source=source)
+
+
+def test_a_run_gets_add_dir_for_each_project_with_a_waiting_item(authed, fake, db, settings, tmp_path):
+    alpha, beta, idle = tmp_path / "alpha", tmp_path / "beta", tmp_path / "idle"
+    dirs = {"alpha": alpha, "beta": beta, "idle": idle}
+    authed.put("/api/responder", json={"enabled": True})
+    _message_for(db, "alpha")
+    _message_for(db, "alpha")
+    _message_for(db, "beta")
+    _message_for(db, "archeion")  # Archeion's own items add nothing
+    _message_for(db, "gone")  # a project with no folder on this machine adds nothing
+    assert _tick_with(db, settings, dirs) == "started"
+    assert fake.dirs == [[str(settings.repo_root.parent), str(alpha), str(beta)]]
+
+
+def test_the_project_folders_can_be_switched_off(authed, fake, db, settings, tmp_path):
+    assert authed.get("/api/responder").json()["add_project_dirs"] is True
+    r = authed.put("/api/responder", json={"enabled": True, "add_project_dirs": False})
+    assert r.json()["add_project_dirs"] is False
+    _message_for(db, "alpha")
+    assert _tick_with(db, settings, {"alpha": tmp_path / "alpha"}) == "started"
+    assert fake.dirs == [[str(settings.repo_root.parent)]]
+    assert authed.put("/api/responder", json={"add_project_dirs": True}).json()["add_project_dirs"] is True

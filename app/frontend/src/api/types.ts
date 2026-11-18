@@ -270,6 +270,8 @@ export type ResponderStatus = {
   headless: boolean
   /** Auto permission mode (true), or seek the user's confirmation for each (both terminals). */
   accept_edits: boolean
+  /** `--add-dir <folder>` for each project or module a run has waiting items for. */
+  add_project_dirs: boolean
   /** How many Claude processes may run at once, the inbox terminal included (1 or 2). */
   max_instances: number
   /** Claude processes running now, the inbox terminal included. */

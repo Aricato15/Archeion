@@ -231,6 +231,18 @@ def _m10_permission_mode(conn: sqlite3.Connection) -> None:
     )
 
 
+def _m11_add_project_dirs(conn: sqlite3.Connection) -> None:
+    # On-demand Claude gets `--add-dir <folder>` for each project or module that has a waiting
+    # message (ADR 0021). On by default; the Settings page can turn it off.
+    _exec_all(
+        conn,
+        """
+        ALTER TABLE responder ADD COLUMN add_project_dirs INTEGER NOT NULL DEFAULT 1
+          CHECK (add_project_dirs IN (0, 1))
+        """,
+    )
+
+
 MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m1_auth,
     _m2_feedback,
@@ -242,6 +254,7 @@ MIGRATIONS: list[Callable[[sqlite3.Connection], None]] = [
     _m8_responder,
     _m9_claude_jobs,
     _m10_permission_mode,
+    _m11_add_project_dirs,
 ]
 
 

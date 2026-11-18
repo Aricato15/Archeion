@@ -56,6 +56,24 @@ def headless(conn: sqlite3.Connection) -> bool:
     return bool(row and row["headless"])
 
 
+def adds_project_dirs(conn: sqlite3.Connection) -> bool:
+    """Whether a run is given `--add-dir` for each project or module it has items for (on by default)."""
+    row = _row(conn)
+    return row is None or bool(row["add_project_dirs"])
+
+
+def waiting_project_dirs(conn: sqlite3.Connection, project_dirs: dict[str, Path]) -> list[Path]:
+    """The folders of the projects and modules that a run would answer: the sources of the open
+    messages that `waiting` counts. Items for Archeion itself, or for a project with no folder on
+    this machine, add nothing."""
+    row = _row(conn)
+    seen = int(row["seen_id"]) if row else 0
+    sources = conn.execute(
+        "SELECT DISTINCT source FROM feedback WHERE status = 'open' AND id > ? ORDER BY source", (seen,)
+    ).fetchall()
+    return [project_dirs[s["source"]] for s in sources if s["source"] in project_dirs]
+
+
 # --- jobs ----------------------------------------------------------------------------------
 
 
@@ -116,6 +134,7 @@ def status(conn: sqlite3.Connection, *, can_start: bool) -> dict:
         "jobs": [{"pid": int(j["pid"]), "started_at": j["started_at"], "mode": j["mode"]} for j in alive],
         "headless": headless(conn),
         "accept_edits": runner.accepts_edits(conn),
+        "add_project_dirs": adds_project_dirs(conn),
         "max_instances": limit(conn),
         "instances": instances(conn),
         "terminal_running": runner.terminal_running(conn),
@@ -133,6 +152,7 @@ def update(
     headless: bool | None = None,
     max_instances: int | None = None,
     accept_edits: bool | None = None,
+    add_project_dirs: bool | None = None,
     can_start: bool,
 ) -> None:
     current = _row(conn)
@@ -163,7 +183,12 @@ def update(
             raise RunnerError("The inbox terminal runs while on-demand Claude is on: keep 2, or stop one.")
     with write_tx(conn):
         _ensure(conn)
-        for column, value in (("enabled", enabled), ("headless", headless), ("max_instances", max_instances)):
+        for column, value in (
+            ("enabled", enabled),
+            ("headless", headless),
+            ("max_instances", max_instances),
+            ("add_project_dirs", add_project_dirs),
+        ):
             if value is not None:
                 conn.execute(f"UPDATE responder SET {column} = ? WHERE id = 1", (int(value),))  # noqa: S608
         if accept_edits is not None:
@@ -232,8 +257,16 @@ def _rel(repo_root: Path, p: Path | None) -> str | None:
     return p.relative_to(repo_root).as_posix() if p else None
 
 
-def start(conn: sqlite3.Connection, repo_root: Path, dirs: list[Path], *, can_start: bool) -> None:
-    """Start one run, if a slot is free."""
+def start(
+    conn: sqlite3.Connection,
+    repo_root: Path,
+    dirs: list[Path],
+    *,
+    can_start: bool,
+    project_dirs: dict[str, Path] | None = None,
+) -> None:
+    """Start one run, if a slot is free. `project_dirs` maps each registered project or module
+    to its folder; with the setting on, the folders of those with waiting items join `dirs`."""
     reason = _blocker(conn, can_start=can_start)
     if reason:
         raise RunnerError(reason)
@@ -245,6 +278,8 @@ def start(conn: sqlite3.Connection, repo_root: Path, dirs: list[Path], *, can_st
     folder.mkdir(parents=True, exist_ok=True)
     _prune_logs(folder)
     stamp = now.strftime("%Y%m%d-%H%M%S-%f")
+    if project_dirs and adds_project_dirs(conn):
+        dirs = [*dirs, *(d for d in waiting_project_dirs(conn, project_dirs) if d not in dirs)]
     seen = int(conn.execute("SELECT coalesce(max(id), 0) FROM feedback").fetchone()[0])
     log: Path | None = None
     done: Path | None = None
@@ -296,11 +331,18 @@ def _reap(conn: sqlite3.Connection, repo_root: Path) -> bool:
     return finished
 
 
-def tick(conn: sqlite3.Connection, repo_root: Path, dirs: list[Path], *, can_start: bool) -> str | None:
+def tick(
+    conn: sqlite3.Connection,
+    repo_root: Path,
+    dirs: list[Path],
+    *,
+    can_start: bool,
+    project_dirs: dict[str, Path] | None = None,
+) -> str | None:
     """One check of the watcher: reap ended runs, then start one when switched on, something new
     waits and a slot is free. Returns "started" or "finished" when the state changed, else None."""
     finished = _reap(conn, repo_root)
     if enabled(conn) and waiting(conn) > 0 and _blocker(conn, can_start=can_start) is None:
-        start(conn, repo_root, dirs, can_start=can_start)
+        start(conn, repo_root, dirs, can_start=can_start, project_dirs=project_dirs)
         return "started"
     return "finished" if finished else None

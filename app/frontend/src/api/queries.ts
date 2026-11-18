@@ -265,7 +265,7 @@ function useResponderMutation<V>(fn: (vars: V) => Promise<ResponderStatus>) {
 }
 
 export const useSetResponder = () =>
-  useResponderMutation((settings: { enabled?: boolean; headless?: boolean; max_instances?: number; accept_edits?: boolean }) =>
+  useResponderMutation((settings: { enabled?: boolean; headless?: boolean; max_instances?: number; accept_edits?: boolean; add_project_dirs?: boolean }) =>
     api<ResponderStatus>('/responder', { method: 'PUT', json: settings }),
   )
 

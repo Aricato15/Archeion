@@ -11,6 +11,7 @@ const status: ResponderStatus = {
   jobs: [],
   headless: false,
   accept_edits: true,
+  add_project_dirs: true,
   max_instances: 1,
   instances: 0,
   terminal_running: false,
@@ -45,4 +46,6 @@ it('sets headless and the number of Claude instances', async () => {
   await waitFor(() => expect(puts).toContainEqual({ max_instances: 2 }))
   fireEvent.click(screen.getByText('Seek user confirmations'))
   await waitFor(() => expect(puts).toContainEqual({ accept_edits: false }))
+  fireEvent.click(screen.getByLabelText("Give runs the project's folder"))
+  await waitFor(() => expect(puts).toContainEqual({ add_project_dirs: false }))
 })
