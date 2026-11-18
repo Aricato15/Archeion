@@ -34,7 +34,7 @@ export function GuidePanel({ opened, onClose }: { opened: boolean; onClose: () =
           </Tooltip>
         </Group>
       </Group>
-      <AppShell.Section grow component={ScrollArea} px="xs">
+      <AppShell.Section grow component={ScrollArea} px="xs" viewportProps={{ style: { overscrollBehavior: 'contain' } }}>
         {doc.isPending && opened && <Loader size="sm" m="sm" />}
         {doc.isError && (
           <Alert color="orange" title="Guide not found">

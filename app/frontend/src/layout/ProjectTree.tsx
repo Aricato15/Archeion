@@ -91,6 +91,65 @@ function Item({
   )
 }
 
+/** A group in the sidebar: its label opens the group's overview and unfolds the members; the chevron only folds. */
+function GroupItem({
+  group,
+  members,
+  projects,
+  current,
+  onNavigate,
+}: {
+  group: Registry['groups'][number]
+  members: Project[]
+  projects: Map<string, Project>
+  current: string | null
+  onNavigate: () => void
+}) {
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const to = group.home ? projectUrl(group.home) : `/groups/${encodeURIComponent(group.id)}`
+  const active = group.home ? current === group.home : pathname === `/groups/${encodeURIComponent(group.id)}`
+  const [opened, setOpened] = useState(true)
+  return (
+    <NavLink
+      component={Link}
+      to={to}
+      label={group.title}
+      leftSection={<IconStack2 size={16} />}
+      active={active}
+      opened={opened}
+      disableRightSectionRotation
+      childrenOffset={14}
+      py={4}
+      rightSection={
+        <IconChevronRight
+          size={14}
+          data-toggle
+          aria-hidden
+          style={{ transform: opened ? 'rotate(90deg)' : undefined, transition: 'transform 150ms ease' }}
+        />
+      }
+      onClick={(event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
+        if ((event.target as Element).closest('[data-toggle]')) {
+          setOpened((o) => !o)
+          return
+        }
+        setOpened(true)
+        navigate(to)
+        onNavigate()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === ' ') setOpened((o) => !o)
+      }}
+    >
+      {members.map((p) => (
+        <Item key={p.id} project={p} projects={projects} current={current} onNavigate={onNavigate} />
+      ))}
+    </NavLink>
+  )
+}
+
 /** Projects in the sidebar: grouped by system, modules and sub-projects under their parent. */
 export function ProjectTree({ registry, onNavigate }: { registry: Registry; onNavigate: () => void }) {
   const { pathname } = useLocation()
@@ -122,29 +181,7 @@ export function ProjectTree({ registry, onNavigate }: { registry: Registry; onNa
   return (
     <>
       {grouped.map(({ group, members }) => (
-        <NavLink
-          key={group.id}
-          label={group.title}
-          leftSection={<IconStack2 size={16} />}
-          defaultOpened
-          childrenOffset={14}
-          py={4}
-        >
-          <NavLink
-            component={Link}
-            to={group.home ? projectUrl(group.home) : `/groups/${encodeURIComponent(group.id)}`}
-            label="Overview"
-            py={2}
-            c="dimmed"
-            onClick={onNavigate}
-            active={
-              group.home ? current === group.home : pathname === `/groups/${encodeURIComponent(group.id)}`
-            }
-          />
-          {members.map((p) => (
-            <Item key={p.id} project={p} projects={projects} current={current} onNavigate={onNavigate} />
-          ))}
-        </NavLink>
+        <GroupItem key={group.id} group={group} members={members} projects={projects} current={current} onNavigate={onNavigate} />
       ))}
       {standalone.map((p) => (
         <Item key={p.id} project={p} projects={projects} current={current} onNavigate={onNavigate} />

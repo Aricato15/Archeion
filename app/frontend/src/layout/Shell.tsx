@@ -1,9 +1,9 @@
 import {
   ActionIcon,
   AppShell,
+  Box,
   Badge,
   Burger,
-  Divider,
   Group,
   Kbd,
   Loader,
@@ -47,7 +47,6 @@ import { ProjectTree } from './ProjectTree'
 
 const NAV = [
   { to: '/', label: 'Home', icon: IconHome },
-  { to: '/projects', label: 'Projects', icon: IconBox },
   { to: '/roadmap', label: 'Roadmap', icon: IconRoad },
   { to: '/diagrams', label: 'Diagrams', icon: IconChartDots3 },
   { to: '/feedback', label: 'Feedback', icon: IconMessages },
@@ -56,6 +55,40 @@ const NAV = [
   { to: '/updates', label: 'Updates', icon: IconDownload },
   { to: '/settings', label: 'Settings', icon: IconSettings },
 ]
+
+// The projects overview heads the project tree at the top of the sidebar; the other pages follow it.
+const PROJECTS_NAV = { to: '/projects', label: 'Projects', icon: IconBox }
+
+function NavItem({ item, pathname, onClick }: { item: (typeof NAV)[number]; pathname: string; onClick: () => void }) {
+  return (
+    <NavLink
+      component={Link}
+      to={item.to}
+      label={item.label}
+      leftSection={<item.icon size={18} />}
+      active={pathname.startsWith(item.to) || (item.to === '/projects' && pathname.startsWith('/groups'))}
+      onClick={onClick}
+    />
+  )
+}
+
+/** One tinted block of the sidebar, so the sections read apart at a glance (the tint adapts to light and dark). */
+function SideSection({ color, label, children }: { color: string; label?: string; children: React.ReactNode }) {
+  return (
+    <Box
+      p={4}
+      mb="xs"
+      style={{ borderRadius: 'var(--mantine-radius-md)', background: `var(--mantine-color-${color}-light)` }}
+    >
+      {label && (
+        <Text size="xs" fw={600} c={`${color}.7`} px="sm" py={4} tt="uppercase">
+          {label}
+        </Text>
+      )}
+      {children}
+    </Box>
+  )
+}
 
 export function Shell() {
   const [opened, { toggle, close }] = useDisclosure()
@@ -165,35 +198,31 @@ export function Shell() {
       </AppShell.Header>
 
       <AppShell.Navbar p="xs">
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            component={Link}
-            to={item.to}
-            label={item.label}
-            leftSection={<item.icon size={18} />}
-            active={location.pathname.startsWith(item.to) || (item.to === '/projects' && location.pathname.startsWith('/groups'))}
-            onClick={close}
-          />
-        ))}
-        <AppShell.Section grow component={ScrollArea}>
-          {registry.data && registry.data.projects.length > 0 && (
-            <>
-              <Divider my="xs" label="projects" labelPosition="left" />
+        <AppShell.Section grow component={ScrollArea} viewportProps={{ style: { overscrollBehavior: 'contain' } }}>
+          <SideSection color="blue">
+            <NavItem item={PROJECTS_NAV} pathname={location.pathname} onClick={close} />
+            {registry.data && registry.data.projects.length > 0 && (
               <ProjectTree registry={registry.data} onNavigate={close} />
-            </>
-          )}
-          <Divider my="xs" label="registry/ (private)" labelPosition="left" />
-          {registryTree.data && registryTree.data.children?.length ? (
-            <DocTree tree={registryTree.data} source={REGISTRY} onNavigate={close} />
-          ) : (
-            <Text size="xs" c="dimmed" px="sm">
-              No registry yet. Run setup.bat to create it from registry.example/.
-            </Text>
-          )}
-          <Divider my="xs" label="archeion docs/" labelPosition="left" />
-          {tree.isPending && <Loader size="sm" m="sm" />}
-          {tree.data && <DocTree tree={tree.data} onNavigate={close} />}
+            )}
+          </SideSection>
+          <SideSection color="gray">
+            {NAV.map((item) => (
+              <NavItem key={item.to} item={item} pathname={location.pathname} onClick={close} />
+            ))}
+          </SideSection>
+          <SideSection color="violet" label="registry/ (private)">
+            {registryTree.data && registryTree.data.children?.length ? (
+              <DocTree tree={registryTree.data} source={REGISTRY} onNavigate={close} />
+            ) : (
+              <Text size="xs" c="dimmed" px="sm">
+                No registry yet. Run setup.bat to create it from registry.example/.
+              </Text>
+            )}
+          </SideSection>
+          <SideSection color="teal" label="archeion docs/">
+            {tree.isPending && <Loader size="sm" m="sm" />}
+            {tree.data && <DocTree tree={tree.data} onNavigate={close} />}
+          </SideSection>
         </AppShell.Section>
       </AppShell.Navbar>
 

@@ -119,7 +119,8 @@ describe('ProjectTree with a group that has a home (ADR 0027)', () => {
   it('lists the home as the group header, with its members, and not as a project of its own', () => {
     renderGrouped()
     expect(screen.getByText('The system')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Overview' }).getAttribute('href')).toBe('/projects/top')
+    expect(screen.getByRole('link', { name: 'The system' }).getAttribute('href')).toBe('/projects/top')
+    expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull()
     expect(screen.getByRole('link', { name: 'svc' })).toBeTruthy()
     expect(screen.getByRole('link', { name: 'mod' })).toBeTruthy()
     expect(screen.queryByRole('link', { name: 'top' })).toBeNull()

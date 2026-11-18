@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Code,
+  Collapse,
   Group,
   Loader,
   NavLink,
@@ -16,8 +17,8 @@ import {
   Text,
   Title,
 } from '@mantine/core'
-import { IconExternalLink, IconFileText, IconFileTypePdf, IconMessagePlus } from '@tabler/icons-react'
-import { useMemo, useState } from 'react'
+import { IconChevronDown, IconChevronUp, IconExternalLink, IconFileText, IconFileTypePdf, IconMessagePlus } from '@tabler/icons-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { isNotFound } from '../api/client'
 import { notifications } from '@mantine/notifications'
@@ -225,6 +226,9 @@ function Facts({ project, projects }: { project: Project; projects: Map<string, 
   )
 }
 
+const APP_HEADER = 56
+const SNAP_SHARE = 0.65
+
 export function ProjectPage() {
   const id = useParams().id ?? ''
   const navigate = useNavigate()
@@ -239,6 +243,49 @@ export function ProjectPage() {
   const feedback = useFeedbackList({ source: id }, available)
   const [draft, setDraft] = useState<FeedbackDraft | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
+  // Fold the facts, map and sub-projects away so the tabs are the focus; remembered per browser.
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem('archeion.project.folded') === '1'
+    } catch {
+      return false
+    }
+  })
+  // Scrolling down until the tabs are above this share of the screen snaps them to the top. Scrolling up never
+  // snaps, so you can still get back to the facts.
+  const tabsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let last = window.scrollY
+    let down = false
+    let timer: number | undefined
+    const onScroll = () => {
+      down = window.scrollY > last
+      last = window.scrollY
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        const el = tabsRef.current
+        if (!el || !down) return
+        const top = el.getBoundingClientRect().top
+        if (top > APP_HEADER + 4 && top < window.innerHeight * SNAP_SHARE) {
+          window.scrollBy({ top: top - APP_HEADER, behavior: 'smooth' })
+        }
+      }, 150)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
+  const toggleFolded = () =>
+    setFolded((f) => {
+      try {
+        localStorage.setItem('archeion.project.folded', f ? '0' : '1')
+      } catch {
+        /* storage unavailable: the choice just isn't remembered */
+      }
+      return !f
+    })
 
   if (registry.isPending) return <Loader />
   if (!registry.data || !project) {
@@ -321,6 +368,20 @@ export function ProjectPage() {
 
       <DriftAlert project={project.id} />
 
+      <Group justify="flex-end">
+        <Button
+          size="compact-xs"
+          variant="subtle"
+          aria-expanded={!folded}
+          leftSection={folded ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
+          onClick={toggleFolded}
+        >
+          {folded ? 'Show facts and map' : 'Hide facts and map'}
+        </Button>
+      </Group>
+
+      <Collapse expanded={!folded}>
+      <Stack>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder radius="md">
           <Facts project={project} projects={projects} />
@@ -368,9 +429,18 @@ export function ProjectPage() {
           </Stack>
         )
       })}
+      </Stack>
+      </Collapse>
 
-      <Tabs value={tab} onChange={(v) => setParams(v && v !== 'notes' ? { tab: v } : {}, { replace: true })} keepMounted={false}>
-        <Tabs.List>
+      <Tabs ref={tabsRef} style={{ minHeight: `calc(100vh - ${APP_HEADER}px)` }} value={tab} onChange={(v) => setParams(v && v !== 'notes' ? { tab: v } : {}, { replace: true })} keepMounted={false}>
+        <Tabs.List
+          style={{
+            position: 'sticky',
+            top: APP_HEADER, // below the app header
+            zIndex: 10,
+            background: 'var(--mantine-color-body)',
+          }}
+        >
           <Tabs.Tab value="notes">Cross-project notes</Tabs.Tab>
           <Tabs.Tab value="study">Study</Tabs.Tab>
           <Tabs.Tab value="design">Design</Tabs.Tab>

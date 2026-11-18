@@ -7,6 +7,10 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **The sidebar is tidier.** The Projects link and the project tree come first, then the other pages, `registry/` and `docs/`, each in a block of its own tint (blue, gray, violet, teal). A group's own entry opens its overview and unfolds its members, so the separate "Overview" item is gone. Scrolling past the end of the sidebar (or the Claude CLI panel) no longer scrolls the page behind it.
+- **The project page keeps the tabs in focus.** A **Hide facts and map** button folds everything above the tabs (remembered in the browser), the tab bar sticks under the header, and scrolling down until the tabs pass 65% of the screen height snaps them to the top. The tabs area is at least a screen tall so short tabs can still reach the top.
+
 ## [1.4.0] - 2026-11-19
 
 ### Added
