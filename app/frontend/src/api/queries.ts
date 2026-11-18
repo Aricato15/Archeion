@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, isUnauthorized, qs } from './client'
 import type {
+  RemovedProject,
   Commit,
   Diagram,
   DiffResult,
@@ -123,6 +124,26 @@ export const useSaveRoots = () =>
 export const useRegisterProject = () =>
   useRegistryMutation((item: { root: string | null; path: string; name: string; type?: ProjectType | null }) =>
     api<{ page: string; project: Project | null }>('/registry/projects', { method: 'POST', json: item }),
+  )
+
+/** Take a project out of the registry; its page moves to registry/removed/ (ADR 0026). */
+export const useRemoveProject = () =>
+  useRegistryMutation((id: string) =>
+    api<{ moved_to: string; used_by: string[] }>(`/registry/projects/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  )
+
+export const useRemoved = () =>
+  useQuery({ queryKey: ['registry', 'removed'], queryFn: () => api<RemovedProject[]>('/registry/removed') })
+
+export const useRestoreProject = () =>
+  useRegistryMutation((id: string) =>
+    api<{ page: string }>(`/registry/removed/${encodeURIComponent(id)}/restore`, { method: 'POST' }),
+  )
+
+/** Delete a removed project for good, with the studies, designs, glossary and reports kept for it. */
+export const usePurgeProject = () =>
+  useRegistryMutation((id: string) =>
+    api<{ deleted: string[] }>(`/registry/removed/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   )
 
 /** Set a project's type on its registry page, or null to go back to detection (ADR 0016). */

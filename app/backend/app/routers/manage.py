@@ -1,8 +1,9 @@
 """Managing roots and registering projects from the viewer (ADR 0010).
 
 The only files the backend writes: the ARCHEION_ROOTS line of .env, new pages in
-registry/projects/, and the `type:` (ADR 0016) and `inbox_edits:` (ADR 0017) lines of an
-existing page there. Never a project's files, never anything else in an existing registry page.
+registry/projects/, the `type:` (ADR 0016) and `inbox_edits:` (ADR 0017) lines of an
+existing page there, and the move of a page to registry/removed/ when a project is removed
+(ADR 0026). Never a project's files, never anything else in an existing registry page.
 """
 
 from __future__ import annotations
@@ -15,7 +16,16 @@ from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_state
 from ..services.events import Event
-from ..services.registry import register, set_inbox_edits, set_type, survey
+from ..services.registry import (
+    list_removed,
+    purge,
+    register,
+    restore,
+    set_inbox_edits,
+    set_type,
+    survey,
+    unregister,
+)
 from ..services.roots import (
     ENV_KEY,
     NAME_RE,
@@ -180,3 +190,48 @@ async def put_inbox_edits(project_id: str, body: InboxEditsIn, state: AppState =
     m.reload()
     _changed(state)
     return m.registry.projects[project_id].public()
+
+
+@router.delete("/registry/projects/{project_id}")
+async def delete_project(project_id: str, state: AppState = Depends(get_state)) -> dict:
+    """Remove a project from the registry (ADR 0026): its page moves to registry/removed/."""
+    m = state.sources
+    try:
+        result = unregister(m.registry_root, m.registry, project_id)
+    except KeyError:
+        raise HTTPException(404, f"no project named '{project_id}'") from None
+    m.reload()
+    _changed(state)
+    return result
+
+
+@router.get("/registry/removed")
+def get_removed(state: AppState = Depends(get_state)) -> list[dict]:
+    """Projects removed and not registered since (ADR 0026), with what the registry still keeps."""
+    registered = state.sources.registry.projects
+    return [e for e in list_removed(state.sources.registry_root) if e["name"] not in registered]
+
+
+@router.post("/registry/removed/{project_id}/restore")
+async def post_restore(project_id: str, state: AppState = Depends(get_state)) -> dict:
+    m = state.sources
+    try:
+        page = restore(m.registry_root, m.registry, project_id)
+    except KeyError:
+        raise HTTPException(404, f"'{project_id}' wasn't removed") from None
+    m.reload()
+    _changed(state)
+    return {"page": page}
+
+
+@router.delete("/registry/removed/{project_id}")
+async def delete_removed(project_id: str, state: AppState = Depends(get_state)) -> dict:
+    """Delete a removed project for good, with its saved studies, designs, glossary and reports."""
+    m = state.sources
+    try:
+        gone = purge(m.registry_root, m.registry, project_id)
+    except KeyError:
+        raise HTTPException(404, f"'{project_id}' wasn't removed") from None
+    m.reload()
+    _changed(state)
+    return {"deleted": gone}

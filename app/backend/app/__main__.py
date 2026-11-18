@@ -33,13 +33,17 @@ from .services.registry import (
     Registry,
     apply_structure,
     effective_group,
+    list_removed,
     modules_of,
     owning_project,
     plan_structure,
+    purge,
+    restore,
     set_inbox_edits,
     set_type,
     split_frontmatter,
     stub_page,
+    unregister,
 )
 from .services.sources import SourceManager, SourceNotFound
 
@@ -771,6 +775,56 @@ def cmd_projects_inbox_edits(settings: Settings, args: argparse.Namespace) -> in
     manager.reload()
     p = manager.registry.projects[args.name]
     print(f"{p.id}: inbox edits {_edits_text(p.public())}; registry/{page}")
+    return 0
+
+
+def cmd_projects_remove(settings: Settings, args: argparse.Namespace) -> int:
+    """Take a project out of the registry (ADR 0026): its page moves to registry/removed/."""
+    manager = _sources(settings)
+    if args.name not in manager.registry.projects:
+        raise ValueError(f"'{args.name}' isn't a registered project (see: projects list)")
+    result = unregister(manager.registry_root, manager.registry, args.name)
+    print(f"{args.name}: removed; its page is now registry/{result['moved_to']}")
+    if result["used_by"]:
+        print(f"  still listed in depends_on by: {', '.join(result['used_by'])}")
+    return 0
+
+
+def cmd_projects_removed(settings: Settings, args: argparse.Namespace) -> int:
+    """Projects that were removed and not registered since (ADR 0026)."""
+    manager = _sources(settings)
+    rows = [e for e in list_removed(manager.registry_root) if e["name"] not in manager.registry.projects]
+    if not rows:
+        print("No removed projects.")
+        return 0
+    for e in rows:
+        kept = ", ".join(e["kept"]) or "only its page"
+        print(f"{e['name']}  removed {e['removed_on']}  kept: {kept}")
+    return 0
+
+
+def cmd_projects_restore(settings: Settings, args: argparse.Namespace) -> int:
+    manager = _sources(settings)
+    try:
+        page = restore(manager.registry_root, manager.registry, args.name)
+    except KeyError:
+        raise ValueError(f"'{args.name}' wasn't removed (see: projects removed)") from None
+    print(f"{args.name}: restored; registry/{page}")
+    return 0
+
+
+def cmd_projects_purge(settings: Settings, args: argparse.Namespace) -> int:
+    """Delete a removed project for good. Needs --yes, since it can't be undone."""
+    manager = _sources(settings)
+    if not args.yes:
+        raise ValueError(
+            f"this deletes '{args.name}' and what the registry kept for it for good: add --yes to go ahead"
+        )
+    try:
+        gone = purge(manager.registry_root, manager.registry, args.name)
+    except KeyError:
+        raise ValueError(f"'{args.name}' wasn't removed (see: projects removed)") from None
+    print(f"{args.name}: deleted {', '.join('registry/' + g for g in gone)}")
     return 0
 
 
@@ -1816,6 +1870,23 @@ def build_parser() -> argparse.ArgumentParser:
     pe.add_argument("name", help="the registered name")
     pe.add_argument("value", choices=["on", "off", "auto"], help="auto: on, or a module's project's setting")
     pe.set_defaults(func=cmd_projects_inbox_edits)
+    pr = projects.add_parser(
+        "remove", help="take a project out of the registry; its page moves to registry/removed/ (ADR 0026)"
+    )
+    pr.add_argument("name", help="the registered name")
+    pr.set_defaults(func=cmd_projects_remove)
+    projects.add_parser("removed", help="projects removed and not registered since (ADR 0026)").set_defaults(
+        func=cmd_projects_removed
+    )
+    prs = projects.add_parser("restore", help="put a removed project back in the registry (ADR 0026)")
+    prs.add_argument("name", help="the removed project's name")
+    prs.set_defaults(func=cmd_projects_restore)
+    ppg = projects.add_parser(
+        "purge", help="delete a removed project and what the registry kept for it, for good (ADR 0026)"
+    )
+    ppg.add_argument("name", help="the removed project's name")
+    ppg.add_argument("--yes", action="store_true", help="confirm: this can't be undone")
+    ppg.set_defaults(func=cmd_projects_purge)
     ports = projects.add_parser("ports", help="the ports recorded in the registry, by project")
     ports.add_argument("--json", action="store_true")
     ports.set_defaults(func=cmd_projects_ports)

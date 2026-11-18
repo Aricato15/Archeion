@@ -22,7 +22,9 @@ import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconFolderPlus, IconLock, IconPlus, IconTrash } from '@tabler/icons-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { useRegisterProject, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
+import { RemoveProject } from '../projects/RemoveProject'
+import { RemovedProjects } from '../projects/RemovedProjects'
+import { useRegisterProject, useRegistry, useRemoved, useRootSurvey, useRootsSettings, useSaveRoots } from '../api/queries'
 import { ClaudeJobsCard } from '../runner/ClaudeJobs'
 import { InboxTerminalCard } from '../runner/InboxTerminal'
 import { OnDemandCard } from '../runner/OnDemand'
@@ -191,14 +193,35 @@ function RootsCard({ data }: { data: RootsSettings }) {
 
 function RegisterRow({ item }: { item: RootItem }) {
   const register = useRegisterProject()
+  const before = useRemoved().data?.find((r) => r.path === item.path && (r.root ?? null) === (item.root ?? null))
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(item.name)
   const [type, setType] = useState<ProjectType>(item.detected_type)
   if (!open) {
     return (
-      <Button size="xs" variant="light" leftSection={<IconFolderPlus size={14} />} onClick={() => setOpen(true)}>
-        Register
-      </Button>
+      <Group gap="xs">
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconFolderPlus size={14} />}
+          onClick={() => {
+            // Registering it again under its old name brings back what the registry kept for it.
+            if (before) setName(before.name)
+            setOpen(true)
+          }}
+        >
+          Register
+        </Button>
+        {before && (
+          <Badge
+            color="gray"
+            variant="light"
+            title="Removed earlier. Registering it under the same name brings back its studies, designs and glossary."
+          >
+            previously registered as {before.name}
+          </Badge>
+        )}
+      </Group>
     )
   }
   return (
@@ -254,6 +277,11 @@ function RegisterRow({ item }: { item: RootItem }) {
       </Stack>
     </form>
   )
+}
+
+function RemoveRegistered({ id }: { id: string }) {
+  const project = useRegistry().data?.projects.find((p) => p.id === id)
+  return project ? <RemoveProject project={project} /> : null
 }
 
 function SubProjectNote({ item }: { item: RootItem }) {
@@ -329,6 +357,7 @@ function RootProjects({ root, onlyNew }: { root: RootSurvey; onlyNew: boolean })
                       <Anchor component={Link} to={`/projects/${i.registered}`} size="sm">
                         {i.registered}
                       </Anchor>
+                      <RemoveRegistered id={i.registered} />
                     </Group>
                   ) : root.granted ? (
                     <RegisterRow item={i} />
@@ -373,6 +402,7 @@ export function SettingsPage() {
         </Text>
       )}
       {survey.data?.map((r) => <RootProjects key={r.name} root={r} onlyNew={onlyNew} />)}
+      <RemovedProjects />
 
       <ClaudeJobsCard />
       <InboxTerminalCard />

@@ -26,6 +26,7 @@ body holds the cross-project notes (ADR 0006). Files starting with "_" are templ
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
@@ -652,6 +653,139 @@ def register(
     except FileExistsError:
         raise RegisterError(f"{PROJECTS_DIR}/{name}.md already exists in the registry") from None
     return page.relative_to(registry_root).as_posix()
+
+
+REMOVED_DIR = "removed"
+
+
+def unregister(registry_root: Path, reg: Registry, project_id: str) -> dict:
+    """Stop tracking a project: move its registry page to `removed/<name>-<date>.md` in the
+    registry, out of `projects/`, so nothing is lost and it can be put back by moving it back.
+    Refused while the project still has modules or sub-projects (remove those first). Never
+    touches the project's own folder or the studies, designs, glossary, reports and feedback
+    kept for it, which come back if a project of that name is registered again.
+    Returns the page it was moved to and the projects that still list it in `depends_on`."""
+    project = reg.projects.get(project_id)
+    if project is None:
+        raise KeyError(project_id)
+    if project.children:
+        raise RegisterError(
+            f"'{project_id}' still has {', '.join(sorted(project.children))} under it: remove those first"
+        )
+    base = (registry_root / PROJECTS_DIR).resolve()
+    page = (registry_root / project.page).resolve()
+    if page.parent != base or not page.is_file():
+        raise RegisterError(f"'{project_id}' has no page in {PROJECTS_DIR}/")
+    out = registry_root / REMOVED_DIR
+    out.mkdir(parents=True, exist_ok=True)
+    stem = f"{project_id}-{date.today().isoformat()}"
+    target = out / f"{stem}.md"
+    n = 2
+    while target.exists():
+        target = out / f"{stem}-{n}.md"
+        n += 1
+    page.replace(target)
+    return {"moved_to": target.relative_to(registry_root).as_posix(), "used_by": sorted(project.used_by)}
+
+
+_REMOVED_RE = re.compile(r"^(?P<id>.+?)-(?P<date>\d{4}-\d{2}-\d{2})(?:-(?P<n>\d+))?\.md$")
+# What the registry keeps for a project besides its page (all private, ADR 0007).
+_LEFTOVERS = (
+    ("studies", "studies/{id}"),
+    ("designs", "designs/{id}"),
+    ("glossary", "glossary/{id}.json"),
+    ("reports", "reports/{id}"),
+)
+
+
+def _leftovers(registry_root: Path, project_id: str) -> dict[str, Path]:
+    found = {}
+    for label, pattern in _LEFTOVERS:
+        target = registry_root / pattern.format(id=project_id)
+        if target.exists():
+            found[label] = target
+    return found
+
+
+def list_removed(registry_root: Path) -> list[dict]:
+    """Projects that were removed (ADR 0026) and not registered since, newest first: one entry per
+    name, from its latest page in `removed/`, with what else the registry still keeps for it."""
+    folder = registry_root / REMOVED_DIR
+    latest: dict[str, tuple[str, int, Path]] = {}
+    for f in folder.glob("*.md") if folder.is_dir() else []:
+        m = _REMOVED_RE.match(f.name)
+        if not m or not ID_RE.match(m["id"]):
+            continue
+        key = (m["date"], int(m["n"] or 1), f)
+        if m["id"] not in latest or key[:2] > latest[m["id"]][:2]:
+            latest[m["id"]] = key
+    out = []
+    for pid, (day, _, f) in latest.items():
+        meta, _, _ = split_frontmatter(f.read_text(encoding="utf-8", errors="replace"))
+        out.append(
+            {
+                "name": pid,
+                "removed_on": day,
+                "page": f.relative_to(registry_root).as_posix(),
+                "root": meta.get("root") or None,
+                "path": str(meta["path"]) if meta.get("path") is not None else None,
+                "kept": sorted(_leftovers(registry_root, pid)),
+            }
+        )
+    return sorted(out, key=lambda e: (e["removed_on"], e["name"]), reverse=True)
+
+
+def _removed_pages(registry_root: Path, project_id: str) -> list[Path]:
+    folder = registry_root / REMOVED_DIR
+    pages = []
+    for f in folder.glob(f"{project_id}-*.md") if folder.is_dir() else []:
+        m = _REMOVED_RE.match(f.name)
+        if m and m["id"] == project_id:
+            pages.append(f)
+    return pages
+
+
+def restore(registry_root: Path, reg: Registry, project_id: str) -> str:
+    """Put a removed project's latest page back in `projects/`. Refused while a project of that
+    name is registered. Returns the page's path inside the registry."""
+    if not ID_RE.match(project_id):
+        raise KeyError(project_id)
+    if project_id in reg.projects:
+        raise RegisterError(f"'{project_id}' is registered already")
+    entry = next((e for e in list_removed(registry_root) if e["name"] == project_id), None)
+    if entry is None:
+        raise KeyError(project_id)
+    target = registry_root / PROJECTS_DIR / f"{project_id}.md"
+    if target.exists():
+        raise RegisterError(f"{PROJECTS_DIR}/{project_id}.md already exists in the registry")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    (registry_root / entry["page"]).replace(target)
+    return target.relative_to(registry_root).as_posix()
+
+
+def purge(registry_root: Path, reg: Registry, project_id: str) -> list[str]:
+    """Delete a removed project for good: every page of it in `removed/`, and the studies, designs,
+    glossary and reports the registry kept for it. Refused while it's registered. Feedback in the
+    database isn't touched. Returns what was deleted, as paths inside the registry."""
+    if not ID_RE.match(project_id):
+        raise KeyError(project_id)
+    if project_id in reg.projects:
+        raise RegisterError(f"'{project_id}' is registered: remove it first")
+    pages = _removed_pages(registry_root, project_id)
+    if not pages:
+        raise KeyError(project_id)
+    base = registry_root.resolve()
+    gone: list[str] = []
+    for target in [*pages, *_leftovers(registry_root, project_id).values()]:
+        resolved = target.resolve()
+        if not resolved.is_relative_to(base):
+            continue
+        if resolved.is_dir():
+            shutil.rmtree(resolved)
+        else:
+            resolved.unlink()
+        gone.append(resolved.relative_to(base).as_posix())
+    return gone
 
 
 # --- single frontmatter lines of an existing page (ADR 0016, ADR 0017) ---------------------
