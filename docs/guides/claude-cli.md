@@ -75,7 +75,7 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `report list <name>` / `report verify <name> <file>` | The PDFs built, and a check of one against its build record |
 | `report read <name> <id>...` | The content of catalog sections as JSON (what `/report-guided` reads to plan and cite) |
 | `report plan save\|show\|discard\|approve <name>` | The guided report in progress: Claude saves it between rounds, the **Guided** panel shows it, `approve` turns it into a preset |
-| `study scan <name>` | A read-only inventory of a project's code (Python and TS/JS): manifests, entry points, import graph, routes, outgoing HTTP calls, SQL tables, env var names, ports |
+| `study scan <name>` | A read-only inventory of a project's code (Python and TS/JS): manifests, entry points, import graph, routes, outgoing HTTP calls, SQL tables, env var names, ports. For a group it leaves its members' folders out, since they have studies of their own (`--include-members` reads them too, ADR 0027) |
 | `study list [<name>]` | Study snapshots, and how many commits behind the project each is |
 | `study show <name> [<snapshot>]` | One snapshot's counts, problems and folder |
 | `study changes <name>` | Files changed since the latest snapshot (what `/study --refresh` rereads) |
