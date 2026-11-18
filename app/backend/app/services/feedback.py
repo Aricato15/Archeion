@@ -380,6 +380,20 @@ def delete(conn: sqlite3.Connection, item_id: int) -> None:
             raise FeedbackConflict(f"item {item_id} is {status}; {reason} can be deleted")
 
 
+def delete_thread(conn: sqlite3.Connection, item_id: int) -> int:
+    """Delete a whole thread, whatever its status, and return how many messages went. Not while
+    Claude has a message of it claimed (in progress): it would answer into nothing."""
+    with write_tx(conn):
+        thread_id = _thread_id(conn, item_id)
+        if conn.execute(
+            "SELECT 1 FROM feedback WHERE thread_id = ? AND status = 'in_progress'", (thread_id,)
+        ).fetchone():
+            raise FeedbackConflict(
+                f"thread {thread_id} is in progress; wait for the answer or release it first"
+            )
+        return conn.execute("DELETE FROM feedback WHERE thread_id = ?", (thread_id,)).rowcount
+
+
 # --- the conversation, as Claude reads it ---------------------------------------------
 
 

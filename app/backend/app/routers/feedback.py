@@ -188,6 +188,13 @@ def patch(item_id: int, body: PatchIn, conn: sqlite3.Connection = Depends(get_co
     return item
 
 
+@router.delete("/{item_id}/thread", status_code=status.HTTP_204_NO_CONTENT)
+def delete_thread(item_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> Response:
+    """Delete the whole thread this item belongs to, answered or resolved ones included."""
+    fb.delete_thread(conn, item_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete(item_id: int, conn: sqlite3.Connection = Depends(get_conn)) -> Response:
     fb.delete(conn, item_id)

@@ -372,6 +372,9 @@ export const usePatchFeedback = () =>
 export const useReopenFeedback = () =>
   useFeedbackMutation((id: number) => api<FeedbackItem>(`/feedback/${id}/reopen`, { method: 'POST', json: {} }))
 
+export const useDeleteThread = () =>
+  useFeedbackMutation((id: number) => api<void>(`/feedback/${id}/thread`, { method: 'DELETE' }))
+
 export const useDeleteFeedback = () =>
   useFeedbackMutation((id: number) => api<void>(`/feedback/${id}`, { method: 'DELETE' }))
 

@@ -451,3 +451,22 @@ def test_cli_show_project_excerpt(settings, authed, capsys):
     assert main(["inbox", "show", str(item["id"])], settings) == 0
     out = capsys.readouterr().out
     assert "[alpha] docs/api.md" in out and "docs/api.md in alpha" in out and "Alpha haystack." in out
+
+
+def test_delete_a_whole_thread_any_status_but_not_while_claimed(authed, db):
+    root = _comment(authed)
+    _answer(authed, root["id"])
+    child = _follow_up(authed, root["id"]).json()
+    other = _comment(authed)
+    assert authed.post(f"/api/feedback/{child['id']}/claim").status_code == 200
+    # Claude is working on it: refuse
+    assert authed.delete(f"/api/feedback/{root['id']}/thread").status_code == 409
+    assert authed.get(f"/api/feedback/{root['id']}").status_code == 200
+    with db.conn() as conn:
+        conn.execute("UPDATE feedback SET status = 'resolved' WHERE thread_id = ?", (root["id"],))
+    # from any message of it; answered or resolved is fine
+    assert authed.delete(f"/api/feedback/{child['id']}/thread").status_code == 204
+    assert authed.get(f"/api/feedback/{root['id']}").status_code == 404
+    assert authed.get(f"/api/feedback/{child['id']}").status_code == 404
+    assert authed.get(f"/api/feedback/{other['id']}").status_code == 200  # other threads stay
+    assert authed.delete(f"/api/feedback/{root['id']}/thread").status_code == 404

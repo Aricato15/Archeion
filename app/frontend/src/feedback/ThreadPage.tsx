@@ -21,6 +21,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import {
   useCreateFeedback,
   useDeleteFeedback,
+  useDeleteThread,
   useFeedbackItem,
   usePatchFeedback,
   useReopenFeedback,
@@ -246,6 +247,7 @@ export function ThreadPage() {
   const id = Number(useParams().id)
   const query = useFeedbackItem(id)
   const navigate = useNavigate()
+  const removeThread = useDeleteThread()
 
   if (query.isPending) return <Loader />
   if (query.isError) return <Alert color="yellow">Feedback #{Number.isFinite(id) ? id : '?'} wasn't found.</Alert>
@@ -279,10 +281,26 @@ export function ThreadPage() {
               {thread.length} {thread.length === 1 ? 'message' : 'messages'} · started {formatDate(first.created_at)}
             </Text>
           </Stack>
-          <Anchor component={Link} to="/feedback" size="sm">
-            All feedback
-          </Anchor>
+          <Group gap="sm">
+            <Button
+              size="xs"
+              variant="subtle"
+              color="red"
+              loading={removeThread.isPending}
+              onClick={() => {
+                const n = thread.length
+                if (window.confirm(`Delete thread #${first.id} and its ${n} ${n === 1 ? 'message' : 'messages'}? This can't be undone.`))
+                  removeThread.mutate(first.id, { onSuccess: () => navigate('/feedback') })
+              }}
+            >
+              Delete thread
+            </Button>
+            <Anchor component={Link} to="/feedback" size="sm">
+              All feedback
+            </Anchor>
+          </Group>
         </Group>
+        {removeThread.error && <Alert color="red">{removeThread.error.message}</Alert>}
         {first.doc_path && link && (
           <Text size="sm">
             <Anchor component={Link} to={link}>
