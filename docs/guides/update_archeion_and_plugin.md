@@ -5,7 +5,20 @@ For an install that is older than the current release. Archeion and the plugin h
 - Archeion: the `VERSION` file in the repo root, or `scripts/archeion.ps1 version`.
 - Plugin: `scripts/archeion.ps1 --where` (run from a project with the plugin, it prints the Archeion it found and its version), or `/plugin`.
 
-A short how-to for each release is in [`docs/updates/`](../updates/README.md), starting with [1.3.1](../updates/update-v1.3.1.md). What changed in each version is in [`CHANGELOG.md`](../../CHANGELOG.md) and [`plugins/archeion/CHANGELOG.md`](../../plugins/archeion/CHANGELOG.md).
+A short how-to for each release that asks you to do something is in [`docs/updates/`](../updates/README.md): [1.3.1](../updates/update-v1.3.1.md), [1.3.2](../updates/update-v1.3.2.md) and [1.4.0](../updates/update-v1.4.0.md). What changed in each version is in [`CHANGELOG.md`](../../CHANGELOG.md) and [`plugins/archeion/CHANGELOG.md`](../../plugins/archeion/CHANGELOG.md).
+
+## Coming from an older version: one update, not one per release
+
+You don't need to install every release in between. Update straight to the current one: a single `git pull`, one `setup.bat`, and the database migrations run in order on the first start. The per-release notes only tell you what changed and what to look at.
+
+| You have | Do |
+|---|---|
+| 1.2.0 to 1.3.x | Follow this guide once (steps 1 to 4). Update the plugin too: 1.2.0 and 1.3.0 shipped with plugin 0.3.0 or older, and 0.4.0 renames `/archeion:report` to `/archeion:notify`. No database migration. |
+| 1.0.0 or 1.1.0 | The same. The plugin is 0.1.x or 0.2.x, so updating it matters more (step 3). No database migration after 1.0.0. |
+| Before 1.0.0 | The same, and the migrations 6 to 10 run on first start (back up first). |
+| 1.4.0 | You're current. |
+
+The [1.4.0 note](../updates/update-v1.4.0.md) has what to check afterwards for the whole range.
 
 ## What is kept, and what is touched
 
@@ -51,7 +64,10 @@ start.bat
 
 | Version | What to know when coming from an older one |
 |---|---|
+| 1.4.0 | Groups with a home, creating and removing projects from the viewer, a study that doesn't need git, the Updates tab. Back up `registry/`, which more actions now write to. No database migration (schema 10) and the plugin is unchanged. See the [update note](../updates/update-v1.4.0.md). |
+| 1.3.2 | Edits now launches Claude in auto mode by default, diagram and Reports-tab fixes. No database migration. See the [update note](../updates/update-v1.3.2.md). |
 | 1.3.1 | PDF reports (added in 1.3.0), and the plugin's `/archeion:report` is renamed `/archeion:notify` (plugin 0.4.0). `setup.bat` installs two new dependencies. No database migration. See the [update note](../updates/update-v1.3.1.md). |
+| 1.2.0 | Interactive maps, flows and Mermaid diagrams, and a Glossary tab per project. A new `registry/glossary/` folder is created when the first term is saved. No database migration and no new setting. |
 | 1.1.0 | Adds designs, and inbox commands that carry on a thread from a session (`inbox create --in`, `threads`, `resolve`) for plugin 0.2.0 and later. Adds `restart.bat`. No database migration and no new setting. `registry/designs/` is created the first time a design is started, so an existing registry needs no change. Approving a design is the one thing that writes to a registry page (`ports`, `depends_on`, `group`, `kind`, `status`), and only after you confirm. |
 | 1.0.0 | Studies as conversations, Claude jobs, on-demand Claude, the inbox terminal. Database migrations 6 to 10 run on first start (threads, responder, Claude jobs, edit mode). Existing items reopened the old way become a "Reopened" message. |
 

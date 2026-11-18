@@ -2,7 +2,16 @@
 
 **For:** Archeion 1.3.2 → **1.4.0**. The plugin is unchanged (0.4.0). It takes about five minutes.
 
-Coming from before 1.3.2? Read [update-v1.3.2.md](update-v1.3.2.md) first, then the [full update guide](../guides/update_archeion_and_plugin.md).
+## Coming from 1.2.x, 1.3.0 or 1.3.1?
+
+Update once, straight to 1.4.0: skip nothing and install nothing in between. The steps below are the same, with these additions:
+
+- **Update the plugin too** if it's older than 0.4.0 (step 5). 1.2.0 and 1.3.0 were used with plugin 0.3.0, and 0.4.0 renames `/archeion:report` to `/archeion:notify`. See [update-v1.3.1.md](update-v1.3.1.md).
+- **`setup.bat` is not optional.** 1.3.0 added two dependencies (one for the report dialog, one for talking to Edge).
+- **Reports need Microsoft Edge and the viewer running** (1.3.0). **Edits** launches Claude in auto mode by default (1.3.2): see [update-v1.3.2.md](update-v1.3.2.md) if you'd rather keep confirmations.
+- **No database migration** is needed from 1.0.0 on. Your password, threads and settings are kept.
+
+Coming from before 1.2.0, read the [full update guide](../guides/update_archeion_and_plugin.md) first.
 
 ## What's new
 
@@ -51,7 +60,9 @@ If a project and a group have the same name (a project that began as the place t
 
 ### 5. The plugin and your project sessions
 
-Nothing to do: the plugin is still 0.4.0.
+From 1.3.1 or 1.3.2: nothing to do, the plugin is still 0.4.0.
+
+From 1.2.x or 1.3.0, update it. In any Claude Code session run `/plugin marketplace update archeion`, update the plugin from `/plugin` (or `claude plugin update archeion@archeion` in a terminal), then open a **new** session in each project: a running session keeps the plugin it started with.
 
 ## Check that it worked
 
