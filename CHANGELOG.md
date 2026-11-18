@@ -7,6 +7,13 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-19
+
+### Added
+- **Every diagram has a full screen mode.** The component and project maps, the activity and state diagrams, the data schema and the interactive flow views get a **Full screen** button, as the Mermaid diagrams already had. The window fills the screen, keeps zoom, pan and Find, and closes with Escape. A click on a box or a participant closes it first and shows what you picked.
+- **Remove a registered project** ([ADR 0026](docs/decisions/0026-remove-a-registered-project.md)): a **Remove** button on the project page and next to each registered folder in Settings, `projects remove <name>` in the CLI, and `DELETE /api/registry/projects/{name}`. Its registry page moves to `registry/removed/`, so it can be put back, and the project's own folder and its studies, designs, glossary, reports and feedback are left alone. A project that still has modules can't be removed. Settings lists removed projects under **Previously registered**, with **Restore** and **Delete permanently** (which also deletes the studies, designs, glossary and reports kept for it, after asking), and a folder that was registered before shows a *previously registered as* badge. CLI: `projects removed`, `restore`, `purge --yes`.
+- **A table of contents for long threads.** A thread with more than one message has a panel on the right with a numbered button per message, which scrolls to it and marks the one you're reading, plus **Top** and **Latest** buttons. On narrow windows, where the panel is hidden, a round button at the corner goes to the latest message.
+
 ## [1.3.2] - 2026-11-18
 
 ### Added
