@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_state
+from ..services import scaffold
 from ..services import studies as st
 from ..services.events import Event
 from ..services.registry import (
@@ -221,6 +222,37 @@ async def post_demote(project_id: str, state: AppState = Depends(get_state)) -> 
     m.reload()
     _changed(state)
     return m.registry.projects[project_id].public()
+
+
+class NewProjectIn(BaseModel):
+    root: str | None = Field(None, max_length=64)
+    name: str = Field(max_length=64)
+    kind: Literal["project", "group"] = "project"
+    title: str | None = Field(None, max_length=200)
+    description: str | None = Field(None, max_length=4000)
+    status: str = "planned"
+    group: str | None = Field(None, max_length=64)
+    inside_group: bool = False
+    git_init: bool = True
+    dry_run: bool = False
+
+
+@router.post("/registry/new", status_code=201)
+async def post_new_project(body: NewProjectIn, state: AppState = Depends(get_state)) -> dict:
+    """Create a new project or group in a granted root (ADR 0028): a new folder with a README.md and a
+    CLAUDE.md, optionally a git repository, and its registry page. Never into a folder that exists."""
+    m = state.sources
+    fields = body.model_dump(exclude={"dry_run"})
+    try:
+        if body.dry_run:
+            plan = scaffold.plan_create(m.registry, m.roots, m.repo_root, **fields)
+            return scaffold.public(plan)
+        out = scaffold.create(m.registry_root, m.registry, m.roots, m.repo_root, **fields)
+    except RegisterError as exc:
+        raise HTTPException(409, str(exc)) from None
+    m.reload()
+    _changed(state)
+    return out
 
 
 class BreakDownItem(BaseModel):

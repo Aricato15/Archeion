@@ -108,6 +108,17 @@ export type Project = {
   needs_restudy: boolean
 }
 
+/** What creating a project or group made (ADR 0028). */
+export type NewProjectResult = {
+  name: string
+  kind: string
+  title: string
+  location: string
+  files: string[]
+  git: boolean
+  page: string
+}
+
 /** A folder of a group that its study suggests as a member (ADR 0027). */
 export type BreakDownItem = { folder: string; name: string; type: 'module' | 'project'; components: string[] }
 

@@ -1,4 +1,5 @@
-"""Read-only git access for doc history. Argument lists only, never a shell.
+"""Read-only git access for doc history, plus `init` for a project Archeion just created (ADR 0028).
+Argument lists only, never a shell.
 
 Every call takes `cwd` (the folder a source's paths are relative to, e.g. docs/ or a
 project's root) and `rel` (a path relative to it). git is run with -C cwd, and
@@ -43,6 +44,11 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
     if check and proc.returncode != 0:
         raise GitError(proc.stderr.strip() or f"git exited {proc.returncode}")
     return proc
+
+
+def init(cwd: Path) -> None:
+    """Make `cwd` a git repository. Only for a folder Archeion has just created (ADR 0028)."""
+    _git(cwd, "init", "-q")
 
 
 def valid_rev(rev: str) -> bool:

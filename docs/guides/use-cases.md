@@ -96,6 +96,8 @@ sequenceDiagram
 5. **Archeion's session:** fill in the page as in use case 1 (`/study`), with `status: planned` until building starts.
 
 ### b) Start inside Archeion
+
+Shortcut: **New project or group** on the Projects page (or `projects new <name> --root <root>`) makes the folder in a root you granted, with a README.md and CLAUDE.md holding your description, optionally a git repository, and the registry page as `planned` ([ADR 0028](../decisions/0028-create-a-project-from-the-viewer.md)). Then go on from its Design tab.
 Use this when the idea comes before the repo, or when it's mostly about how the project fits with the others.
 
 1. **Archeion's session:** brainstorm in the terminal. Claude records the result in the private registry. A page `registry/projects/<name>.md` with `status: planned` and **no `path` yet** holds the intended group, ports and `depends_on`, and its body holds the brief: purpose, scope, how it connects to the other projects, and open questions. The Design tab and `/design <name>` take this over ([use case 4](#4-design-and-plan-a-project-that-already-exists-outside-archeion)).

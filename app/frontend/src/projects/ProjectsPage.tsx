@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { useRegistry } from '../api/queries'
 import { REGISTRY, locationOf, type Project, type Registry } from '../api/types'
 import { docUrl, projectUrl } from '../docs/links'
+import { NewProject } from './NewProject'
 import { ProjectCard } from './ProjectCard'
 import { DriftAlert } from './Drift'
 import { RegistryMap } from './RegistryMap'
@@ -89,7 +90,10 @@ export function ProjectsPage() {
   return (
     <Stack>
       <Group justify="space-between" align="baseline">
-        <Title order={2}>Projects</Title>
+        <Group gap="sm" align="baseline">
+          <Title order={2}>Projects</Title>
+          <NewProject registry={reg} />
+        </Group>
         <Text size="sm" c="dimmed">
           {reg.projects.length} registered · {reg.groups.length} group(s) · pages in the private{' '}
           <Anchor component={Link} to={docUrl(REGISTRY, 'projects/README.md')} size="sm">

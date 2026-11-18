@@ -55,6 +55,7 @@ Run these from Archeion's root folder: `powershell -NoProfile -ExecutionPolicy B
 | `projects scan` | Folders in your roots with no registry page yet (`--write` creates stub pages) |
 | `projects show --project <name>` | One project's place in the system |
 | `projects type <name> project\|module\|auto` | Mark a page as a project or a module, or go back to detection |
+| `projects new <name> --root <root> [--kind group] [--title ...] [--description ...] [--group <g> [--inside-group]] [--no-git] [--dry-run]` | Create a new project or group: a new folder in a granted root with a README.md and CLAUDE.md, optionally a git repository, and its registry page (status planned by default), ADR 0028 |
 | `projects promote <name> [--dry-run]` / `projects demote <name>` | Turn a project into a group with a home (`type: group`, its members are the pages whose `group:` or `parent:` names it), or back when it has no members (ADR 0027) |
 | `projects break-down <group> [--only <folder> ... \| --all]` | List the folders of a group that its study suggests as members, or register them (modules, or sub-projects with their own repository), ADR 0027 |
 | `projects remove <name>` | Take a project out of the registry; its page moves to `registry/removed/` (ADR 0026) |

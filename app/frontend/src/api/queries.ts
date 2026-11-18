@@ -16,6 +16,7 @@ import type {
   Project,
   ProjectType,
   BreakDownItem,
+  NewProjectResult,
   PromotePlan,
   Registry,
   ResponderStatus,
@@ -162,6 +163,22 @@ export const usePromotePlan = (id: string, enabled: boolean) =>
 export const usePromoteProject = () =>
   useRegistryMutation((id: string) =>
     api<PromotePlan>(`/registry/projects/${encodeURIComponent(id)}/promote`, { method: 'POST', json: {} }),
+  )
+
+/** Create a new project or group in a granted root (ADR 0028). */
+export const useCreateProject = () =>
+  useRegistryMutation(
+    (body: {
+      root: string | null
+      name: string
+      kind: 'project' | 'group'
+      title: string | null
+      description: string | null
+      status: string
+      group: string | null
+      inside_group: boolean
+      git_init: boolean
+    }) => api<NewProjectResult>('/registry/new', { method: 'POST', json: body }),
   )
 
 /** Folders of a group that its own study suggests as members (ADR 0027). Nothing is written. */

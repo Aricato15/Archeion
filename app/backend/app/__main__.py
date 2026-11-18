@@ -19,7 +19,7 @@ from .db import Database
 from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
 from .services import designs as dz
-from .services import docs_fs, git, study_scan
+from .services import docs_fs, git, scaffold, study_scan
 from .services import feedback as fb
 from .services import glossary as gl
 from .services import report_render as rr
@@ -775,6 +775,39 @@ def cmd_projects_type(settings: Settings, args: argparse.Namespace) -> int:
     how = "set on its page" if p.type_source == "page" else "detected"
     of = f" of {p.owner}" if p.owner else ""
     print(f"{p.id}: {p.type}{of} ({how}); registry/{page}")
+    return 0
+
+
+def cmd_projects_new(settings: Settings, args: argparse.Namespace) -> int:
+    """Create a new project or group in a granted root (ADR 0028), or only say what it would make."""
+    manager = _sources(settings)
+    fields = {
+        "root": args.root,
+        "name": args.name,
+        "kind": args.kind,
+        "title": args.title,
+        "description": args.description,
+        "status": args.status,
+        "group": args.group,
+        "inside_group": args.inside_group,
+        "git_init": not args.no_git,
+    }
+    if args.dry_run:
+        out = scaffold.public(
+            scaffold.plan_create(manager.registry, manager.roots, settings.repo_root, **fields)
+        )
+    else:
+        out = scaffold.create(
+            settings.registry_root, manager.registry, manager.roots, settings.repo_root, **fields
+        )
+    where = "would create" if args.dry_run else "created"
+    print(
+        f"{where} {out['kind']} {out['name']} in {out['location']}: {', '.join(out['files'])}"
+        + (", git repository" if out["git"] else "")
+        + f"; registry/{out['page']}"
+    )
+    if args.dry_run:
+        print("Dry run, nothing changed.")
     return 0
 
 
@@ -2002,6 +2035,20 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("name", help="the registered name")
     pt.add_argument("type", choices=["project", "module", "auto"], help="auto: detected from the folder")
     pt.set_defaults(func=cmd_projects_type)
+    pnw = projects.add_parser("new", help="create a new project or group in a granted root (ADR 0028)")
+    pnw.add_argument("name", help="the folder and registry name (lowercase letters, digits, . _ -)")
+    pnw.add_argument("--root", help="a root from ARCHEION_ROOTS ('workspace' for the workspace root)")
+    pnw.add_argument("--kind", choices=["project", "group"], default="project")
+    pnw.add_argument("--title", help="a display name")
+    pnw.add_argument(
+        "--description", help="a brief description, for the README, CLAUDE.md and the registry page"
+    )
+    pnw.add_argument("--status", default="planned", choices=["active", "paused", "archived", "planned"])
+    pnw.add_argument("--group", help="a group it belongs to")
+    pnw.add_argument("--inside-group", action="store_true", help="create it inside the group's folder")
+    pnw.add_argument("--no-git", action="store_true", help="don't run git init")
+    pnw.add_argument("--dry-run", action="store_true", help="say what it would make, change nothing")
+    pnw.set_defaults(func=cmd_projects_new)
     ppr = projects.add_parser("promote", help="turn a project into a group with a home (ADR 0027)")
     ppr.add_argument("name", help="the registered name")
     ppr.add_argument("--dry-run", action="store_true", help="say what it would do, change nothing")
