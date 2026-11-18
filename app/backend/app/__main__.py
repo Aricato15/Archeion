@@ -930,11 +930,24 @@ def _git_state(folder: Path) -> tuple[str | None, bool | None]:
         return None, None
 
 
+def _member_folders(reg: Registry, group: Project) -> list[Path]:
+    """The folders of a group's members that sit inside the group's own folder."""
+    out = []
+    for mid in group.members:
+        m = reg.projects.get(mid)
+        if m and m.dir and group.dir and m.dir != group.dir and m.dir.is_relative_to(group.dir):
+            out.append(m.dir)
+    return sorted(out)
+
+
 def cmd_study_scan(settings: Settings, args: argparse.Namespace) -> int:
     """A read-only inventory of the project's code, to ground a study in."""
-    p = _study_project(_sources(settings), args.project)
+    manager = _sources(settings)
+    p = _study_project(manager, args.project)
     commit, dirty = _git_state(p.dir)
-    inv = study_scan.scan(p.dir, p.id, commit, dirty)
+    # A group's own study covers its top level: the members' folders have studies of their own (ADR 0027).
+    inside = _member_folders(manager.registry, p) if p.type == "group" and not args.include_members else []
+    inv = study_scan.scan(p.dir, p.id, commit, dirty, exclude=inside)
     data = inv.public()
     if args.out:
         Path(args.out).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1962,6 +1975,11 @@ def build_parser() -> argparse.ArgumentParser:
     ss.add_argument("project")
     ss.add_argument("--json", action="store_true")
     ss.add_argument("--out", help="also write the full inventory (JSON) to this file")
+    ss.add_argument(
+        "--include-members",
+        action="store_true",
+        help="a group's scan leaves its members' folders out (they have studies of their own); read them too",
+    )
     ss.set_defaults(func=cmd_study_scan)
     sv = study.add_parser("validate", help="check a study model (study.json) without saving it")
     sv.add_argument("--file", required=True, help="the model, or - for stdin")

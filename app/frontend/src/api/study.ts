@@ -142,6 +142,33 @@ export type SnapshotRow = {
 
 export type SnapshotFull = SnapshotRow & { model: StudyModel; notes_text: string }
 
+/** One member of a group, with its latest study (ADR 0027). */
+export type ComposedMember = {
+  project: string
+  title: string
+  type: string
+  kind: string | null
+  snapshot: string | null
+  date: string | null
+  commit: string | null
+  has_study: boolean
+  valid: boolean
+  commits_since: number | null
+}
+
+/** A group's study put together from its own and its members' (ADR 0027). */
+export type ComposedStudy = {
+  group: string
+  own: string | null
+  needs_restudy: boolean
+  members: ComposedMember[]
+  /** Components of the group's own study that a member's study replaced. */
+  overridden: { component: string; name: string; group_summary: string; member_summary: string; differs: boolean }[]
+  omitted: string[]
+  model: StudyModel | null
+  problems: string[]
+}
+
 export type DiffEntry = { id: string; label: string; fields?: string[] }
 export type StudyDiff = {
   from: string

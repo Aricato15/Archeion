@@ -142,3 +142,72 @@ describe('StudyTab', () => {
     expect(await screen.findByText('An example service.')).toBeTruthy()
   })
 })
+describe('StudyTab of a group (ADR 0027)', () => {
+  const group = { id: 'top', title: 'Top', type: 'group', needs_restudy: true, members: ['m-a'] } as unknown as Project
+  const composed = {
+    group: 'top',
+    own: null,
+    needs_restudy: true,
+    members: [
+      { project: 'm-a', title: 'Member A', type: 'project', kind: 'service', snapshot: '2026-11-16-abcdef1', date: '2026-11-16', commit: 'abcdef1234', has_study: true, valid: true, commits_since: 2 },
+      { project: 'm-b', title: 'Member B', type: 'project', kind: 'service', snapshot: null, date: null, commit: null, has_study: false, valid: true, commits_since: null },
+    ],
+    overridden: [
+      { component: 'm-a', name: 'Member A', group_summary: 'Does X', member_summary: 'Does Y', differs: true },
+    ],
+    omitted: ['flows'],
+    model: {
+      schema: 1,
+      meta: { project: 'top', date: '2026-11-19', commit: 'abcdef1234', summary: 'Composed.' },
+      components: [
+        { id: 'm-a', name: 'Member A', kind: 'service' },
+        { id: 'm-a__api', name: 'API', kind: 'module', parent: 'm-a' },
+      ],
+      relations: [],
+      interfaces: { exposes: [], calls: [] },
+    },
+    problems: [],
+  }
+
+  function renderGroup(path = '/projects/top?tab=study') {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const body = url.endsWith('/composed') ? composed : []
+        return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      }),
+    )
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(
+      <MantineProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[path]}>
+            <StudyTab project={group} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </MantineProvider>,
+    )
+  }
+
+  it('lists the members with their study dates, and says it needs a restudy', async () => {
+    renderGroup()
+    expect(await screen.findByText('Member B')).toBeTruthy()
+    expect(screen.getByText('2026-11-16 · abcdef1')).toBeTruthy()
+    expect(screen.getByText('2 commits behind')).toBeTruthy()
+    expect(screen.getByText('no study')).toBeTruthy()
+    expect(screen.getByText('1 of 2 studied')).toBeTruthy()
+    expect(screen.getByText('Needs a restudy')).toBeTruthy()
+  })
+
+  it('reports where the group and a member differ, with a way to discuss it', async () => {
+    renderGroup()
+    expect(await screen.findByText(/the group says/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Discuss' })).toBeTruthy()
+  })
+
+  it('draws the flattened view from the composed model', async () => {
+    const { container } = renderGroup('/projects/top?tab=study&scope=flat')
+    await waitFor(() => expect(container.querySelector('[data-node="m-a"]')).toBeTruthy())
+    expect(screen.getByText(/Composed from the group/)).toBeTruthy()
+  })
+})

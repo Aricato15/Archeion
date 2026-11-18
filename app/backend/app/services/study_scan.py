@@ -91,6 +91,8 @@ class Inventory:
     env_vars: list[dict] = field(default_factory=list)
     ports: list[dict] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    # Folders left out of the scan, relative to the root: a group's members, which have studies of their own.
+    excluded: list[str] = field(default_factory=list)
 
     def public(self) -> dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -105,8 +107,9 @@ def _skip_file(name: str) -> bool:
     return any(low.endswith(s) for s in SKIP_SUFFIXES)
 
 
-def walk(root: Path) -> tuple[list[str], bool]:
-    """Every file worth reading, relative and sorted; and whether the walk stopped at MAX_FILES."""
+def walk(root: Path, exclude: frozenset[Path] | None = None) -> tuple[list[str], bool]:
+    """Every file worth reading, relative and sorted; and whether the walk stopped at MAX_FILES.
+    Folders in `exclude` (resolved paths) are left out with everything under them."""
     out: list[str] = []
     stack = [root]
     while stack:
@@ -120,6 +123,8 @@ def walk(root: Path) -> tuple[list[str], bool]:
                 continue
             if p.is_dir():
                 if p.name.startswith(".") or p.name in SKIP_DIRS or (p / "pyvenv.cfg").exists():
+                    continue
+                if exclude and p.resolve() in exclude:
                     continue
                 stack.append(p)
             elif p.is_file() and not _skip_file(p.name):
@@ -488,9 +493,19 @@ def _package_of(rel: str) -> str:
     return "." if parent == "." else parent
 
 
-def scan(root: Path, project: str, commit: str | None = None, dirty: bool | None = None) -> Inventory:
+def scan(
+    root: Path,
+    project: str,
+    commit: str | None = None,
+    dirty: bool | None = None,
+    exclude: list[Path] | None = None,
+) -> Inventory:
     inv = Inventory(project=project, commit=commit, dirty=dirty)
-    files, inv.truncated = walk(root)
+    skip = frozenset(p.resolve() for p in exclude or [])
+    inv.excluded = sorted(
+        p.relative_to(root.resolve()).as_posix() for p in skip if p.is_relative_to(root.resolve())
+    )
+    files, inv.truncated = walk(root, skip)
     inv.files_total = len(files)
     fileset = set(files)
     langs: dict[str, Counter] = defaultdict(Counter)

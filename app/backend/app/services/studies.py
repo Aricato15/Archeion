@@ -121,6 +121,8 @@ class Meta(_Strict):
     stack: list[str] = []
     coverage: Coverage = Coverage()
     refreshed_from: str | None = None
+    # A group's own study leaves its members' folders out: they have studies of their own (ADR 0027).
+    excluded: list[str] = []
 
     @field_validator("commit")
     @classmethod

@@ -6,7 +6,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from ..deps import AppState, get_state
-from ..services import git
+from ..services import git, study_compose
 from ..services import studies as st
 from ..services.registry import Project
 
@@ -83,6 +83,21 @@ def diff(
     except st.StudyNotFound as exc:
         raise HTTPException(404, f"no snapshot {exc.args[0]}") from exc
     return {"from": a.id, "to": b.id, "sections": st.diff(st.load(a)[0], st.load(b)[0])}
+
+
+@router.get("/{project}/composed")
+def composed(project: str = ProjectParam, state: AppState = Depends(get_state)) -> dict:
+    """A group's own study and its members' latest studies, put together (ADR 0027)."""
+    p = _project(state, project)
+    if p.type != "group":
+        raise HTTPException(409, f"'{project}' isn't a group")
+    reg = state.sources.registry
+    out = study_compose.compose(state.settings.registry_root, reg, p.id)
+    for row in out["members"]:
+        snap = row["snapshot"]
+        member = reg.projects.get(row["project"])
+        row["commits_since"] = commits_since(member, row["commit"]) if snap and member else None
+    return out
 
 
 @router.get("/{project}/{snapshot}")

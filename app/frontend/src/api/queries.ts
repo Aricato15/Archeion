@@ -28,7 +28,7 @@ import type {
   TreeNode,
 } from './types'
 import type { Approval, BuiltVsDesigned, DesignFull, DesignRow, Impact, Preflight } from './design'
-import type { SnapshotFull, SnapshotRow, StudyDiff, StudyHit, SystemLinks } from './study'
+import type { ComposedStudy, SnapshotFull, SnapshotRow, StudyDiff, StudyHit, SystemLinks } from './study'
 
 // --- session ---------------------------------------------------------------------------
 
@@ -357,6 +357,13 @@ export const useSnapshot = (project: string, snapshot: string | null) =>
     queryFn: () => api<SnapshotFull>(`/studies/${encodeURIComponent(project)}/${encodeURIComponent(snapshot ?? '')}`),
     enabled: Boolean(snapshot),
     placeholderData: keepPreviousData,
+  })
+
+/** A group's own study and its members' latest studies, put together (ADR 0027). */
+export const useComposedStudy = (group: string) =>
+  useQuery({
+    queryKey: ['studies', group, 'composed'],
+    queryFn: () => api<ComposedStudy>(`/studies/${encodeURIComponent(group)}/composed`),
   })
 
 export const useStudyDiff = (project: string, from: string | null, to: string | null) =>

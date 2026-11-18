@@ -27,6 +27,7 @@ import { lazy, Suspense, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useSnapshot, useSnapshots, useStudyDiff } from '../api/queries'
 import { normalizeModel, type SnapshotRow, type StudyModel } from '../api/study'
+import { GroupStudy } from './GroupStudy'
 import { REGISTRY, SELF, type Project, type StudyElementKind } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
@@ -89,7 +90,48 @@ export function Staleness({ row }: { row: Pick<SnapshotRow, 'commits_since' | 'd
   )
 }
 
+/** A project's study, or a group's: its own top level, with its members' studies read beside it (ADR 0027). */
 export function StudyTab({ project }: { project: Project }) {
+  const own = <ProjectStudy project={project} />
+  if (project.type !== 'group') return own
+  return (
+    <GroupStudy
+      project={project}
+      own={own}
+      renderFlat={({ model, params, set }) => (
+        <ComponentsView
+          model={model}
+          project={project}
+          snapshots={[]}
+          current={FLAT_ROW}
+          notes=""
+          params={params}
+          set={set}
+          ask={() => undefined}
+        />
+      )}
+    />
+  )
+}
+
+/** The row the flattened view stands on: it has no snapshot of its own. */
+const FLAT_ROW: SnapshotRow = {
+  id: 'composed',
+  project: '',
+  date: '',
+  commit: null,
+  dirty: false,
+  summary: '',
+  counts: { components: 0, relations: 0, entities: 0, flows: 0, activities: 0, states: 0, findings: 0, exposes: 0, calls: 0 },
+  valid: true,
+  problems: [],
+  notes: false,
+  draft: false,
+  thread: null,
+  commits_since: null,
+}
+
+function ProjectStudy({ project }: { project: Project }) {
   const [params, setParams] = useSearchParams()
   const snapshots = useSnapshots(project.id)
   // The latest saved snapshot is shown first; a draft (ADR 0020) only when there's nothing else.
