@@ -1,6 +1,6 @@
 # Update to Archeion 1.4.0
 
-**For:** Archeion 1.3.2 → **1.4.0**. The plugin is unchanged (0.4.0). It takes about five minutes.
+**For:** Archeion 1.3.2 → **1.4.0**. The plugin is unchanged (0.4.0). The database gets **one small migration** (schema 10 → 11), applied by itself on the first start. It takes about five minutes.
 
 ## Coming from 1.2.x, 1.3.0 or 1.3.1?
 
@@ -9,7 +9,7 @@ Update once, straight to 1.4.0: skip nothing and install nothing in between. The
 - **Update the plugin too** if it's older than 0.4.0 (step 5). 1.2.0 and 1.3.0 were used with plugin 0.3.0, and 0.4.0 renames `/archeion:report` to `/archeion:notify`. See [update-v1.3.1.md](update-v1.3.1.md).
 - **`setup.bat` is not optional.** 1.3.0 added two dependencies (one for the report dialog, one for talking to Edge).
 - **Reports need Microsoft Edge and the viewer running** (1.3.0). **Edits** launches Claude in auto mode by default (1.3.2): see [update-v1.3.2.md](update-v1.3.2.md) if you'd rather keep confirmations.
-- **No database migration** is needed from 1.0.0 on. Your password, threads and settings are kept.
+- **One database migration**, 11, runs by itself on the first start, whichever version you come from (older ones run first, in order). Your password, threads and settings are kept. Back up the database first (step 1).
 
 Coming from before 1.2.0, read the [full update guide](../guides/update_archeion_and_plugin.md) first.
 
@@ -26,14 +26,17 @@ Coming from before 1.2.0, read the [full update guide](../guides/update_archeion
 - **Every diagram can go full screen**, and **a long thread has a table of contents**.
 - **You can remove a registered project.** Use **Remove** on the project's page or in Settings, or `projects remove <name>`. Only its registry page moves, to `registry/removed/` ([ADR 0026](../decisions/0026-remove-a-registered-project.md)); **Restore** brings it back.
 - **An Updates tab** in the sidebar lists notes like this one.
+- **On-demand Claude gets the project's folder.** A run is started with `--add-dir <folder>` for each project or module that has a waiting item, on top of the granted roots. It's on by default; **Settings → Claude jobs → Give runs the project's folder** turns it off. This is the reason for the database migration.
+- **You can delete a whole thread** from its page (**Delete thread**), answered or resolved ones included. It refuses while a message is in progress.
+- **A tidier viewer.** The sidebar lists Projects first, in tinted sections, and a group's name opens its overview. A project page can hide its facts and map, keeps its tabs under the header and snaps them to the top as you scroll.
 
 The full list is in [`CHANGELOG.md`](../../CHANGELOG.md).
 
 ## Update in steps
 
-### 1. Back up the registry
+### 1. Back up the database and the registry
 
-Registry pages are written in more places now (promotion, break-down, new projects), and `registry/` isn't in git. Copy the `registry/` folder somewhere safe before you start. The database needs no backup for this release, but it's a good habit ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes)).
+The database is migrated on the first start, and a migration can't be undone by going back in git. Stop Archeion (`stop.bat`) and copy it with SQLite's own backup: `sqlite3 app/backend/data/archeion.db ".backup app/backend/data/archeion.backup.db"` ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes) has the details). Also copy the `registry/` folder: registry pages are written in more places now (promotion, break-down, new projects), and `registry/` isn't in git.
 
 ### 2. Update Archeion
 
@@ -52,7 +55,9 @@ Then **reload the viewer**. If a page says a study "doesn't validate" with `meta
 
 ### 3. The database
 
-There is **no database migration** in this release (the schema stays at 10). Your password, feedback, registry, studies and settings are left alone.
+One migration, **11**, runs by itself on the first `start.bat` (`PRAGMA user_version` goes from 10 to 11). It adds a column to the on-demand settings (`add_project_dirs`, on by default). You run nothing, and your password, feedback, registry, studies and settings are kept. Nothing else in the database changes. If the backend won't start and the log mentions the migration, restore the backup from step 1.
+
+Check it: `sqlite3 app/backend/data/archeion.db "pragma user_version"` prints `11`.
 
 ### 4. Projects and groups that share a name
 
@@ -82,8 +87,11 @@ From 1.2.x or 1.3.0, update it. In any Claude Code session run `/plugin marketpl
 | New project says the folder exists | It never writes into an existing folder. Pick another name, or register the folder from Settings instead. |
 | Remove says the project still has modules | Remove its modules first. |
 | A group shows **needs restudy** | It was studied before it became a group. Study it again; the badge goes away once a newer study is saved. |
+| The backend says the database schema is newer than the app | You went back to an older version after 1.4.0 started once. Restore the database from the step 1 backup (below), or update again. |
 | Anything else | See "If something looks wrong" in the [full guide](../guides/update_archeion_and_plugin.md#if-something-looks-wrong). |
 
 ## Undo
+
+To go back to 1.3.2: stop Archeion, put the step 1 database backup over `app/backend/data/archeion.db` (remove any `-wal` and `-shm` next to it), and `git checkout` the old version. An old version refuses a database that was already migrated to 11, which is why the backup matters; feedback written after the update is not in it.
 
 Promotion only adds `type: group` and `promoted:` to a page. To undo it, remove those two lines, or restore the page from your backup. `projects demote <name>` does it for a group with no members. A project created from Archeion is an ordinary folder: delete it and its registry page (or use **Remove**).

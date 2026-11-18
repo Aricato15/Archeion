@@ -13,9 +13,9 @@ You don't need to install every release in between. Update straight to the curre
 
 | You have | Do |
 |---|---|
-| 1.2.0 to 1.3.x | Follow this guide once (steps 1 to 4). Update the plugin too: 1.2.0 and 1.3.0 shipped with plugin 0.3.0 or older, and 0.4.0 renames `/archeion:report` to `/archeion:notify`. No database migration. |
-| 1.0.0 or 1.1.0 | The same. The plugin is 0.1.x or 0.2.x, so updating it matters more (step 3). No database migration after 1.0.0. |
-| Before 1.0.0 | The same, and the migrations 6 to 10 run on first start (back up first). |
+| 1.2.0 to 1.3.x | Follow this guide once (steps 1 to 4). Update the plugin too: 1.2.0 and 1.3.0 shipped with plugin 0.3.0 or older, and 0.4.0 renames `/archeion:report` to `/archeion:notify`. The one migration (11, from 1.4.0) runs by itself, so back up the database first. |
+| 1.0.0 or 1.1.0 | The same. The plugin is 0.1.x or 0.2.x, so updating it matters more (step 3). The only migration after 1.0.0 is 11 (from 1.4.0), and it runs by itself. |
+| Before 1.0.0 | The same, and the migrations 6 to 11 run on first start (back up first). |
 | 1.4.0 | You're current. |
 
 The [1.4.0 note](../updates/update-v1.4.0.md) has what to check afterwards for the whole range.
@@ -64,7 +64,7 @@ start.bat
 
 | Version | What to know when coming from an older one |
 |---|---|
-| 1.4.0 | Groups with a home, creating and removing projects from the viewer, a study that doesn't need git, the Updates tab. Back up `registry/`, which more actions now write to. No database migration (schema 10) and the plugin is unchanged. See the [update note](../updates/update-v1.4.0.md). |
+| 1.4.0 | Groups with a home, creating and removing projects from the viewer, a study that doesn't need git, the Updates tab. Back up `registry/`, which more actions now write to. Adds a setting for on-demand Claude (`--add-dir` the project's folder) and deleting a thread. **Database migration 11** (schema 10 → 11) runs by itself on first start, so back up the database. The plugin is unchanged. See the [update note](../updates/update-v1.4.0.md). |
 | 1.3.2 | Edits now launches Claude in auto mode by default, diagram and Reports-tab fixes. No database migration. See the [update note](../updates/update-v1.3.2.md). |
 | 1.3.1 | PDF reports (added in 1.3.0), and the plugin's `/archeion:report` is renamed `/archeion:notify` (plugin 0.4.0). `setup.bat` installs two new dependencies. No database migration. See the [update note](../updates/update-v1.3.1.md). |
 | 1.2.0 | Interactive maps, flows and Mermaid diagrams, and a Glossary tab per project. A new `registry/glossary/` folder is created when the first term is saved. No database migration and no new setting. |

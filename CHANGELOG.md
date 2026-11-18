@@ -7,11 +7,6 @@ All notable changes to Archeion are recorded here. The format follows
 
 ## [Unreleased]
 
-### Changed
-- **The sidebar is tidier.** The Projects link and the project tree come first, then the other pages, `registry/` and `docs/`, each in a block of its own tint (blue, gray, violet, teal). A group's own entry opens its overview and unfolds its members, so the separate "Overview" item is gone. Scrolling past the end of the sidebar (or the Claude CLI panel) no longer scrolls the page behind it.
-- **The update guide covers older installs.** It says to update straight to the current version rather than release by release, lists what to do from 1.0.0 to 1.3.x (including the plugin), and its version notes now include 1.2.0, 1.3.2 and 1.4.0. The 1.4.0 note has a section for people coming from 1.2.x or 1.3.x.
-- **The project page keeps the tabs in focus.** A **Hide facts and map** button folds everything above the tabs (remembered in the browser), the tab bar sticks under the header, and scrolling down until the tabs pass 65% of the screen height snaps them to the top. The tabs area is at least a screen tall so short tabs can still reach the top.
-
 ## [1.4.0] - 2026-11-19
 
 ### Added
@@ -27,6 +22,13 @@ All notable changes to Archeion are recorded here. The format follows
 - **Every diagram has a full screen mode.** The component and project maps, the activity and state diagrams, the data schema and the interactive flow views get a **Full screen** button, as the Mermaid diagrams already had. The window fills the screen, keeps zoom, pan and Find, and closes with Escape. A click on a box or a participant closes it first and shows what you picked.
 - **Remove a registered project** ([ADR 0026](docs/decisions/0026-remove-a-registered-project.md)): a **Remove** button on the project page and next to each registered folder in Settings, `projects remove <name>` in the CLI, and `DELETE /api/registry/projects/{name}`. Its registry page moves to `registry/removed/`, so it can be put back, and the project's own folder and its studies, designs, glossary, reports and feedback are left alone. A project that still has modules can't be removed. Settings lists removed projects under **Previously registered**, with **Restore** and **Delete permanently** (which also deletes the studies, designs, glossary and reports kept for it, after asking), and a folder that was registered before shows a *previously registered as* badge. CLI: `projects removed`, `restore`, `purge --yes`.
 - **A table of contents for long threads.** A thread with more than one message has a panel on the right with a numbered button per message, which scrolls to it and marks the one you're reading, plus **Top** and **Latest** buttons. On narrow windows, where the panel is hidden, a round button at the corner goes to the latest message.
+- **On-demand Claude gets the project's folder.** When a run starts, it is given `--add-dir <folder>` for each project or module that has a waiting item (items for Archeion itself add nothing), on top of the granted roots, so it can read and edit there. A switch in Settings → Claude jobs, **Give runs the project's folder**, turns it off (on by default). This adds database migration 11 (`responder.add_project_dirs`), which runs by itself on the first start: nothing to do, and going back to an older version needs the backup.
+- **Delete a whole thread.** A **Delete thread** button on a thread's page removes every message of it, answered or resolved ones included, after asking. It refuses while a message is in progress, so Claude isn't left answering into nothing. API: `DELETE /api/feedback/{id}/thread`. Deleting a single waiting message works as before.
+
+### Changed
+- **The sidebar is tidier.** The Projects link and the project tree come first, then the other pages, `registry/` and `docs/`, each in a block of its own tint (blue, gray, violet, teal). A group's own entry opens its overview and unfolds its members, so the separate "Overview" item is gone. Scrolling past the end of the sidebar (or the Claude CLI panel) no longer scrolls the page behind it.
+- **The update guide covers older installs.** It says to update straight to the current version rather than release by release, lists what to do from 1.0.0 to 1.3.x (including the plugin), and its version notes now include 1.2.0, 1.3.2 and 1.4.0. The 1.4.0 note has a section for people coming from 1.2.x or 1.3.x.
+- **The project page keeps the tabs in focus.** A **Hide facts and map** button folds everything above the tabs (remembered in the browser), the tab bar sticks under the header, and scrolling down until the tabs pass 65% of the screen height snaps them to the top. The tabs area is at least a screen tall so short tabs can still reach the top.
 
 ## [1.3.2] - 2026-11-18
 

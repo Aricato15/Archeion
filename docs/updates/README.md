@@ -4,7 +4,7 @@ One short how-to per release that asks the user to do something: update Archeion
 
 | Release | Archeion | Plugin | Note |
 |---|---|---|---|
-| [1.4.0](update-v1.4.0.md) | 1.3.2 → 1.4.0 | unchanged (0.4.0) | Full screen for every diagram, remove a registered project, groups with a home you can promote a project into, a table of contents for long threads, no database change |
+| [1.4.0](update-v1.4.0.md) | 1.3.2 → 1.4.0 | unchanged (0.4.0) | Full screen for every diagram, remove a registered project, groups with a home you can promote a project into, a table of contents for long threads, on-demand Claude gets the project's folder, delete a thread, database migration 11 (automatic) |
 | [1.3.2](update-v1.3.2.md) | 1.3.1 → 1.3.2 | unchanged (0.4.0) | Diagram and Reports-tab fixes, Edits now launches Claude in auto mode, no database change |
 | [1.3.1](update-v1.3.1.md) | 1.2.0 or 1.3.0 → 1.3.1 | 0.3.0 → 0.4.0 | PDF reports, `/archeion:report` renamed `/archeion:notify` |
 
