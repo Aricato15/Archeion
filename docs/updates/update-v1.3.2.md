@@ -28,19 +28,9 @@ setup.bat
 start.bat
 ```
 
-### 2. The database (nothing to do, one optional step)
+### 2. The database
 
-The database schema goes from 10 to **11**. The new migration does nothing, so the update itself can't change or lose your data: your password, feedback, registry, studies and settings are all kept. A backup isn't required, but it's a good habit ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes)).
-
-- **Fresh installs and normal upgrades:** nothing more to do.
-- **If you ran a pre-release build of 1.3.2** that added a third Edits choice, your database is already at schema 11 and has one unused column. 1.3.2 opens it as it is and never reads the column. To remove it anyway, stop Archeion and run:
-
-  ```
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\tidy-database.ps1
-  start.bat
-  ```
-
-  It writes a backup next to the database (`archeion.db.pre-1.3.2.bak`, which is never overwritten), drops the column and leaves the schema version at 11. Running it again does nothing. It refuses to run while the backend is up.
+There is **no database migration** in this release (the schema stays at 10). Your password, feedback, registry, studies and settings are left alone. A backup isn't needed, but it's a good habit ([step 1 of the full guide](../guides/update_archeion_and_plugin.md#1-back-up-2-minutes)).
 
 ### 3. The plugin and your project sessions
 
@@ -57,7 +47,5 @@ Nothing to do: the plugin is still 0.4.0.
 
 | What you see | What to do |
 |---|---|
-| `can't start ... database schema 11 is newer than this app (10)` | The app is older than the database. Run `git pull` and `setup.bat`, then start again. |
 | A terminal fails with an unknown permission mode | Your Claude Code is too old for auto mode. Update it, or choose **Seek user confirmations**. |
-| `tidy-database.ps1` says the backend is running | Run `stop.bat`, then the script again. |
 | Anything else | See "If something looks wrong" in the [full guide](../guides/update_archeion_and_plugin.md#if-something-looks-wrong). |

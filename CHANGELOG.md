@@ -10,11 +10,10 @@ All notable changes to Archeion are recorded here. The format follows
 ## [1.3.2] - 2026-11-18
 
 ### Added
-- **`scripts/tidy-database.ps1`**, an optional cleanup for a database that a pre-release 1.3.2 build touched: it backs the database up, then drops an unused column. Nothing needs it; see [`update-v1.3.2.md`](docs/updates/update-v1.3.2.md).
 - **`docs/updates/`**, the home of the update notes: one short how-to per release that asks the user to do something, starting with [`update-v1.3.1.md`](docs/updates/update-v1.3.1.md) (update Archeion, update the plugin, open a new session in each project, check it worked). Its README sets the convention and has a template. The viewer shows them with the other docs, and the [update guide](docs/guides/update_archeion_and_plugin.md) links to them.
 
 ### Changed
-- **The Edits setting's default now launches Claude in `--permission-mode auto`** (it was `acceptEdits`), for the inbox terminal and for on-demand runs, windowed or headless. It's labeled **Auto mode** in Settings -> Claude jobs. The other choice, *Seek user confirmations*, is unchanged. The stored value is still `accept_edits`, so your setting carries over. The schema version is now 11, a migration that does nothing: a pre-release build had used 11, and a database from it must still open ([ADR 0021](docs/decisions/0021-claude-jobs-windows-headless-and-limits.md)).
+- **The Edits setting's default now launches Claude in `--permission-mode auto`** (it was `acceptEdits`), for the inbox terminal and for on-demand runs, windowed or headless. It's labeled **Auto mode** in Settings -> Claude jobs. The other choice, *Seek user confirmations*, is unchanged. The stored value is still `accept_edits`, so your setting carries over. There is no database migration ([ADR 0021](docs/decisions/0021-claude-jobs-windows-headless-and-limits.md)).
 
 ### Fixed
 - **Diagrams no longer redraw by themselves** on the roadmap, changelog, user guide and every other doc. The markdown renderer rebuilt its components on each render, which remounted every Mermaid diagram on hover, on a refetch after a file change and when the window regained focus.
