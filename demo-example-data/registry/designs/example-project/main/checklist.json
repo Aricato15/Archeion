@@ -1,0 +1,251 @@
+{
+  "version": 1,
+  "next_item": 9,
+  "next_change": 14,
+  "items": [
+    {
+      "id": "c1",
+      "title": "Catalogue with search",
+      "note": "Browse and search books by title, author and ISBN.",
+      "kind": "feature",
+      "status": "done",
+      "phase": "Phase 1",
+      "priority": "high",
+      "refs": [],
+      "depends_on": [],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Core of the shop, agreed in the brief."
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "Shopping cart",
+      "note": "Cart kept per session, survives a reload.",
+      "kind": "feature",
+      "status": "doing",
+      "phase": "Phase 1",
+      "priority": "high",
+      "refs": [],
+      "depends_on": [
+        "c1"
+      ],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Needed before checkout."
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "Checkout and payment",
+      "note": "Card payment through a hosted provider page, so no card data touches the shop.",
+      "kind": "feature",
+      "status": "decided",
+      "phase": "Phase 2",
+      "priority": "high",
+      "refs": [],
+      "depends_on": [
+        "c2"
+      ],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Decision: hosted payment page."
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "Use SQLite for orders",
+      "note": "One database file owned by the shop service.",
+      "kind": "decision",
+      "status": "decided",
+      "phase": "Phase 1",
+      "priority": null,
+      "refs": [],
+      "depends_on": [],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Matches the workspace database rules."
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "title": "Email order confirmations",
+      "note": "",
+      "kind": "feature",
+      "status": "decided",
+      "phase": "Phase 2",
+      "priority": "medium",
+      "refs": [],
+      "depends_on": [
+        "c3"
+      ],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Customers expect a receipt."
+        }
+      ]
+    },
+    {
+      "id": "c6",
+      "title": "Wishlist",
+      "note": "Save books for later. Only if people ask for it.",
+      "kind": "idea",
+      "status": "idea",
+      "phase": "Phase 3",
+      "priority": "low",
+      "refs": [],
+      "depends_on": [],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Raised in conversation, not agreed."
+        }
+      ]
+    },
+    {
+      "id": "c7",
+      "title": "Which shipping carriers to support?",
+      "note": "",
+      "kind": "question",
+      "status": "idea",
+      "phase": "Phase 2",
+      "priority": null,
+      "refs": [],
+      "depends_on": [],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Open: needs a decision before checkout."
+        }
+      ]
+    },
+    {
+      "id": "c8",
+      "title": "Loyalty points",
+      "note": "",
+      "kind": "idea",
+      "status": "dropped",
+      "phase": "Phase 3",
+      "priority": null,
+      "refs": [],
+      "depends_on": [],
+      "history": [
+        {
+          "at": "2026-11-20T08:39:04Z",
+          "by": "claude",
+          "change": "added",
+          "reason": "Dropped: too much for a first version."
+        }
+      ]
+    }
+  ],
+  "pending": [
+    {
+      "id": "p9",
+      "op": "update",
+      "item": "c2",
+      "fields": {
+        "status": "done"
+      },
+      "reason": "The cart is built and tested.",
+      "by": "claude",
+      "state": "accepted",
+      "staged": "2026-11-20T08:39:13Z",
+      "comments": []
+    },
+    {
+      "id": "p10",
+      "op": "update",
+      "item": "c3",
+      "fields": {
+        "status": "doing"
+      },
+      "reason": "Work on checkout starts next.",
+      "by": "claude",
+      "state": "pending",
+      "staged": "2026-11-20T08:39:13Z",
+      "comments": []
+    },
+    {
+      "id": "p11",
+      "op": "add",
+      "item": null,
+      "fields": {
+        "title": "Stock levels per book",
+        "note": "Block checkout when a book is out of stock.",
+        "kind": "feature",
+        "status": "decided",
+        "phase": "Phase 2",
+        "priority": "medium",
+        "depends_on": [
+          "c1"
+        ]
+      },
+      "reason": "Came up while talking about checkout.",
+      "by": "claude",
+      "state": "accepted",
+      "staged": "2026-11-20T08:39:13Z",
+      "comments": []
+    },
+    {
+      "id": "p12",
+      "op": "add",
+      "item": null,
+      "fields": {
+        "title": "Gift wrapping option",
+        "kind": "idea",
+        "status": "idea",
+        "phase": "Phase 3",
+        "priority": "low"
+      },
+      "reason": "Possible later extra.",
+      "by": "claude",
+      "state": "pending",
+      "staged": "2026-11-20T08:39:13Z",
+      "comments": []
+    },
+    {
+      "id": "p13",
+      "op": "update",
+      "item": "c6",
+      "fields": {
+        "status": "dropped"
+      },
+      "reason": "Wishlist looks unnecessary for launch.",
+      "by": "claude",
+      "state": "pending",
+      "staged": "2026-11-20T08:39:13Z",
+      "comments": [
+        {
+          "at": "2026-11-20T08:39:14Z",
+          "by": "user",
+          "text": "Keep the wishlist, a few readers will want it."
+        }
+      ]
+    }
+  ],
+  "log": []
+}

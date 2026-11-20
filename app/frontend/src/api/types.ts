@@ -2,6 +2,8 @@
 export type SourceId = string
 export const SELF = 'archeion'
 export const REGISTRY = 'registry'
+/** The example project's registry page lives in its own source (ADR 0030). */
+export const DEMO_REGISTRY = 'demo-registry'
 /** Sources that are folders of this repo rather than registered projects. */
 export const isOwnSource = (id: SourceId) => id === SELF || id === REGISTRY
 
@@ -90,6 +92,8 @@ export type Project = {
   owner: string | null
   /** ADR 0017: whether Archeion's /inbox may edit this project's files for its inbox items. */
   inbox_edits: boolean
+  /** ADR 0030: the committed example project. Read-only, and nothing about it reaches Claude or the database. */
+  demo?: boolean
   /** 'page': `inbox_edits:` on its page; 'owner': a module following its project; 'default': allowed. */
   inbox_edits_source: 'page' | 'owner' | 'default'
   ports: number[]

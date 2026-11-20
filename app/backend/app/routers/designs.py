@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel
 
 from ..deps import AppState, get_conn, get_state
+from ..services import demo
 from ..services import design_checklist as ck
 from ..services import design_checks as checks
 from ..services import designs as dz
@@ -20,7 +21,7 @@ from ..services import studies as st
 from ..services.events import Event
 from ..services.registry import SELF_ID, RegisterError, apply_structure, plan_structure
 
-router = APIRouter(prefix="/api/designs")
+router = APIRouter(prefix="/api/designs", dependencies=[Depends(demo.read_only)])
 
 ProjectParam = Path(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 SlugParam = Path(max_length=40, pattern=r"^[a-z0-9][a-z0-9-]*$")
@@ -36,7 +37,7 @@ def _project(state: AppState, name: str):
 def _ref(state: AppState, project: str, slug: str) -> dz.DesignRef:
     _project(state, project)
     try:
-        return dz.get(state.settings.registry_root, project, slug)
+        return dz.get(demo.root_for(state.settings, project), project, slug)
     except dz.DesignNotFound:
         raise HTTPException(404, f"no design '{slug}' for {project}") from None
 
@@ -65,7 +66,7 @@ def all_designs(state: AppState = Depends(get_state)) -> list[dict]:
 @router.get("/{project}")
 def project_designs(project: str = ProjectParam, state: AppState = Depends(get_state)) -> list[dict]:
     p = _project(state, project)
-    root = state.settings.registry_root
+    root = demo.root_for(state.settings, p.id)
     return [dz.summary(dz.get(root, p.id, s)) for s in dz.slugs(root, p.id)]
 
 

@@ -34,7 +34,7 @@ Every phase ends with the tests and linters passing (`uv run pytest`, `uv run ru
 
 ## Phase 4: the Roadmap page by version
 - `docs_fs.parse_roadmap` returns `releases: [{version, date, items}]` from `## Released` and its `### X.Y.Z (date)` sections. A file without them returns an empty list.
-- `RoadmapPage.tsx`: the current Now / Next / Later board first, then the released versions, newest first, each folded and expandable, with a **Jump to version** select. Project roadmaps use the same layout when they have the sections.
+- `RoadmapPage.tsx`: three cards at all times: Now / Next / Later, with left and right arrows that slide the window back over the released versions (each a card) and forward again. Project roadmaps use the same layout when they have the sections.
 - Tests with the old layout (no `Released`) and the new one.
 
 ## Release

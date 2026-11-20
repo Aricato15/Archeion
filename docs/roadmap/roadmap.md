@@ -5,7 +5,7 @@ _Last updated: 2026-11-20_
 Now, Next and Later are the open work. What shipped is under **Released**, one section per version, newest first.
 
 ## Now
-- **1.5.0, in progress: the design Checklist** ([ADR 0029](../decisions/0029-design-checklist.md), [the plan](2026-11-20-design-checklist-plan.md)). A design gets a checklist of the features, ideas and decisions the user and Claude agreed on. Claude proposes and maintains it, you review and comment, and nothing applies until you confirm. A roadmap is generated from it. The viewer's Roadmap page is split by version, with the current one first (this page's new layout).
+- **1.5.0, in progress: the design Checklist** ([ADR 0029](../decisions/0029-design-checklist.md), [the plan](2026-11-20-design-checklist-plan.md)). A design gets a checklist of the features, ideas and decisions the user and Claude agreed on. Claude proposes and maintains it, you review and comment, and nothing applies until you confirm. A roadmap is generated from it. The viewer's Roadmap page shows three cards with arrows to slide back over past versions (this page's new layout), and an example project, Example-Project ([ADR 0030](../decisions/0030-example-project.md)), ships in `demo-example-data/` to show every view.
 
 ## Next
 - Use designs on a real project, end to end: a first real design from the Design tab, then a first `/archeion:consume-design` in the project's session. Fix what that finds in PATCH releases.

@@ -126,6 +126,8 @@ def roadmap(state: AppState = Depends(get_state)) -> dict:
     reg = state.sources.registry
     projects = []
     for p in reg.projects.values():
+        if p.demo:
+            continue  # the example project isn't one of the user's (ADR 0030)
         src = state.sources.sources.get(p.id)
         projects.append({"project": p.id, "title": p.title, "roadmap": docs_fs.roadmap(src) if src else None})
     return {"cross": docs_fs.roadmap(state.sources.get("archeion")), "projects": projects}

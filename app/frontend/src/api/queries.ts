@@ -110,6 +110,11 @@ export function useVersion() {
 // --- registry and sources ----------------------------------------------------------------
 
 export const useRegistry = () => useQuery({ queryKey: ['registry'], queryFn: () => api<Registry>('/registry') })
+
+/** The registry without the example project (ADR 0030): what the lists and maps of the user's own projects show. */
+export const withoutDemo = (r: Registry): Registry => ({ ...r, projects: r.projects.filter((p) => !p.demo) })
+export const useUserRegistry = () =>
+  useQuery({ queryKey: ['registry'], queryFn: () => api<Registry>('/registry'), select: withoutDemo })
 export const useSources = () => useQuery({ queryKey: ['sources'], queryFn: () => api<Source[]>('/sources') })
 
 // Keyed under 'registry', so registry.changed refreshes them too (useEvents).

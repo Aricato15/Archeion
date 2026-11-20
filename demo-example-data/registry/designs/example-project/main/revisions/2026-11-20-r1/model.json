@@ -1,0 +1,527 @@
+{
+  "schema": 1,
+  "meta": {
+    "project": "example-project",
+    "date": "2026-11-20",
+    "summary": "A small online bookshop: one FastAPI service with a SQLite file, a web front end, a hosted payment page and an email provider.",
+    "stack": [
+      "python 3.12",
+      "fastapi",
+      "sqlite",
+      "react"
+    ]
+  },
+  "components": [
+    {
+      "id": "web",
+      "cites": [],
+      "name": "Web front end",
+      "kind": "ui",
+      "summary": "The pages readers use.",
+      "paths": [],
+      "tech": "React"
+    },
+    {
+      "id": "shop",
+      "cites": [],
+      "name": "Shop service",
+      "kind": "service",
+      "summary": "The API and the web pages' backend.",
+      "paths": [],
+      "tech": "FastAPI"
+    },
+    {
+      "id": "shop.catalogue",
+      "cites": [],
+      "name": "catalogue",
+      "kind": "module",
+      "parent": "shop",
+      "summary": "Books and search.",
+      "paths": []
+    },
+    {
+      "id": "shop.cart",
+      "cites": [],
+      "name": "cart",
+      "kind": "module",
+      "parent": "shop",
+      "summary": "The reader's cart.",
+      "paths": []
+    },
+    {
+      "id": "shop.checkout",
+      "cites": [],
+      "name": "checkout",
+      "kind": "module",
+      "parent": "shop",
+      "summary": "Orders and the payment callback.",
+      "paths": []
+    },
+    {
+      "id": "shop.receipts",
+      "cites": [],
+      "name": "receipts",
+      "kind": "module",
+      "parent": "shop",
+      "summary": "Emails the receipt.",
+      "paths": []
+    },
+    {
+      "id": "db",
+      "cites": [],
+      "name": "orders.db",
+      "kind": "database",
+      "summary": "",
+      "paths": [],
+      "tech": "SQLite"
+    },
+    {
+      "id": "pay",
+      "cites": [],
+      "name": "Payment provider",
+      "kind": "external",
+      "summary": "Hosted payment page.",
+      "paths": []
+    },
+    {
+      "id": "mail",
+      "cites": [],
+      "name": "Email provider",
+      "kind": "external",
+      "summary": "Sends receipts.",
+      "paths": []
+    }
+  ],
+  "relations": [
+    {
+      "id": "r1",
+      "cites": [],
+      "from": "web",
+      "to": "shop",
+      "kind": "http",
+      "label": "API calls"
+    },
+    {
+      "id": "r2",
+      "cites": [],
+      "from": "shop.catalogue",
+      "to": "db",
+      "kind": "sql",
+      "label": "read books"
+    },
+    {
+      "id": "r3",
+      "cites": [],
+      "from": "shop.cart",
+      "to": "db",
+      "kind": "sql",
+      "label": "read and write carts"
+    },
+    {
+      "id": "r4",
+      "cites": [],
+      "from": "shop.checkout",
+      "to": "db",
+      "kind": "sql",
+      "label": "write orders"
+    },
+    {
+      "id": "r5",
+      "cites": [],
+      "from": "shop.checkout",
+      "to": "pay",
+      "kind": "http",
+      "label": "start a payment"
+    },
+    {
+      "id": "r6",
+      "cites": [],
+      "from": "shop.receipts",
+      "to": "mail",
+      "kind": "http",
+      "label": "send receipt"
+    },
+    {
+      "id": "r7",
+      "cites": [],
+      "from": "shop.checkout",
+      "to": "shop.receipts",
+      "kind": "calls",
+      "label": "order paid"
+    }
+  ],
+  "interfaces": {
+    "exposes": [
+      {
+        "id": "search",
+        "cites": [],
+        "kind": "http",
+        "method": "GET",
+        "path": "/api/books",
+        "handler": "shop.catalogue",
+        "summary": "Search books by title, author or ISBN."
+      },
+      {
+        "id": "add-to-cart",
+        "cites": [],
+        "kind": "http",
+        "method": "POST",
+        "path": "/api/cart/items",
+        "handler": "shop.cart",
+        "summary": "Add a book to the cart."
+      },
+      {
+        "id": "checkout",
+        "cites": [],
+        "kind": "http",
+        "method": "POST",
+        "path": "/api/checkout",
+        "handler": "shop.checkout",
+        "summary": "Turn the cart into an order and return the payment page address."
+      },
+      {
+        "id": "pay-callback",
+        "cites": [],
+        "kind": "http",
+        "method": "POST",
+        "path": "/api/payments/callback",
+        "handler": "shop.checkout",
+        "summary": "The provider says a payment succeeded."
+      }
+    ],
+    "calls": [
+      {
+        "id": "start-payment",
+        "cites": [],
+        "kind": "http",
+        "target_url": "https://payments.example.com/sessions",
+        "method": "POST",
+        "path": "/sessions",
+        "from": "shop.checkout",
+        "summary": ""
+      },
+      {
+        "id": "send-mail",
+        "cites": [],
+        "kind": "http",
+        "target_url": "https://mail.example.com/send",
+        "method": "POST",
+        "path": "/send",
+        "from": "shop.receipts",
+        "summary": ""
+      }
+    ]
+  },
+  "entities": [
+    {
+      "id": "books",
+      "cites": [],
+      "name": "books",
+      "store": "db",
+      "summary": "",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false
+        },
+        {
+          "name": "title",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "author",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "isbn",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "price_cents",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "stock",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "cites": [],
+      "name": "orders",
+      "store": "db",
+      "summary": "",
+      "fields": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "pk": true,
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "total_cents",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "pk": false,
+          "nullable": false
+        }
+      ]
+    },
+    {
+      "id": "order_items",
+      "cites": [],
+      "name": "order_items",
+      "store": "db",
+      "summary": "",
+      "fields": [
+        {
+          "name": "order_id",
+          "type": "INTEGER",
+          "pk": false,
+          "fk": "orders.id",
+          "nullable": false
+        },
+        {
+          "name": "book_id",
+          "type": "INTEGER",
+          "pk": false,
+          "fk": "books.id",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "type": "INTEGER",
+          "pk": false,
+          "nullable": false
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "checkout-flow",
+      "cites": [],
+      "title": "Check out and pay",
+      "summary": "",
+      "trigger": "POST /api/checkout",
+      "participants": [
+        "web",
+        "shop.checkout",
+        "db",
+        "pay",
+        "shop.receipts"
+      ],
+      "steps": [
+        {
+          "from": "web",
+          "to": "shop.checkout",
+          "label": "POST /api/checkout",
+          "reply": false,
+          "async": false
+        },
+        {
+          "from": "shop.checkout",
+          "to": "db",
+          "label": "INSERT order (new)",
+          "reply": false,
+          "async": false
+        },
+        {
+          "from": "shop.checkout",
+          "to": "pay",
+          "label": "start a payment",
+          "reply": false,
+          "async": false
+        },
+        {
+          "from": "pay",
+          "to": "shop.checkout",
+          "label": "payment page address",
+          "reply": true,
+          "async": false
+        },
+        {
+          "from": "shop.checkout",
+          "to": "web",
+          "label": "redirect to the payment page",
+          "reply": true,
+          "async": false
+        },
+        {
+          "from": "pay",
+          "to": "shop.checkout",
+          "label": "callback: paid",
+          "reply": false,
+          "async": true
+        },
+        {
+          "from": "shop.checkout",
+          "to": "db",
+          "label": "UPDATE order (paid)",
+          "reply": false,
+          "async": false
+        },
+        {
+          "from": "shop.checkout",
+          "to": "shop.receipts",
+          "label": "order paid",
+          "reply": false,
+          "async": false
+        }
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "id": "search-books",
+      "cites": [],
+      "title": "Search the catalogue",
+      "summary": "",
+      "nodes": [
+        {
+          "id": "start",
+          "label": "",
+          "kind": "start"
+        },
+        {
+          "id": "query",
+          "label": "read the search text",
+          "kind": "action"
+        },
+        {
+          "id": "isbn",
+          "label": "looks like an ISBN?",
+          "kind": "decision"
+        },
+        {
+          "id": "by-isbn",
+          "label": "match by ISBN",
+          "kind": "action"
+        },
+        {
+          "id": "by-text",
+          "label": "match title and author",
+          "kind": "action"
+        },
+        {
+          "id": "end",
+          "label": "",
+          "kind": "end"
+        }
+      ],
+      "edges": [
+        {
+          "from": "start",
+          "to": "query"
+        },
+        {
+          "from": "query",
+          "to": "isbn"
+        },
+        {
+          "from": "isbn",
+          "to": "by-isbn",
+          "label": "yes"
+        },
+        {
+          "from": "isbn",
+          "to": "by-text",
+          "label": "no"
+        },
+        {
+          "from": "by-isbn",
+          "to": "end"
+        },
+        {
+          "from": "by-text",
+          "to": "end"
+        }
+      ]
+    }
+  ],
+  "states": [
+    {
+      "id": "order-status",
+      "cites": [],
+      "title": "Order",
+      "entity": "orders",
+      "summary": "",
+      "states": [
+        {
+          "id": "new"
+        },
+        {
+          "id": "paid"
+        },
+        {
+          "id": "shipped"
+        },
+        {
+          "id": "cancelled"
+        }
+      ],
+      "initial": "new",
+      "final": [
+        "shipped",
+        "cancelled"
+      ],
+      "transitions": [
+        {
+          "from": "new",
+          "to": "paid",
+          "label": "payment ok"
+        },
+        {
+          "from": "paid",
+          "to": "shipped",
+          "label": "dispatched"
+        },
+        {
+          "from": "new",
+          "to": "cancelled",
+          "label": "abandoned"
+        }
+      ]
+    }
+  ],
+  "findings": [],
+  "questions": [
+    "Which shipping carriers should the shop support at launch?"
+  ],
+  "structure": {
+    "ports": [],
+    "depends_on": [],
+    "kind": "service",
+    "status": "planned"
+  }
+}

@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..paths import ALLOWED_EXT, MARKDOWN_EXT, MAX_FILE_BYTES, DocNotFound, DocPathError, validate_rel_path
+from . import demo
 from .registry import REGISTRY_ID, SELF_ID, Project, Registry, load_registry, unregistered
 from .roots import Roots
 
@@ -182,6 +183,11 @@ class SourceManager:
             SELF_ID: Source(SELF_ID, "Archeion", self.docs_root, SELF_ID),
             REGISTRY_ID: Source(REGISTRY_ID, "Registry (private)", self.registry_root, REGISTRY_ID),
         }
+        if (demo.registry_root(self.repo_root) / "projects").is_dir():
+            # The example project's own registry page and design, read in place (ADR 0030).
+            sources[demo.REGISTRY_SOURCE] = Source(
+                demo.REGISTRY_SOURCE, "Demo registry", demo.registry_root(self.repo_root), REGISTRY_ID
+            )
         for p in reg.projects.values():
             if p.dir is not None:
                 sources[p.id] = Source(p.id, p.title, p.dir, "project", p.docs_dir, p)

@@ -1,0 +1,24 @@
+{
+  "terms": [
+    {
+      "id": "hosted-payment-page",
+      "term": "Hosted payment page",
+      "aliases": [],
+      "definition": "A payment form run by the provider, so card details never reach the shop."
+    },
+    {
+      "id": "receipt",
+      "term": "Receipt",
+      "aliases": [
+        "confirmation"
+      ],
+      "definition": "The email sent once an order is paid."
+    },
+    {
+      "id": "stock-level",
+      "term": "Stock level",
+      "aliases": [],
+      "definition": "How many copies of a book can still be sold. Checkout refuses a book at zero."
+    }
+  ]
+}

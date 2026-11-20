@@ -30,7 +30,7 @@ import {
   useSetProjectType,
   useTree,
 } from '../api/queries'
-import { REGISTRY, locationOf, type Project, type SourceId } from '../api/types'
+import { DEMO_REGISTRY, REGISTRY, locationOf, type Project, type SourceId } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { FeedbackCard } from '../feedback/FeedbackCard'
@@ -237,7 +237,8 @@ export function ProjectPage() {
   const registry = useRegistry()
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
   const project = projects.get(id)
-  const notes = useDoc(REGISTRY, project?.page ?? '', Boolean(project))
+  const pageSource = project?.demo ? DEMO_REGISTRY : REGISTRY
+  const notes = useDoc(pageSource, project?.page ?? '', Boolean(project))
   const available = Boolean(project?.available)
   const tree = useTree(id, available && tab === 'docs')
   const feedback = useFeedbackList({ source: id }, available)
@@ -316,6 +317,11 @@ export function ProjectPage() {
                 {project.parent ? 'sub-project' : 'project'}
               </Badge>
             )}
+            {project.demo && (
+              <Badge variant="filled" color="teal" size="sm" title="Made-up data that ships with Archeion">
+                example
+              </Badge>
+            )}
             {project.needs_restudy && (
               <Badge variant="light" color="orange" size="sm" title="Promoted to a group after its last study">
                 needs restudy
@@ -323,9 +329,16 @@ export function ProjectPage() {
             )}
           </Group>
           {project.summary && <Text c="dimmed">{project.summary}</Text>}
+          {project.demo && (
+            <Alert color="teal" variant="light" mt="xs" title="Example project">
+              Made-up data for show and tell, read from Archeion's committed demo-example-data folder. It's demo
+              data, so nothing you do here is changed, sent to Claude or stored in the database: comments,
+              prompts, design conversations and edits are switched off.
+            </Alert>
+          )}
         </Stack>
         <Group gap="xs">
-          {available && (
+          {available && !project.demo && (
             <Button
               size="xs"
               leftSection={<IconMessagePlus size={14} />}
@@ -334,6 +347,7 @@ export function ProjectPage() {
               Prompt for {project.id}
             </Button>
           )}
+          {!project.demo && (
           <Button
             size="xs"
             variant="default"
@@ -342,17 +356,22 @@ export function ProjectPage() {
           >
             Report
           </Button>
-          <Button
-            size="xs"
-            variant="default"
-            component={Link}
-            to={docUrl(REGISTRY, project.page)}
-            leftSection={<IconFileText size={14} />}
-          >
-            Registry page
-          </Button>
-          <PromoteGroup project={project} />
-          <RemoveProject project={project} onRemoved={() => navigate('/projects')} />
+          )}
+          {!project.demo && (
+            <>
+              <Button
+                size="xs"
+                variant="default"
+                component={Link}
+                to={docUrl(REGISTRY, project.page)}
+                leftSection={<IconFileText size={14} />}
+              >
+                Registry page
+              </Button>
+              <PromoteGroup project={project} />
+              <RemoveProject project={project} onRemoved={() => navigate('/projects')} />
+            </>
+          )}
         </Group>
       </Group>
 
@@ -474,11 +493,11 @@ export function ProjectPage() {
           {notes.data ? (
             <Stack gap="xs">
               <Text size="xs" c="dimmed">
-                From <Anchor component={Link} to={docUrl(REGISTRY, project.page)} size="xs">registry/{project.page}</Anchor> (private):
+                From <Anchor component={Link} to={docUrl(pageSource, project.page)} size="xs">{project.demo ? 'demo-example-data/registry/' : 'registry/'}{project.page}</Anchor>{project.demo ? '' : ' (private)'}:
                 what this project means to the rest of the system. Its own facts stay in its own docs (the other
                 tabs).
               </Text>
-              <MarkdownView content={notes.data.content} docPath={project.page} source={REGISTRY} />
+              <MarkdownView content={notes.data.content} docPath={project.page} source={pageSource} />
             </Stack>
           ) : (
             <Loader size="sm" />

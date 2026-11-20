@@ -1,7 +1,7 @@
 import { Alert, Anchor, Card, Group, Loader, SimpleGrid, Stack, Text, Title } from '@mantine/core'
 import { useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router'
-import { useDoc, useRegistry } from '../api/queries'
+import { useDoc, useUserRegistry } from '../api/queries'
 import { REGISTRY } from '../api/types'
 import { docUrl, projectUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
@@ -11,7 +11,7 @@ import { RegistryMap } from './RegistryMap'
 /** A group (a system of related projects): its page, its generated map, its members. */
 export function GroupPage() {
   const id = useParams().id ?? ''
-  const registry = useRegistry()
+  const registry = useUserRegistry()
   const group = registry.data?.groups.find((g) => g.id === id)
   const page = useDoc(REGISTRY, group?.page ?? '', Boolean(group?.page))
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])

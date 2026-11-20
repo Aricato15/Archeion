@@ -22,6 +22,7 @@ import sqlite3
 from typing import Any
 
 from ..db import iso, utcnow, write_tx
+from . import demo
 
 KINDS = ("prompt", "review", "comment")
 STATUSES = ("open", "in_progress", "answered", "resolved")
@@ -107,6 +108,13 @@ def create(
     """
     if kind not in KINDS:
         raise ValueError(f"kind must be one of {KINDS}")
+    if parent_id is not None:
+        # A follow-up belongs to its thread's root, which says what it's about.
+        root_item = root(conn, parent_id)
+        if demo.touches(root_item.get("source"), root_item.get("anchor")):
+            raise demo.refuse()
+    if demo.touches(source, anchor):
+        raise demo.refuse()
     now = iso(utcnow())
     with write_tx(conn):
         thread_id = None

@@ -33,6 +33,7 @@ from pathlib import Path
 
 import yaml
 
+from . import demo
 from .roots import WORKSPACE, Roots
 
 FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n?", re.S)
@@ -133,6 +134,7 @@ class Project:
     used_by: list[str] = field(default_factory=list)
     members: list[str] = field(default_factory=list)  # a group with a home: its member pages (ADR 0027)
     promoted: str | None = None  # when the project was promoted to a group (ADR 0027)
+    demo: bool = False  # the committed example project (ADR 0030): read-only, never reaches Claude
     # A group promoted after it was studied keeps that study until a newer one is saved (ADR 0027).
     needs_restudy: bool = False
     dir: Path | None = field(default=None, repr=False)
@@ -191,6 +193,13 @@ def _resolve_project_dir(
 ) -> tuple[Path | None, str | None]:
     """Without `root`, `raw` is relative to this repo and must stay in the workspace (ADR
     0006). With `root`, it's relative to that granted folder and must stay in it (ADR 0008)."""
+    if not root and demo.is_demo_path(raw):
+        # The example project lives in this repo (ADR 0030), the one folder here a page may point at.
+        target = (repo_root / raw).resolve()
+        folder = (repo_root / demo.DEMO_DIR).resolve()
+        if not target.is_relative_to(folder):
+            return None, "path points outside the example folder"
+        return (target, None) if target.is_dir() else (None, "path doesn't exist on this machine")
     if re.match(r"^[A-Za-z]:", raw) or raw.startswith(("/", "\\")):
         if root:
             return None, f"path must be relative to the root '{root}' (e.g. my-service)"
@@ -238,11 +247,15 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
             )
 
     projects_dir = registry_root / PROJECTS_DIR
-    pages = sorted(projects_dir.rglob("*.md")) if projects_dir.is_dir() else []
-    for page in pages:
+    pages = [(registry_root, p) for p in sorted(projects_dir.rglob("*.md"))] if projects_dir.is_dir() else []
+    # The example project is read from its own committed folder, never from the private registry (ADR 0030).
+    demo_root = demo.registry_root(repo_root)
+    if (demo_root / PROJECTS_DIR).is_dir():
+        pages += [(demo_root, p) for p in sorted((demo_root / PROJECTS_DIR).rglob("*.md"))]
+    for base, page in pages:
         if page.name.lower() == "readme.md" or any(x.startswith((".", "_")) for x in page.parts[-3:]):
             continue
-        rel = page.relative_to(registry_root).as_posix()
+        rel = page.relative_to(base).as_posix()
         meta, body, err = split_frontmatter(page.read_text(encoding="utf-8", errors="replace"))
         if err:
             reg.warn(rel, err)
@@ -293,6 +306,7 @@ def load_registry(registry_root: Path, repo_root: Path, roots: Roots | Path) -> 
             verified=str(verified) if verified else None,
             summary=_summary_of(body),
             promoted=_stamp(meta.get("promoted")),
+            demo=bool(meta.get("path")) and demo.is_demo_path(str(meta["path"])),
         )
         if project.path:
             project.dir, problem = _resolve_project_dir(repo_root, roots, project.path, project.root)

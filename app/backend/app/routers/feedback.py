@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..deps import AppState, get_conn, get_state
 from ..paths import MARKDOWN_EXT, validate_rel_path
+from ..services import demo, git
 from ..services import feedback as fb
-from ..services import git
 
 router = APIRouter(prefix="/api/feedback")
 
@@ -96,6 +96,8 @@ def create(
         source_id = root["source"]
         if item.doc_path is None:
             doc_path = root["doc_path"]
+    if demo.touches(source_id, item.anchor.model_dump(exclude_none=True) if item.anchor else None):
+        raise demo.refuse()  # the example project never reaches the database (ADR 0030)
     src = state.sources.get(source_id or "archeion")
     if item.doc_path is not None:
         src.resolve(item.doc_path, allowed={MARKDOWN_EXT})

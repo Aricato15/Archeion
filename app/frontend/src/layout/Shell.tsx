@@ -24,6 +24,7 @@ import {
   IconLogout,
   IconMessages,
   IconMoon,
+  IconPresentation,
   IconRoad,
   IconRoute,
   IconSearch,
@@ -34,11 +35,11 @@ import {
 } from '@tabler/icons-react'
 import { useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
-import { useLogout, useRegistry, useTree, useVersion } from '../api/queries'
+import { useLogout, useRegistry, useTree, useUserRegistry, useVersion } from '../api/queries'
 import { REGISTRY, SELF } from '../api/types'
 import { InboxTerminalBadge } from '../runner/InboxTerminal'
 import { OnDemandBadge } from '../runner/OnDemand'
-import { DEFAULT_LINKS, LinkContextValue, type LinkContext } from '../docs/links'
+import { DEFAULT_LINKS, LinkContextValue, projectUrl, type LinkContext } from '../docs/links'
 import { useEvents } from '../events/useEvents'
 import { DocTree } from './DocTree'
 import { FeedbackBadge } from './FeedbackBadge'
@@ -97,13 +98,15 @@ export function Shell() {
   const logout = useLogout()
   const tree = useTree(SELF)
   const registryTree = useTree(REGISTRY)
-  const registry = useRegistry()
+  const registry = useUserRegistry()
+  const everything = useRegistry() // with the example project, which still needs its links (ADR 0030)
+  const demoProject = everything.data?.projects.find((p) => p.demo)
   // Where every source lives, so links between docs of different projects resolve (links.ts).
   const links = useMemo<LinkContext>(() => {
     const bases = { ...DEFAULT_LINKS.bases }
-    for (const p of registry.data?.projects ?? []) if (p.path && p.available) bases[p.id] = p.path
+    for (const p of everything.data?.projects ?? []) if (p.path && p.available) bases[p.id] = p.path
     return { bases }
-  }, [registry.data])
+  }, [everything.data])
   const version = useVersion()
   const { setColorScheme } = useMantineColorScheme()
   const scheme = useComputedColorScheme('light')
@@ -209,6 +212,17 @@ export function Shell() {
             {NAV.map((item) => (
               <NavItem key={item.to} item={item} pathname={location.pathname} onClick={close} />
             ))}
+            {demoProject && (
+              <NavLink
+                component={Link}
+                to={projectUrl(demoProject.id)}
+                label="Demo"
+                description="Example-Project, demo data"
+                leftSection={<IconPresentation size={16} />}
+                active={location.pathname === projectUrl(demoProject.id)}
+                onClick={close}
+              />
+            )}
           </SideSection>
           <SideSection color="violet" label="registry/ (private)">
             {registryTree.data && registryTree.data.children?.length ? (

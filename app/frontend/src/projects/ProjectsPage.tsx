@@ -2,7 +2,7 @@ import { Alert, Anchor, Card, Code, Group, List, Loader, SimpleGrid, Stack, Text
 import { IconAlertTriangle, IconFolderPlus } from '@tabler/icons-react'
 import { useMemo } from 'react'
 import { Link } from 'react-router'
-import { useRegistry } from '../api/queries'
+import { useUserRegistry } from '../api/queries'
 import { REGISTRY, locationOf, type Project, type Registry } from '../api/types'
 import { docUrl, projectUrl } from '../docs/links'
 import { NewProject } from './NewProject'
@@ -76,7 +76,7 @@ const tops = (ids: string[], projects: Map<string, Project>) =>
   ids.filter((id) => !projects.get(id)?.parent).sort()
 
 export function ProjectsPage() {
-  const registry = useRegistry()
+  const registry = useUserRegistry()
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
   if (registry.isPending) return <Loader />
   if (registry.isError) return <Alert color="red">{registry.error.message}</Alert>

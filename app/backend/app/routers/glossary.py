@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, Field
 
 from ..deps import AppState, get_state
+from ..services import demo
 from ..services import glossary as gl
 
-router = APIRouter(prefix="/api/glossary")
+router = APIRouter(prefix="/api/glossary", dependencies=[Depends(demo.read_only)])
 
 ProjectParam = Path(max_length=64, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 TermParam = Path(max_length=140, pattern=r"^[a-z0-9][a-z0-9-]*$")
@@ -28,7 +29,7 @@ def _check(state: AppState, project: str) -> None:
 @router.get("/{project}")
 def terms(project: str = ProjectParam, state: AppState = Depends(get_state)) -> list[dict]:
     _check(state, project)
-    return gl.load(state.settings.registry_root, project)
+    return gl.load(demo.root_for(state.settings, project), project)
 
 
 @router.post("/{project}", status_code=201)

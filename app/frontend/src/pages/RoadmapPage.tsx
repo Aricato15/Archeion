@@ -2,7 +2,7 @@ import { ActionIcon, Alert, Anchor, Badge, Card, Group, List, Loader, Select, Si
 import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { useRegistry, useRoadmap } from '../api/queries'
+import { useUserRegistry, useRoadmap } from '../api/queries'
 import { SELF, type RoadmapDoc, type RoadmapItem, type SourceId } from '../api/types'
 import { docUrl, projectUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
@@ -86,7 +86,7 @@ function Board({ roadmap, source }: { roadmap: RoadmapDoc; source: SourceId }) {
 /** The cross-project roadmap, then each project's own (filterable by group or project). */
 export function RoadmapPage() {
   const roadmap = useRoadmap()
-  const registry = useRegistry()
+  const registry = useUserRegistry()
   const [params, setParams] = useSearchParams()
   const filter = params.get('show') ?? 'all'
   const projects = useMemo(() => new Map((registry.data?.projects ?? []).map((p) => [p.id, p])), [registry.data])
