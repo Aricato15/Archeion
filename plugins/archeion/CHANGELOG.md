@@ -4,6 +4,14 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-20
+
+### Added
+- `/archeion:design-consumed`: tells Archeion on its own that a design revision was consumed (`design consumed`, then a report in the handoff thread, resolving it). It reads `slug`, `revision`, `thread` and `reported` from the receipt, so it can be run again whenever the report didn't get through. `/archeion:consume-design` now writes those lines in the receipt and calls this skill as its last step.
+
+### Fixed
+- `/archeion:consume-design` now spells out the launcher command for its last step (`design consumed`, the thread report). It used to give only the sub-commands, so a session could call Archeion's own `archeion.ps1` directly, hit PowerShell's execution policy and skip telling Archeion. Update the plugin (`/plugin marketplace update archeion`) and open a new session.
+
 ## [0.5.0] - 2026-11-20
 
 ### Added

@@ -38,6 +38,7 @@ Or just ask in plain words: "register the new project in my workspace", "check t
 | `/archeion:context` | Where this project sits: its group, what it depends on, what uses it, its ports |
 | `/archeion:ports` | The ports every project uses, before you pick a new one |
 | `/archeion:consume-design` | Turns a design package that Archeion delivered into `.archeion/designs/` into this project's docs: the design, its decisions as ADRs, the plan and the generated roadmap in `ROADMAP.md` and additions to `CLAUDE.md`. It shows what it will write and asks first, never commits, and does nothing at all when there's no package ([ADR 0022](../decisions/0022-design-and-plan-a-project.md)) |
+| `/archeion:design-consumed` | Tells Archeion a design revision was consumed: marks it handed off and reports in the handoff thread. `/archeion:consume-design` runs it at the end; run it on its own when that report didn't get through ([ADR 0022](../decisions/0022-design-and-plan-a-project.md)) |
 | `/archeion:notify` | Tells Archeion about a change the registry needs (a port, a dependency, a rename), or asks it a question. A notice about something already sent, or an answer to Archeion's reply, carries on that thread. It was `/archeion:report` before plugin 0.4.0, and is not Archeion's own `/report`, which makes a PDF |
 
 A project session never edits Archeion's registry. It reports, and Archeion's session makes the change.
