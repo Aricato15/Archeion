@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel
 
 from ..deps import AppState, get_conn, get_state
+from ..services import design_checklist as ck
 from ..services import design_checks as checks
 from ..services import designs as dz
 from ..services import feedback as fb
@@ -245,3 +246,131 @@ def built(project: str = ProjectParam, slug: str = SlugParam, state: AppState = 
         return {"studied": None, "sections": {}}
     built_model, problems = st.load(snaps[0])
     return checks.built_vs_designed(model, None if problems else built_model, snaps[0].id)
+
+
+# --- the checklist (ADR 0029) -------------------------------------------------------------
+
+
+def _checklist(ref: dz.DesignRef) -> ck.Checklist:
+    try:
+        return ck.load(ref.folder)
+    except ck.ChecklistError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+def _view(cl: ck.Checklist) -> dict:
+    return {**cl.model_dump(), "counts": ck.counts(cl)}
+
+
+@router.get("/{project}/{slug}/checklist")
+def get_checklist(
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    revision: str | None = Query(None, max_length=20, pattern=r"^(latest|r?\d+)$"),
+    state: AppState = Depends(get_state),
+) -> dict:
+    """The working checklist, or the one frozen in a revision (which has nothing pending)."""
+    ref = _ref(state, project, slug)
+    folder = ref.folder
+    if revision:
+        try:
+            _, folder = dz.revision_folder(ref, revision)
+        except dz.DesignNotFound as exc:
+            raise HTTPException(404, str(exc)) from None
+    try:
+        return _view(ck.load(folder))
+    except ck.ChecklistError as exc:
+        raise HTTPException(422, str(exc)) from None
+
+
+class ChangeIn(BaseModel):
+    op: Literal["add", "update", "remove"]
+    item: str | None = None
+    fields: dict = {}
+    reason: str = ""
+
+
+class StageIn2(BaseModel):
+    changes: list[ChangeIn]
+
+
+@router.post("/{project}/{slug}/checklist/changes", status_code=201)
+def stage_changes(
+    body: StageIn2,
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    state: AppState = Depends(get_state),
+) -> dict:
+    """The user stages their own changes (they start accepted; Confirm applies them)."""
+    ref = _ref(state, project, slug)
+    cl = ck.stage(_checklist(ref), [c.model_dump() for c in body.changes], by="user")
+    ck.write(ref.folder, cl)
+    return _view(cl)
+
+
+class DecideIn(BaseModel):
+    state: Literal["pending", "accepted", "rejected"] | None = None
+    comment: str | None = None
+
+
+@router.put("/{project}/{slug}/checklist/changes/{change}")
+def decide_change(
+    body: DecideIn,
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    change: str = Path(pattern=r"^p\d{1,5}$"),
+    state: AppState = Depends(get_state),
+) -> dict:
+    """Accept, reject or reopen a staged change, and/or add a comment to it."""
+    ref = _ref(state, project, slug)
+    cl = ck.decide(_checklist(ref), change, state=body.state, comment=body.comment, by="user")
+    ck.write(ref.folder, cl)
+    return _view(cl)
+
+
+@router.delete("/{project}/{slug}/checklist/changes/{change}")
+def discard_change(
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    change: str = Path(pattern=r"^p\d{1,5}$"),
+    state: AppState = Depends(get_state),
+) -> dict:
+    ref = _ref(state, project, slug)
+    cl = ck.discard(_checklist(ref), change)
+    ck.write(ref.folder, cl)
+    return _view(cl)
+
+
+@router.post("/{project}/{slug}/checklist/confirm")
+def confirm_checklist(
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    state: AppState = Depends(get_state),
+) -> dict:
+    """Apply every accepted change. Changes still pending stay for the next round."""
+    ref = _ref(state, project, slug)
+    cl, applied = ck.confirm(_checklist(ref))
+    ck.write(ref.folder, cl)
+    return {**_view(cl), "applied": applied}
+
+
+@router.get("/{project}/{slug}/roadmap")
+def get_roadmap(
+    project: str = ProjectParam,
+    slug: str = SlugParam,
+    revision: str | None = Query(None, max_length=20, pattern=r"^(latest|r?\d+)$"),
+    state: AppState = Depends(get_state),
+) -> dict:
+    """The roadmap generated from the confirmed checklist (the working copy's, or a revision's)."""
+    ref = _ref(state, project, slug)
+    folder = ref.folder
+    if revision:
+        try:
+            _, folder = dz.revision_folder(ref, revision)
+        except dz.DesignNotFound as exc:
+            raise HTTPException(404, str(exc)) from None
+    try:
+        cl = ck.load(folder)
+    except ck.ChecklistError as exc:
+        raise HTTPException(422, str(exc)) from None
+    return {**ck.roadmap(cl), "markdown": ck.roadmap_markdown(cl)}

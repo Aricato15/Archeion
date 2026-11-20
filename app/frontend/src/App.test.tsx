@@ -184,11 +184,14 @@ function mockApi(loggedIn: boolean, firstRun = false, noRoots = false) {
         now: [{ text: 'Build the viewer, see [plan](plan.md).', links: [] }],
         next: [],
         later: [],
+        releases: [
+          { version: '1.0.0', date: '2026-11-16', title: '1.0.0 (2026-11-16)', items: [{ text: 'Shipped studies', links: [] }] },
+        ],
         structured: true,
         plans: [{ path: 'roadmap/plan.md', title: 'The plan', date: '2026-11-15' }],
       },
       projects: [
-        { project: 'gateway', title: 'gateway', roadmap: { path: 'docs/roadmap.md', updated: null, now: [{ text: 'Ship routes', links: [] }], next: [], later: [], structured: true, plans: [] } },
+        { project: 'gateway', title: 'gateway', roadmap: { path: 'docs/roadmap.md', updated: null, now: [{ text: 'Ship routes', links: [] }], next: [], later: [], releases: [], structured: true, plans: [] } },
         { project: 'datasvc', title: 'datasvc', roadmap: null },
       ],
     },
@@ -361,6 +364,19 @@ describe('app', () => {
     expect(await screen.findByText('The plan')).toBeTruthy()
     expect(screen.getByText('Ship routes')).toBeTruthy()
     expect(screen.getByText(/No roadmap of their own/)).toBeTruthy()
+  })
+
+  it('slides a three-card window back over released versions', async () => {
+    mockApi(true)
+    renderAt('/roadmap')
+    const older = (await screen.findAllByLabelText('Older versions'))[0]
+    expect(screen.queryByText('Shipped studies')).toBeNull()
+    fireEvent.click(older)
+    expect(await screen.findByText('Shipped studies')).toBeTruthy()
+    expect(screen.getByText('1.0.0')).toBeTruthy()
+    fireEvent.click(screen.getAllByLabelText('Newer versions')[0])
+    expect(await screen.findAllByText('Later')).toBeTruthy()
+    expect(screen.queryByText('Shipped studies')).toBeNull()
   })
 
   it('renders the feedback list with project badges', async () => {

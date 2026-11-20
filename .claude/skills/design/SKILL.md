@@ -25,12 +25,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/archeion.ps1 <comman
 | `design save <p> [--slug s] --dir <folder> [--thread n]` | replace the working copy with the folder's files (files the folder lacks stay as they are). The only way a design is written |
 | `design stage <p> brief\|architecture\|plan` | **only when the user asks** |
 | `design approve <p> [--slug s] [--yes] [--no-registry]` | without `--yes`: shows the revision and the registry lines it would change, and changes nothing |
+| `design checklist show <p> [--slug s] [--json]` | the items and the changes waiting for the user's review, with their comments |
+| `design checklist propose <p> [--slug s] --file <json>` | stage changes for the user to review. **Never applies them** |
+| `design checklist roadmap <p> [--slug s] [--revision n]` | the roadmap generated from the confirmed items (Markdown, or `--json`) |
 | `design handoff <p> [--slug s]` | asks Archeion's `/inbox` to deliver the latest revision to the project |
 | `projects scan`, `projects show`, `projects inbox-edits <p> on\|off\|auto`, `projects ports` | the registry |
 | `study list <p>`, `study show <p> --json` | whether the project has been studied, and what it exposes |
 
 ## Hard rules
 - **The user moves the stages and approves.** Never run `design stage` or `design approve --yes` unless they said to, in the thread or the chat. Propose the move instead ("I think the brief is ready").
+- **You propose the checklist, the user confirms it.** Never run `design checklist confirm` or `decide`, and never write `checklist.json`. Stage changes with `design checklist propose`. See the checklist section below.
 - **Never write into `registry/designs/` yourself.** Write files in your scratchpad and `design save` them.
 - **Nothing about a project goes into Archeion's committed files** (ADR 0007). Designs are in the private `registry/`.
 - **No secrets and no absolute paths** in anything you write. Paths are relative to the project. `design save` refuses both.
@@ -59,6 +63,15 @@ Run `design preflight <p> --json` first, every time. Never send the user to a me
 7. **Approve** (when the user says so): run `design approve <p>` and show them the registry lines it would change. On a yes, `design approve <p> --yes`. Then offer the handoff.
 8. **Hand off** (when the user says so): `design preflight <p> --for handoff`; fix what it reports (typically `projects inbox-edits <p> on`, after asking); then `design handoff <p>`. It creates an inbox thread for Archeion, which `/inbox` carries out by delivering the package into the project's `.archeion/designs/<slug>/`. Tell the user to run `/archeion:consume-design` in the project's own session.
 
+## The checklist (ADR 0029)
+The checklist is the list of what you and the user have agreed: features, ideas, decisions, tasks and open questions, each with a status (`idea`, `decided`, `doing`, `done`, `dropped`). The roadmap is generated from the confirmed items, so a stale or invented checklist makes a wrong roadmap.
+- **Start of every round:** `design checklist show <p> --json`. Read the staged changes and their comments first: the user's comments are instructions for you to interpret.
+- **Propose, in the same round you learn it.** When a conversation settles a feature or a decision, or raises an idea, write a JSON list of changes in your scratchpad and run `design checklist propose <p> --file <it>`. A change is `{"op": "add", "fields": {"title", "note", "kind", "status", "phase", "priority", "refs", "depends_on"}, "reason": "..."}`, `{"op": "update", "item": "c3", "fields": {...}, "reason": "..."}` or `{"op": "remove", "item": "c3", "reason": "..."}`. Give a `reason` every time, in the user's terms. `phase` names a phase of `plan.md`. Mark something `decided` only when the user decided it; otherwise it's an `idea`.
+- **Answer comments by revising.** Propose again for the same item and side: it replaces your earlier staged change and keeps the comments. Say in the reply what you changed because of which comment.
+- **Never confirm.** Accepting, rejecting and confirming are the user's. A change they rejected stays rejected: don't propose it again unless they raise it.
+- **Mark things done only from evidence** (a `/study` shows the component, `/archeion:notify` said it was built): propose `done` with that as the reason.
+- Keep it short: a handful of well-worded items per round, not every thought. The item is a title and one line of note.
+
 ## Conversation mode (inbox threads)
 `inbox show` prints `task: a design of <p> '<slug>' (ADR 0022)` for a design thread started by **Ask Claude to design** on the Design tab. Each message is one round, and nobody may be at the terminal:
 - **First round:** preflight (fix what you can; if you must ask, ask in the reply and stop). `design init <p> --slug <s> --thread <thread id>` if there's no design. Read the context and write the brief. Save it. Reply with what you understood, what you drafted and **numbered questions**.
@@ -66,6 +79,7 @@ Run `design preflight <p> --json` first, every time. Never send the user to a me
 - **Comments on design docs** (an inbox item anchored to a doc under `designs/<p>/<slug>/` in the registry source) are answered the same way: edit the content through a work folder and `design save`, then reply.
 - **When the user approves** ("approve", "looks good, approve it"), run steps 7. **When they ask to hand off**, step 8. Never on your own.
 - Keep each reply short. The detail belongs in the files, which the Design tab shows.
+- **Checklist review messages** ("Checklist review. Please revise the staged changes below...") come from the Design tab's **Send comments to Claude**. Read the comments on each change, revise with `design checklist propose`, and reply with what you changed.
 - An on-demand run can't approve arbitrary commands. Use the design, projects and study commands, read files, and write to your scratchpad and `registry/`. If something needs more, say so.
 
 ## Handoff tasks (for `/inbox`)

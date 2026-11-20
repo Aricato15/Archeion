@@ -29,7 +29,18 @@ import type {
   SourceId,
   TreeNode,
 } from './types'
-import type { Approval, BuiltVsDesigned, DesignFull, DesignRow, Impact, Preflight } from './design'
+import type {
+  Approval,
+  BuiltVsDesigned,
+  Checklist,
+  ChecklistConfirmed,
+  DesignFull,
+  DesignRoadmap,
+  DesignRow,
+  Impact,
+  NewChange,
+  Preflight,
+} from './design'
 import type { ComposedStudy, SnapshotFull, SnapshotRow, StudyDiff, StudyHit, SystemLinks } from './study'
 
 // --- session ---------------------------------------------------------------------------
@@ -481,6 +492,36 @@ export const useApproveDesign = (project: string, slug: string) =>
 
 export const useHandoffDesign = (project: string, slug: string) =>
   useDesignMutation(() => api<FeedbackItem>(`${designPath(project, slug)}/handoff`, { method: 'POST' }))
+
+export const useChecklist = (project: string, slug: string, revision: number | null) =>
+  useQuery({
+    queryKey: ['designs', project, 'checklist', slug, revision],
+    queryFn: () => api<Checklist>(`${designPath(project, slug)}/checklist${qs({ revision: revision ?? undefined })}`),
+  })
+
+export const useDesignRoadmap = (project: string, slug: string, revision: number | null) =>
+  useQuery({
+    queryKey: ['designs', project, 'roadmap', slug, revision],
+    queryFn: () => api<DesignRoadmap>(`${designPath(project, slug)}/roadmap${qs({ revision: revision ?? undefined })}`),
+  })
+
+export const useStageChecklist = (project: string, slug: string) =>
+  useDesignMutation((changes: NewChange[]) =>
+    api<Checklist>(`${designPath(project, slug)}/checklist/changes`, { method: 'POST', json: { changes } }),
+  )
+
+export const useDecideChange = (project: string, slug: string) =>
+  useDesignMutation(({ id, ...body }: { id: string; state?: 'pending' | 'accepted' | 'rejected'; comment?: string }) =>
+    api<Checklist>(`${designPath(project, slug)}/checklist/changes/${id}`, { method: 'PUT', json: body }),
+  )
+
+export const useDiscardChange = (project: string, slug: string) =>
+  useDesignMutation((id: string) =>
+    api<Checklist>(`${designPath(project, slug)}/checklist/changes/${id}`, { method: 'DELETE' }),
+  )
+
+export const useConfirmChecklist = (project: string, slug: string) =>
+  useDesignMutation(() => api<ChecklistConfirmed>(`${designPath(project, slug)}/checklist/confirm`, { method: 'POST' }))
 
 export const useDesignImpact = (project: string, slug: string) =>
   useQuery({

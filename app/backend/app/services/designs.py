@@ -27,6 +27,7 @@ DESIGNS_DIR = "designs"
 MODEL_FILE = "model.json"
 INFO_FILE = "info.json"
 INDEX_FILE = "design.md"
+CHECKLIST_FILE = "checklist.json"
 PROSE_FILES = ("brief.md", "architecture.md", "plan.md", "questions.md")
 DECISIONS_DIR = "decisions"
 REVISIONS_DIR = "revisions"
@@ -314,6 +315,12 @@ def summary(ref: DesignRef) -> dict:
     files = read_files(ref.folder)
     meta = model.get("meta", {}) if isinstance(model, dict) else {}
     revs = revisions(ref)
+    from . import design_checklist as ck  # imported here: it imports this module
+
+    try:
+        checklist = ck.counts(ck.load(ref.folder))
+    except ck.ChecklistError:
+        checklist = {"total": 0, "done": 0, "pending": 0, "staged": 0}
     return {
         "project": ref.project,
         "slug": ref.slug,
@@ -335,6 +342,7 @@ def summary(ref: DesignRef) -> dict:
             "flows": len(model.get("flows", []) or []),
         },
         "structure": model.get("structure", {}) if isinstance(model, dict) else {},
+        "checklist": checklist,
     }
 
 
@@ -361,6 +369,9 @@ def _write_tree(target: Path, files: dict[str, str], model: dict, info: dict, ke
     for sub in keep:
         if (target / sub).is_dir():
             shutil.copytree(target / sub, tmp / sub)
+    # The checklist (ADR 0029) has its own writer; a save of the design never touches it.
+    if (target / CHECKLIST_FILE).is_file():
+        shutil.copy2(target / CHECKLIST_FILE, tmp / CHECKLIST_FILE)
     (tmp / INDEX_FILE).write_text(
         render_index(target.parent.name, target.name, info, model), encoding="utf-8"
     )
@@ -554,6 +565,7 @@ def approve(ref: DesignRef, registry=None, ports_taken=None) -> dict:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(text, encoding="utf-8")
     shutil.copy2(ref.folder / MODEL_FILE, tmp / MODEL_FILE)
+    _freeze_checklist(ref.folder, tmp)
     (tmp / INFO_FILE).write_text(json.dumps({"approved": _now()}) + "\n", encoding="utf-8")
     tmp.rename(target)
     info.update(stage="approved", revision=n, updated=_now(), changed_since_revision=False)
@@ -561,6 +573,22 @@ def approve(ref: DesignRef, registry=None, ports_taken=None) -> dict:
     (ref.folder / INFO_FILE).write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
     (ref.folder / INDEX_FILE).write_text(render_index(ref.project, ref.slug, info, model), encoding="utf-8")
     return {"id": rid, "number": n, "model": model}
+
+
+def _freeze_checklist(folder: Path, target: Path) -> None:
+    """The confirmed items go into the revision. Changes still waiting for review don't (ADR 0029)."""
+    from . import design_checklist as ck
+
+    try:
+        cl = ck.load(folder)
+    except ck.ChecklistError:
+        return
+    if not (cl.items or cl.log):
+        return
+    cl.pending = []
+    (target / CHECKLIST_FILE).write_text(
+        json.dumps(cl.model_dump(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def delete(ref: DesignRef) -> None:
@@ -584,6 +612,15 @@ def package_files(ref: DesignRef, which: str | int | None = None) -> tuple[dict,
         "thread": ref.info().get("thread"),
     }
     files[HANDOFF_FILE] = json.dumps(handoff, indent=2) + "\n"
+    from . import design_checklist as ck
+
+    try:
+        frozen = ck.load(folder)
+    except ck.ChecklistError:
+        frozen = ck.empty()
+    if frozen.items:
+        files[CHECKLIST_FILE] = (folder / CHECKLIST_FILE).read_text(encoding="utf-8")
+        files["roadmap.md"] = ck.roadmap_markdown(frozen)
     return rev, files
 
 

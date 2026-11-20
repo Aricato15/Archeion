@@ -36,12 +36,14 @@ export type DiffResult = { source: SourceId; path: string; rev: string; diff: st
 export type DocAt = { source: SourceId; path: string; rev: string; content: string }
 
 export type RoadmapItem = { text: string; links: { label: string; path: string }[] }
+export type RoadmapRelease = { version: string; date: string | null; title: string; items: RoadmapItem[] }
 export type RoadmapDoc = {
   path: string
   updated: string | null
   now: RoadmapItem[]
   next: RoadmapItem[]
   later: RoadmapItem[]
+  releases: RoadmapRelease[]
   structured: boolean
   plans: { path: string; title: string; date: string | null }[]
 }

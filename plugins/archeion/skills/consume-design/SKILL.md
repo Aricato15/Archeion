@@ -21,6 +21,7 @@ The user designed this project in Archeion (its **Design** tab), approved a revi
 | `brief.md` | purpose, users, scope, non-goals |
 | `architecture.md`, `model.json` | the intended system: components, interfaces, data, flows, and a `structure` block (ports, `depends_on`, kind) |
 | `plan.md` | phases with dates |
+| `roadmap.md`, `checklist.json` | only when the design has a checklist: the roadmap generated from the confirmed items (Now / Next / Later / Done) and the items it came from, with their history |
 | `decisions/NNNN-title.md` | the decisions, in ADR shape |
 | `questions.md` | what was still open |
 | `receipt.md` | only after an earlier consume: what it wrote (revision, date, files) |
@@ -35,13 +36,13 @@ The user designed this project in Archeion (its **Design** tab), approved a revi
 4. **Plan and confirm** (skip the asking with `--yes`, but still show it). Show the user, as a list:
    - **Design doc:** where it goes (whatever `CLAUDE.md` says, else `docs/design.md`), written from `brief.md` and `architecture.md` with the diagrams kept.
    - **Decisions:** each `decisions/*.md` as an ADR in the project's decisions folder, with the next free numbers (renumbered, links fixed), dated today, status `Accepted`.
-   - **Plan:** the phases into `ROADMAP.md` (or the project's equivalent), with their dates.
+   - **Plan:** the phases into `ROADMAP.md` (or the project's equivalent), with their dates. When the package has a `roadmap.md`, its Now / Next / Later items go into the same file, in the project's own layout (its `ROADMAP.md` may already use sections, and it keeps them). Items under Done are history, not tasks: add them only if the project keeps a done list. `checklist.json` is for you to read, not to copy.
    - **CLAUDE.md:** the additions, as before/after: tech stack, the port (and where it's configured, never hard-coded), commands once known, conventions the design sets. Nothing the file already says is repeated.
    - **Open questions** from `questions.md`, and every mismatch from step 3.
    Wait for a yes. Anything they change, apply.
 5. **Write** exactly what was confirmed. Follow the project's own rules: its doc layout, ADR format, commit conventions (you never commit), contained environments, port ranges and database rules in the workspace `CLAUDE.md`. One fact lives in one place: the design doc links to the ADRs and the roadmap instead of repeating them. Don't name Archeion's registry or other projects' internals beyond what the design itself says about their interfaces.
 6. **Check.** Run the project's tests and linters as its `CLAUDE.md` says, if the docs change could affect them, and check that relative links in what you wrote resolve. Report failures as they are.
-7. **Leave a receipt.** Remove the package's copied content (`handoff.json`, `brief.md`, `architecture.md`, `model.json`, `plan.md`, `questions.md`, `decisions/`) from `.archeion/designs/<slug>/` and write `receipt.md` there: revision, today's date, and each file you created or changed. The receipt's job is to make a later revision a change instead of a rewrite. Keep `.archeion/` out of the project's commits unless the user wants it in; say which you did.
+7. **Leave a receipt.** Remove the package's copied content (`handoff.json`, `brief.md`, `architecture.md`, `model.json`, `plan.md`, `questions.md`, `roadmap.md`, `checklist.json`, `decisions/`) from `.archeion/designs/<slug>/` and write `receipt.md` there: revision, today's date, and each file you created or changed. The receipt's job is to make a later revision a change instead of a rewrite. Keep `.archeion/` out of the project's commits unless the user wants it in; say which you did.
 8. **Tell Archeion** (best effort; if Archeion can't be found, or is too old to have `design consumed`, say so and skip this: the project's docs are already done):
    1. `projects show --here --json` for this project's id.
    2. `design consumed <project> --slug <slug> --revision <n>`: the design becomes *handed off* in the Design tab.
@@ -52,7 +53,7 @@ The user designed this project in Archeion (its **Design** tab), approved a revi
 The user changed the design in Archeion and handed off the new revision. Treat it as a change against what the receipt lists:
 - Read the files the receipt names, as they are now. The project may have moved on since, so the project's current docs win where the package would overwrite finished work: show the difference and ask.
 - **Decisions:** a new decision gets a new ADR. One that changes an earlier decision gets a new ADR that supersedes it, and the old ADR's status line is set to `Superseded by NNNN`. Never rewrite an accepted ADR's body.
-- **Plan:** update `ROADMAP.md`, keeping phases already done, and say which are new, moved or dropped.
+- **Plan:** update `ROADMAP.md`, keeping phases already done, and say which are new, moved or dropped. With a `roadmap.md`, compare its items with the project's own: an item that moved column, finished or was dropped is a change to show.
 - **CLAUDE.md:** only what changed.
 - Write a new `receipt.md` that lists this revision above the earlier one.
 

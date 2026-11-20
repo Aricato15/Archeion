@@ -162,8 +162,18 @@ def _resolve_link(from_rel: str, href: str) -> str | None:
 
 def parse_roadmap(content: str, rel: str) -> dict:
     """Now / Next / Later items (and the _Last updated_ line) of a roadmap doc."""
-    result: dict = {"path": rel, "updated": None, "now": [], "next": [], "later": [], "structured": False}
+    result: dict = {
+        "path": rel,
+        "updated": None,
+        "now": [],
+        "next": [],
+        "later": [],
+        "releases": [],
+        "structured": False,
+    }
     section: str | None = None
+    release: dict | None = None
+    in_released = False
     for line in content.splitlines():
         m = re.match(r"^_Last updated:\s*(.+?)_\s*$", line.strip())
         if m:
@@ -172,19 +182,40 @@ def parse_roadmap(content: str, rel: str) -> dict:
         h = re.match(r"^##\s+(Now|Next|Later)\s*$", line.strip(), re.I)
         if h:
             section = h.group(1).lower()
+            in_released = False
+            release = None
+            result["structured"] = True
+            continue
+        if re.match(r"^##\s+Released\s*$", line.strip(), re.I):
+            section, release, in_released = None, None, True
             result["structured"] = True
             continue
         if line.startswith("## "):
-            section = None
+            section, release, in_released = None, None, False
             continue
-        if section and re.match(r"^[-*]\s+", line):
+        if in_released and line.startswith("### "):
+            title = line[4:].strip()
+            v = re.match(r"^v?(\d+\.\d+\.\d+)\s*(?:[(\-–—,]\s*(\d{4}-\d{2}-\d{2})\)?)?", title)
+            release = {
+                "version": v.group(1) if v else title,
+                "date": v.group(2) if v else None,
+                "title": title,
+                "items": [],
+            }
+            result["releases"].append(release)
+            continue
+        if (section or release is not None) and re.match(r"^[-*]\s+", line):
             text = re.sub(r"^[-*]\s+", "", line).strip()
             links = []
             for label, href in LINK_RE.findall(text):
                 target = _resolve_link(rel, href)
                 if target:
                     links.append({"label": label, "path": target})
-            result[section].append({"text": text, "links": links})
+            item = {"text": text, "links": links}
+            if release is not None:
+                release["items"].append(item)
+            elif section:
+                result[section].append(item)
     return result
 
 

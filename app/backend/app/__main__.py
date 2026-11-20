@@ -18,6 +18,7 @@ from .config import Settings, read_version
 from .db import Database
 from .paths import DocNotFound, DocPathError
 from .security import MIN_PW_LEN, clear_sessions, pw_is_set, set_pw
+from .services import design_checklist as ck
 from .services import designs as dz
 from .services import docs_fs, git, scaffold, study_scan
 from .services import feedback as fb
@@ -1671,6 +1672,93 @@ def cmd_design_consumed(settings: Settings, args: argparse.Namespace) -> int:
     return 0
 
 
+# --- design checklist (ADR 0029) ---------------------------------------------------------
+
+
+def _checklist_ref(settings: Settings, args: argparse.Namespace) -> dz.DesignRef:
+    manager = _sources(settings)
+    return _design_ref(settings, _design_project(manager, args.project).id, args.slug)
+
+
+def _print_checklist(ref: dz.DesignRef, cl: ck.Checklist) -> None:
+    c = ck.counts(cl)
+    print(
+        f"Checklist of '{ref.slug}' ({ref.project}): {c['done']} done of {c['total']},"
+        f" {c['pending']} change(s) waiting for review."
+    )
+    for item in cl.items:
+        extra = f" [{item.phase}]" if item.phase else ""
+        print(f"  {item.id}  {item.status:<8} {item.kind:<8} {item.title}{extra}")
+    for ch in cl.pending:
+        target = ch.item or "(new)"
+        what = ch.fields.get("title") or ck._summary(ch)
+        print(f"  {ch.id}  {ch.state:<8} {ch.by:<6} {ch.op} {target}: {what}")
+        for com in ch.comments:
+            print(f"        {com.by}: {com.text}")
+
+
+def cmd_design_checklist_show(settings: Settings, args: argparse.Namespace) -> int:
+    ref = _checklist_ref(settings, args)
+    cl = ck.load(ref.folder)
+    if args.json:
+        print(json.dumps({**cl.model_dump(), "counts": ck.counts(cl)}, indent=2))
+    else:
+        _print_checklist(ref, cl)
+    return 0
+
+
+def cmd_design_checklist_propose(settings: Settings, args: argparse.Namespace) -> int:
+    """Stage changes as Claude. They wait for the user to accept, reject or comment; nothing
+    here changes an item."""
+    ref = _checklist_ref(settings, args)
+    raw = json.loads(Path(args.file).read_text(encoding="utf-8"))
+    changes = raw.get("changes") if isinstance(raw, dict) else raw
+    if not isinstance(changes, list) or not changes:
+        raise ck.ChecklistError('the file is a list of changes, or {"changes": [...]}')
+    cl = ck.stage(ck.load(ref.folder), changes, by="claude")
+    ck.write(ref.folder, cl)
+    print(f"Staged {len(changes)} change(s) for review in the Design tab. Nothing applies until you confirm.")
+    return 0
+
+
+def cmd_design_checklist_decide(settings: Settings, args: argparse.Namespace) -> int:
+    ref = _checklist_ref(settings, args)
+    state = "accepted" if args.accept else "rejected" if args.reject else None
+    cl = ck.decide(ck.load(ref.folder), args.change, state=state, comment=args.comment)
+    ck.write(ref.folder, cl)
+    print(f"{args.change}: {state or 'commented'}.")
+    return 0
+
+
+def cmd_design_checklist_roadmap(settings: Settings, args: argparse.Namespace) -> int:
+    ref = _checklist_ref(settings, args)
+    folder = ref.folder
+    if args.revision:
+        _, folder = dz.revision_folder(ref, args.revision)
+    cl = ck.load(folder)
+    if args.json:
+        print(json.dumps(ck.roadmap(cl), indent=2))
+    else:
+        print(ck.roadmap_markdown(cl), end="")
+    return 0
+
+
+def cmd_design_checklist_confirm(settings: Settings, args: argparse.Namespace) -> int:
+    """Apply the accepted changes. A user action: without --yes it only shows what would happen."""
+    ref = _checklist_ref(settings, args)
+    cl = ck.load(ref.folder)
+    new, applied = ck.confirm(cl)
+    for key, ids in applied.items():
+        if ids:
+            print(f"  {key}: {', '.join(ids)}")
+    if not args.yes:
+        print("Nothing changed. Add --yes to apply (the user confirms; Claude never does).")
+        return 0
+    ck.write(ref.folder, new)
+    print("Confirmed.")
+    return 0
+
+
 def cmd_design_discard(settings: Settings, args: argparse.Namespace) -> int:
     manager = _sources(settings)
     ref = _design_ref(settings, _design_project(manager, args.project).id, args.slug)
@@ -2206,6 +2294,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dco.add_argument("--revision", type=int, required=True)
     design_cmd("discard", "delete a design and its revisions", cmd_design_discard)
+    dck = design.add_parser("checklist", help="a design's checklist of agreed features and ideas (ADR 0029)")
+    dck_sub = dck.add_subparsers(dest="checklist_action", required=True)
+
+    def checklist_cmd(name: str, help_: str, func):
+        c = dck_sub.add_parser(name, help=help_)
+        c.add_argument("project")
+        c.add_argument("--slug", default=dz.DEFAULT_SLUG, help="which design of the project")
+        c.set_defaults(func=func)
+        return c
+
+    checklist_cmd(
+        "show", "the items and the changes waiting for review", cmd_design_checklist_show
+    ).add_argument("--json", action="store_true")
+    cp = checklist_cmd(
+        "propose", "stage changes for the user to review (never applies them)", cmd_design_checklist_propose
+    )
+    cp.add_argument(
+        "--file", required=True, help='JSON: a list of {"op": add|update|remove, "item", "fields", "reason"}'
+    )
+    cd = checklist_cmd("decide", "accept, reject or comment on a staged change", cmd_design_checklist_decide)
+    cd.add_argument("change", help="the staged change's id, like p3")
+    cdg = cd.add_mutually_exclusive_group()
+    cdg.add_argument("--accept", action="store_true")
+    cdg.add_argument("--reject", action="store_true")
+    cd.add_argument("--comment")
+    cr = checklist_cmd(
+        "roadmap", "the roadmap generated from the confirmed items", cmd_design_checklist_roadmap
+    )
+    cr.add_argument("--revision", help="a frozen revision instead of the working copy")
+    cr.add_argument("--json", action="store_true")
+    checklist_cmd(
+        "confirm", "apply the accepted changes (the user's step)", cmd_design_checklist_confirm
+    ).add_argument("--yes", action="store_true")
 
     glossary = sub.add_parser("glossary", help="a project's terms and jargon (ADR 0023)").add_subparsers(
         dest="action", required=True

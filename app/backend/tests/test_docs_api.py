@@ -177,3 +177,26 @@ def test_changelog_is_read_from_the_repo_root(authed, settings):
 
 def test_changelog_needs_login(client):
     assert client.get("/api/changelog").status_code == 401
+
+
+def test_parse_roadmap_released_sections():
+    from app.services.docs_fs import parse_roadmap
+
+    text = (
+        "## Now\n- Build it\n\n## Released\n\n### 1.4.0 (2026-11-19)\n- Did a\n- Did b\n\n"
+        "### Before 1.0.0\n- Early\n\n## Other\n- ignored\n"
+    )
+    rm = parse_roadmap(text, "roadmap.md")
+    assert [i["text"] for i in rm["now"]] == ["Build it"]
+    assert [(r["version"], r["date"]) for r in rm["releases"]] == [
+        ("1.4.0", "2026-11-19"),
+        ("Before 1.0.0", None),
+    ]
+    assert [i["text"] for i in rm["releases"][0]["items"]] == ["Did a", "Did b"]
+    assert rm["releases"][1]["items"][0]["text"] == "Early"
+
+
+def test_parse_roadmap_without_released_has_no_releases():
+    from app.services.docs_fs import parse_roadmap
+
+    assert parse_roadmap("## Now\n- a\n", "r.md")["releases"] == []

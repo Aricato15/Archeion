@@ -37,6 +37,7 @@ export type DesignRow = {
   files: Record<string, boolean>
   counts: Record<'components' | 'exposes' | 'calls' | 'entities' | 'flows', number>
   structure: DesignStructure
+  checklist: ChecklistCounts
 }
 
 /** The design's model: a study's sections without a commit or findings, plus the structural facts. */
@@ -94,3 +95,59 @@ export type Impact = {
 
 export type BuiltSection = { designed_only: string[]; built_only: string[]; both: number }
 export type BuiltVsDesigned = { studied: string | null; sections: Record<string, BuiltSection> }
+
+// --- the checklist (ADR 0029) -----------------------------------------------------------------
+
+export const ITEM_KINDS = ['feature', 'idea', 'decision', 'task', 'question'] as const
+export const ITEM_STATUSES = ['idea', 'decided', 'doing', 'done', 'dropped'] as const
+export const ITEM_PRIORITIES = ['high', 'medium', 'low'] as const
+export type ItemKind = (typeof ITEM_KINDS)[number]
+export type ItemStatus = (typeof ITEM_STATUSES)[number]
+
+export type ChecklistCounts = { total: number; done: number; pending: number; staged: number }
+export type ItemFields = {
+  title: string
+  note: string
+  kind: ItemKind
+  status: ItemStatus
+  phase: string | null
+  priority: (typeof ITEM_PRIORITIES)[number] | null
+  refs: string[]
+  depends_on: string[]
+}
+export type ChecklistItem = ItemFields & {
+  id: string
+  history: { at: string; by: 'claude' | 'user'; change: string; reason: string }[]
+}
+export type ChecklistChange = {
+  id: string
+  op: 'add' | 'update' | 'remove'
+  item: string | null
+  fields: Partial<ItemFields>
+  reason: string
+  by: 'claude' | 'user'
+  state: 'pending' | 'accepted' | 'rejected'
+  staged: string
+  comments: { at: string; by: 'claude' | 'user'; text: string }[]
+}
+export type Checklist = {
+  items: ChecklistItem[]
+  pending: ChecklistChange[]
+  log: { at: string; by: string; item: string; change: string; reason: string }[]
+  counts: ChecklistCounts
+}
+export type ChecklistConfirmed = Checklist & {
+  applied: { added: string[]; updated: string[]; removed: string[]; rejected: string[] }
+}
+export type NewChange = { op: ChecklistChange['op']; item?: string; fields?: Partial<ItemFields>; reason?: string }
+
+export type DesignRoadmap = {
+  now: ChecklistItem[]
+  next: ChecklistItem[]
+  later: ChecklistItem[]
+  done: ChecklistItem[]
+  phases: { phase: string | null; items: ChecklistItem[] }[]
+  /** Staged changes that aren't in this roadmap until they're confirmed. */
+  pending: number
+  markdown: string
+}

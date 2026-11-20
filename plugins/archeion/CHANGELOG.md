@@ -4,6 +4,11 @@ The plugin's own versions, separate from Archeion's ([ADR 0009](../../docs/decis
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-20
+
+### Added
+- `/archeion:consume-design` reads the design's checklist when the package has one (Archeion's ADR 0029). A package with a `roadmap.md` (the roadmap generated from the items the user confirmed) and a `checklist.json` puts its Now / Next / Later items into the project's `ROADMAP.md`, in the project's own layout and after asking, and a later revision is shown as what moved, finished or was dropped. Done items are history and are not added as tasks. The files are removed with the rest of the package, and the receipt lists what was written. A package without them is consumed as before, and no newer Archeion is needed.
+
 ## [0.4.0] - 2026-11-18
 
 ### Changed

@@ -24,6 +24,7 @@ const row: DesignRow = {
   files: {},
   counts: { components: 2, exposes: 1, calls: 0, entities: 0, flows: 0 },
   structure: { ports: [20101] },
+  checklist: { total: 0, done: 0, pending: 0, staged: 0 },
 }
 
 const full: DesignFull = {
@@ -101,6 +102,8 @@ function mockApi(rows: DesignRow[], opts: { blockHandoff?: boolean } = {}) {
         }
       } else if (url.endsWith('/stage') && init?.method === 'PUT') {
         body = { ...row, stage: 'plan' }
+      } else if (url.includes('/checklist')) {
+        body = { items: [], pending: [], log: [], counts: row.checklist }
       } else if (url.includes('/designs/example/main')) {
         body = full
       } else if (url.includes('/designs/example')) {

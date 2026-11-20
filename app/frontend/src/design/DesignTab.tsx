@@ -48,6 +48,8 @@ import { REGISTRY, SELF } from '../api/types'
 import { docUrl } from '../docs/links'
 import { MarkdownView } from '../docs/MarkdownView'
 import { MermaidBlock } from '../docs/MermaidBlock'
+import { Checklist } from './Checklist'
+import { RoadmapView } from './RoadmapView'
 import { LazyGraph } from '../graph/LazyGraph'
 import { componentGraph } from '../study/graph'
 import { SequenceView } from '../study/SequenceView'
@@ -58,6 +60,8 @@ const VIEWS = [
   ['brief', 'Brief'],
   ['architecture', 'Architecture'],
   ['plan', 'Plan'],
+  ['checklist', 'Checklist'],
+  ['roadmap', 'Roadmap'],
   ['decisions', 'Decisions'],
   ['questions', 'Open questions'],
   ['impact', 'Impact on others'],
@@ -653,7 +657,20 @@ function DesignView({ row, slugs }: { row: DesignRow; slugs: string[] }) {
       {row.revision && <Handoff row={row} />}
 
       <Group gap="md">
-        <SegmentedControl size="xs" value={view} onChange={(v) => setView(v as View)} data={VIEWS.map(([v, l]) => ({ value: v, label: l }))} />
+        <SegmentedControl size="xs" value={view} onChange={(v) => setView(v as View)} data={VIEWS.map(([v, l]) => ({
+            value: v,
+            label:
+              v === 'checklist' && row.checklist.pending > 0 ? (
+                <Group gap={4} wrap="nowrap" justify="center">
+                  {l}
+                  <Badge size="xs" color="yellow" circle>
+                    {row.checklist.pending}
+                  </Badge>
+                </Group>
+              ) : (
+                l
+              ),
+          }))} />
         {row.revisions.length > 0 && view !== 'revisions' && (
           <Select
             size="xs"
@@ -682,6 +699,10 @@ function DesignView({ row, slugs }: { row: DesignRow; slugs: string[] }) {
       {d && view === 'architecture' && <Architecture design={d} base={base} />}
       {d && view === 'plan' && (
         <Doc text={d.files['plan.md'] } path={`${base}/plan.md`} empty="No plan written yet." />
+      )}
+      {view === 'checklist' && <Checklist project={row.project} slug={row.slug} revision={revision} thread={row.thread} />}
+      {view === 'roadmap' && (
+        <RoadmapView project={row.project} slug={row.slug} revision={revision} onOpenItem={() => setView('checklist')} />
       )}
       {d && view === 'decisions' &&
         (decisions.length === 0 ? (

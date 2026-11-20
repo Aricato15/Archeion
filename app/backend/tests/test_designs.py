@@ -425,3 +425,79 @@ def test_a_design_conversation_starts_from_the_viewer(repo, settings, tmp_path, 
         },
     )
     assert bad.status_code == 422
+
+
+# --- the checklist (ADR 0029) ------------------------------------------------------------
+
+
+def test_checklist_cli_proposes_but_only_confirm_applies(repo, settings, tmp_path, capsys):
+    started(settings, tmp_path)
+    changes = tmp_path / "changes.json"
+    changes.write_text(
+        json.dumps([{"op": "add", "fields": {"title": "Export", "status": "decided"}, "reason": "agreed"}]),
+        encoding="utf-8",
+    )
+    assert run(settings, "design", "checklist", "propose", "alpha", "--file", str(changes)) == 0
+    assert dz.summary(dz.get(settings.registry_root, "alpha"))["checklist"]["pending"] == 1
+    assert run(settings, "design", "checklist", "confirm", "alpha", "--yes") == 0
+    assert dz.summary(dz.get(settings.registry_root, "alpha"))["checklist"]["total"] == 0  # not accepted yet
+    assert run(settings, "design", "checklist", "decide", "alpha", "p1", "--accept", "--comment", "yes") == 0
+    capsys.readouterr()
+    assert run(settings, "design", "checklist", "confirm", "alpha", "--yes") == 0
+    assert run(settings, "design", "checklist", "show", "alpha") == 0
+    assert "c1" in capsys.readouterr().out
+    assert dz.summary(dz.get(settings.registry_root, "alpha"))["checklist"]["total"] == 1
+
+
+def test_checklist_api_review_flow_and_frozen_revision(repo, settings, tmp_path, authed):
+    started(settings, tmp_path)
+    base = "/api/designs/alpha/main/checklist"
+    assert authed.get(base).json()["items"] == []
+    add = {"changes": [{"op": "add", "fields": {"title": "Export", "kind": "idea"}, "reason": "mentioned"}]}
+    out = authed.post(f"{base}/changes", json=add)
+    assert out.status_code == 201 and out.json()["pending"][0]["state"] == "accepted"  # the user's own
+    authed.put(f"{base}/changes/p1", json={"comment": "keep it small"})
+    done = authed.post(f"{base}/confirm").json()
+    assert done["applied"]["added"] == ["c1"] and done["items"][0]["title"] == "Export"
+    assert (
+        authed.post(
+            f"{base}/changes",
+            json={"changes": [{"op": "update", "item": "c9", "fields": {"status": "done"}}]},
+        ).status_code
+        == 400
+    )
+    assert authed.put(f"{base}/changes/p9", json={"state": "accepted"}).status_code == 400
+
+    assert authed.post("/api/designs/alpha/main/approve").status_code == 200
+    frozen = authed.get(base, params={"revision": "latest"}).json()
+    assert frozen["items"][0]["id"] == "c1"
+
+
+def test_checklist_api_requires_login(client):
+    base = "/api/designs/alpha/main/checklist"
+    assert client.get(base).status_code == 401
+    assert client.post(f"{base}/confirm").status_code == 401
+    assert client.post(f"{base}/changes", json={"changes": []}).status_code == 401
+
+
+def test_roadmap_api_and_package_carry_the_checklist(repo, settings, tmp_path, authed, capsys):
+    started(settings, tmp_path)
+    base = "/api/designs/alpha/main"
+    add = {"op": "add", "fields": {"title": "Export", "status": "decided", "phase": "Phase 1"}}
+    authed.post(f"{base}/checklist/changes", json={"changes": [add]})
+    waiting = authed.get(f"{base}/roadmap").json()
+    assert waiting["next"] == [] and waiting["pending"] == 1  # staged, not confirmed
+    authed.post(f"{base}/checklist/confirm")
+    rm = authed.get(f"{base}/roadmap").json()
+    assert rm["next"][0]["title"] == "Export" and rm["phases"][0]["phase"] == "Phase 1"
+    assert "## Next" in rm["markdown"]
+
+    assert run(settings, "design", "approve", "alpha", "--yes") == 0
+    assert authed.get(f"{base}/roadmap", params={"revision": "latest"}).json()["next"][0]["title"] == "Export"
+    assert run(settings, "design", "package", "alpha") == 0
+    package = repo.parent / "alpha" / ".archeion" / "designs" / "main"
+    assert (package / "checklist.json").is_file()
+    assert "Export" in (package / "roadmap.md").read_text(encoding="utf-8")
+    capsys.readouterr()
+    assert run(settings, "design", "checklist", "roadmap", "alpha") == 0
+    assert "## Next" in capsys.readouterr().out

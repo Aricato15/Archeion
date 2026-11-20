@@ -1,5 +1,6 @@
-import { Alert, Anchor, Card, Group, List, Loader, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core'
-import { useMemo } from 'react'
+import { ActionIcon, Alert, Anchor, Badge, Card, Group, List, Loader, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core'
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useRegistry, useRoadmap } from '../api/queries'
 import { SELF, type RoadmapDoc, type RoadmapItem, type SourceId } from '../api/types'
@@ -12,13 +13,18 @@ const COLUMNS = [
   { key: 'later', title: 'Later', color: 'gray' },
 ] as const
 
-function Column(props: { title: string; color: string; items: RoadmapItem[]; source: SourceId; docPath: string }) {
-  const { title, color, items, source, docPath } = props
+function Column(props: { title: string; color: string; items: RoadmapItem[]; source: SourceId; docPath: string; date?: string | null }) {
+  const { title, color, items, source, docPath, date } = props
   return (
     <Card withBorder radius="md" padding="md" style={{ borderTop: `3px solid var(--mantine-color-${color}-6)` }}>
-      <Title order={5} mb="sm">
-        {title}
-      </Title>
+      <Group gap="xs" mb="sm">
+        <Title order={5}>{title}</Title>
+        {date && (
+          <Badge variant="light" color="gray">
+            {date}
+          </Badge>
+        )}
+      </Group>
       {items.length === 0 ? (
         <Text c="dimmed" size="sm">
           Nothing yet.
@@ -37,6 +43,9 @@ function Column(props: { title: string; color: string; items: RoadmapItem[]; sou
 }
 
 function Board({ roadmap, source }: { roadmap: RoadmapDoc; source: SourceId }) {
+  // Three cards at all times. The strip is the released versions (oldest first), then Now, Next, Later;
+  // the arrows slide the three-card window back over older versions and forward again.
+  const [back, setBack] = useState(0)
   if (!roadmap.structured) {
     return (
       <Text size="sm" c="dimmed">
@@ -47,12 +56,30 @@ function Board({ roadmap, source }: { roadmap: RoadmapDoc; source: SourceId }) {
       </Text>
     )
   }
+  const strip = [
+    ...[...(roadmap.releases ?? [])].reverse().map((r) => ({ key: `v${r.version}`, title: r.version, color: 'teal', items: r.items, date: r.date })),
+    ...COLUMNS.map((c) => ({ key: c.key, title: c.title, color: c.color, items: roadmap[c.key], date: null as string | null })),
+  ]
+  const maxBack = strip.length - 3
+  const start = maxBack - Math.min(back, maxBack)
   return (
-    <SimpleGrid cols={{ base: 1, md: 3 }}>
-      {COLUMNS.map((c) => (
-        <Column key={c.key} title={c.title} color={c.color} items={roadmap[c.key]} source={source} docPath={roadmap.path} />
-      ))}
-    </SimpleGrid>
+    <Stack gap="sm">
+      {maxBack > 0 && (
+        <Group justify="space-between">
+          <ActionIcon variant="light" aria-label="Older versions" disabled={back >= maxBack} onClick={() => setBack((n) => Math.min(n + 1, maxBack))}>
+            <IconChevronLeft size={18} />
+          </ActionIcon>
+          <ActionIcon variant="light" aria-label="Newer versions" disabled={back === 0} onClick={() => setBack((n) => Math.max(n - 1, 0))}>
+            <IconChevronRight size={18} />
+          </ActionIcon>
+        </Group>
+      )}
+      <SimpleGrid cols={{ base: 1, md: 3 }}>
+        {strip.slice(start, start + 3).map((c) => (
+          <Column key={c.key} title={c.title} color={c.color} items={c.items} date={c.date} source={source} docPath={roadmap.path} />
+        ))}
+      </SimpleGrid>
+    </Stack>
   )
 }
 
