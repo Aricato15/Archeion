@@ -46,6 +46,10 @@ import { layoutGraph } from './layout'
  * and a double click opens. Colours follow the Mantine light and dark theme.
  */
 
+// React Flow's own default line is a pale grey that nearly vanishes on both themes, so a line with no tone
+// takes Mantine's dimmed text colour, which is readable in light and dark.
+const EDGE_COLOR = 'var(--mantine-color-dimmed)'
+
 const toneColor = (tone: NodeTone | undefined) =>
   !tone || tone === 'default' ? 'var(--mantine-color-default-border)' : `var(--mantine-color-${tone}-filled)`
 
@@ -372,16 +376,17 @@ function Inner({
       const d = e.data as RoutedData & { style: EdgeStyle; tone?: NodeTone }
       const lit = near ? e.source === hover || e.target === hover : true
       // A dense map keeps its lines faint until a box is hovered, so the boxes stay readable.
-      const rest = dense && !near ? 0.3 : 1
-      const color = d.tone ? toneColor(d.tone) : undefined
+      const rest = dense && !near ? 0.45 : 1
+      const color = d.tone ? toneColor(d.tone) : EDGE_COLOR
       return {
         ...e,
+        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color },
         animated: Boolean(near && lit && hover),
         style: {
           stroke: color,
-          strokeWidth: d.style === 'thick' ? 2.5 : 1.4,
+          strokeWidth: d.style === 'thick' ? 3 : 1.8,
           strokeDasharray: DASH[d.style],
-          opacity: lit ? rest : 0.15,
+          opacity: lit ? rest : 0.2,
         },
         // Many edges: labels only for the hovered box's lines (and they took no room in the layout).
         data: { ...d, show: laid.shown.edges.length <= LABEL_LIMIT || Boolean(near && lit) },

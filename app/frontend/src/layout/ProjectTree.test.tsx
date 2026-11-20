@@ -94,6 +94,35 @@ describe('ProjectTree', () => {
   })
 })
 
+describe('ProjectTree folding', () => {
+  const two = {
+    projects: [
+      project('datasvc', { children: ['collector-a'] }),
+      project('collector-a', { parent: 'datasvc', type: 'module', detected_type: 'module', owner: 'datasvc' }),
+      project('other'),
+    ],
+    groups: [],
+    warnings: [],
+    unregistered: [],
+  } as unknown as Registry
+
+  it('folds a project when another one becomes the focus, and keeps it open for its own module', () => {
+    render(
+      <MantineProvider>
+        <MemoryRouter initialEntries={['/projects/datasvc']}>
+          <ProjectTree registry={two} onNavigate={vi.fn()} />
+        </MemoryRouter>
+      </MantineProvider>,
+    )
+    const svc = () => screen.getByRole('link', { name: 'datasvc' })
+    expect(svc().getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('link', { name: 'collector-a' }))
+    expect(svc().getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(screen.getByRole('link', { name: 'other' }))
+    expect(svc().getAttribute('aria-expanded')).toBe('false')
+  })
+})
+
 describe('ProjectTree with a group that has a home (ADR 0027)', () => {
   const grouped = {
     projects: [

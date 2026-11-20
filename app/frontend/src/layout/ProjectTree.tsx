@@ -25,7 +25,8 @@ function Item({
   const [wasHere, setWasHere] = useState(active || inside)
   if (wasHere !== (active || inside)) {
     setWasHere(active || inside)
-    if (active || inside) setOpened(true)
+    // Opening a project unfolds it, and moving on to another one folds it again.
+    setOpened(active || inside)
   }
 
   const warning =
@@ -110,6 +111,16 @@ function GroupItem({
   const to = group.home ? projectUrl(group.home) : `/groups/${encodeURIComponent(group.id)}`
   const active = group.home ? current === group.home : pathname === `/groups/${encodeURIComponent(group.id)}`
   const [opened, setOpened] = useState(true)
+  // Whether the page being viewed belongs to this group: moving on to another one folds it.
+  const here =
+    active ||
+    members.some((m) => m.id === current || m.children.includes(current ?? '')) ||
+    (group.home ? (projects.get(group.home)?.children ?? []).includes(current ?? '') : false)
+  const [wasHere, setWasHere] = useState(here)
+  if (wasHere !== here) {
+    setWasHere(here)
+    setOpened(here)
+  }
   return (
     <NavLink
       component={Link}

@@ -14,6 +14,8 @@ All notable changes to Archeion are recorded here. The format follows
 - **An example project to show and try** ([ADR 0030](docs/decisions/0030-example-project.md)). The committed `demo-example-data/` holds a made-up bookshop, **Example-Project**, with docs, a roadmap, an approved design with a checklist and its roadmap, and a glossary. Open **Demo** in the sidebar, below the Projects section to see every view of a real project on it. It's read in place, so it never enters your private registry or your project lists. It's demo data, so nothing is changed: every write to it and any feedback, prompt, comment or design conversation about it is refused, so nothing about it changes a file or reaches the database, the inbox or on-demand Claude.
 
 ### Changed
+- **The sidebar folds a project when you move on.** Opening a project or group unfolds its modules and members, and opening another one folds it again (the chevron still folds and unfolds by hand).
+- **Lines on the interactive maps are easier to see.** A line with no colour of its own was React Flow's pale grey, which nearly vanished on both themes. It now uses the theme's dimmed text colour, with a thicker stroke, an arrowhead in the same colour, and fainter lines that stay clearer when a map is dense or a box is hovered.
 - The `/design` skill proposes the checklist as the conversation settles features, ideas and decisions, answers your comments by revising, and never accepts or confirms for you.
 
 ## [1.4.0] - 2026-11-19
