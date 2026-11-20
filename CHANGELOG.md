@@ -18,6 +18,9 @@ All notable changes to Archeion are recorded here. The format follows
 - **Lines on the interactive maps are easier to see.** A line with no colour of its own was React Flow's pale grey, which nearly vanished on both themes. It now uses the theme's dimmed text colour, with a thicker stroke, an arrowhead in the same colour, and fainter lines that stay clearer when a map is dense or a box is hovered.
 - The `/design` skill proposes the checklist as the conversation settles features, ideas and decisions, answers your comments by revising, and never accepts or confirms for you.
 
+### Fixed
+- **Study diagrams no longer fail to draw on empty names or notes.** A component with an empty name produced a subgraph with an empty title, and a sequence note with no participants produced `Note over :`, and Mermaid rejected both. A nameless component now shows its id, and a note with no participants goes over the flow's first one.
+
 ## [1.4.0] - 2026-11-19
 
 ### Added

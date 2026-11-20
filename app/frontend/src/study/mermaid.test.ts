@@ -141,3 +141,28 @@ describe('activity, erDiagram and stateDiagram', () => {
     expect(label('a "b" <c>\nd')).toBe('a #quot;b#quot; #lt;c#gt; d')
   })
 })
+
+describe('empty names and notes still parse', () => {
+  it('falls back to the id for a component with no name', () => {
+    const m = normalizeModel({
+      schema: 1,
+      meta: { project: 'example', date: '2026-11-16', commit: 'abcdef1' },
+      components: [
+        { id: 'box', name: '', kind: 'module' },
+        { id: 'box.part', name: '', kind: 'module', parent: 'box' },
+      ],
+      relations: [],
+    }) as StudyModel
+    const code = componentMap(m)
+    expect(code).not.toContain('[""]')
+    expect(code).toContain('subgraph c0["box"]')
+  })
+
+  it('puts a note with no participants over the first participant', () => {
+    const code = sequence(
+      { id: 'f', name: 'f', participants: ['a'], steps: [{ note: 'hello', over: [] }] } as never,
+      [{ id: 'a', name: 'A', kind: 'service' } as never],
+    )
+    expect(code).toContain('Note over p0: hello')
+  })
+})

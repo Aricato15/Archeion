@@ -160,12 +160,12 @@ export function componentMap(model: StudyModel, opts: ComponentMapOptions = {}):
   const lines: string[] = [`${ELK}flowchart LR`]
   const nodeText = (c: StudyComponent) => {
     const sub = [c.kind, c.tech].filter(Boolean).join(' · ')
-    return `${label(c.name)}<br/>${label(sub)}`
+    return `${label(c.name) || label(c.id) || '?'}<br/>${label(sub)}`
   }
   const emit = (c: StudyComponent, indent: string) => {
     const kids = (children.get(c.id) ?? []).filter((k) => shown.has(k.id))
     if (kids.length > 0) {
-      lines.push(`${indent}subgraph ${ids.get(c.id)}["${label(c.name)}"]`)
+      lines.push(`${indent}subgraph ${ids.get(c.id)}["${label(c.name) || label(c.id) || '?'}"]`)
       for (const k of kids) emit(k, `${indent}  `)
       lines.push(`${indent}end`)
     } else {
@@ -175,7 +175,7 @@ export function componentMap(model: StudyModel, opts: ComponentMapOptions = {}):
   for (const c of top) emit(c, '  ')
   for (const g of ghosts) {
     const c = byId.get(g)!
-    lines.push(`  ${ids.get(g)}${shape(c, label(c.name), true)}`)
+    lines.push(`  ${ids.get(g)}${shape(c, label(c.name) || label(c.id) || '?', true)}`)
   }
   for (const e of edges.values()) {
     const text = [...e.labels].slice(0, 2).join(', ') + (e.labels.size > 2 ? ` +${e.labels.size - 2}` : '')
@@ -208,7 +208,9 @@ export function sequence(flow: StudyFlow, components: StudyComponent[]): string 
         }
         lines.push(`${indent}end`)
       } else if ('note' in s) {
-        lines.push(`${indent}Note over ${s.over.map((o) => ids.get(o)).join(',')}: ${message(s.note)}`)
+        // `Note over` needs a participant; a note with none goes over the first one.
+        const over = (s.over.length ? s.over : flow.participants.slice(0, 1)).map((o) => ids.get(o))
+        if (over.length) lines.push(`${indent}Note over ${over.join(',')}: ${message(s.note) || ' '}`)
       } else {
         const arrow = s.reply ? '-->>' : s.async ? '-)' : '->>'
         lines.push(`${indent}${ids.get(s.from)}${arrow}${ids.get(s.to)}: ${message(s.label) || ' '}`)
